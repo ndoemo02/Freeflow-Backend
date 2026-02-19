@@ -469,7 +469,8 @@ export class BrainPipeline {
             if (
                 intent === 'find_nearby' &&
                 isOrderingContext(sessionContext) &&
-                containsDishLikePhrase(text)
+                containsDishLikePhrase(text) &&
+                !entities?.location  // EXEMPTION: explicit discovery always wins
             ) {
                 BrainLogger.pipeline('🟢 CONTINUITY_GUARD_TRIGGERED: Preventing discovery reset → create_order');
                 intent = 'create_order';
@@ -485,7 +486,8 @@ export class BrainPipeline {
             if (
                 intent === 'find_nearby' &&
                 sessionContext?.currentRestaurant &&
-                containsOrderingIntent(text)
+                containsOrderingIntent(text) &&
+                !entities?.location  // EXEMPTION: explicit location = user wants new discovery
             ) {
                 BrainLogger.pipeline('🟢 STRONG_CONTINUITY_GUARD: ordering phrase + locked restaurant → create_order');
                 intent = 'create_order';
@@ -510,6 +512,7 @@ export class BrainPipeline {
             if (intent === 'find_nearby' && !IS_SHADOW && !isFromBlock) {
                 updateSession(sessionId, {
                     currentRestaurant: null,
+                    lastRestaurant: null,
                     lockedRestaurantId: null
                 });
                 BrainLogger.pipeline('🔄 DISCOVERY RESET: Cleared restaurant context for find_nearby');
