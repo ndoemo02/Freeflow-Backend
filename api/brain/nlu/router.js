@@ -36,6 +36,7 @@ export class NLURouter {
         // Enrich with domain
         result.domain = this._mapDomain(result.intent);
 
+        console.log('🧠 NLURouter Result:', JSON.stringify(result, null, 2));
         BrainLogger.nlu('Result:', result);
         return result;
     }
@@ -339,8 +340,19 @@ export class NLURouter {
         }
 
         // 2. Smart Intent Layer (Hybrid: LLM Fallback)
+        // ═══════════════════════════════════════════════════════════════════
+        // SINGLE-ROUTING INVARIANT: Classic/legacy router disabled in V2 mode.
+        // When EXPERT_MODE=true  → smartResolveIntent (Gemini) is the fallback.
+        // When EXPERT_MODE=false → V2 rule layers above are the sole source of truth.
+        //   The legacy intentRouterGlue is DISABLED to prevent:
+        //   (a) double intent resolution (rule_guard fires, then classic fires again)
+        //   (b) source label confusion ('classic_legacy' mixed with 'rule_guard')
+        //   (c) hard-blocked ordering intents leaking through as 'find_nearby'
+        // To re-enable legacy: set LEGACY_CLASSIC_ENABLED=true in .env (emergency)
+        // ═══════════════════════════════════════════════════════════════════
         try {
             const EXPERT_MODE = process.env.EXPERT_MODE === 'true';
+            const LEGACY_CLASSIC_ENABLED = process.env.LEGACY_CLASSIC_ENABLED === 'true';
 
             if (EXPERT_MODE) {
                 const smartResult = await smartResolveIntent({
@@ -357,22 +369,20 @@ export class NLURouter {
                         entities: { ...entities, ...smartResult.slots }
                     };
                 }
-            } else {
+            } else if (LEGACY_CLASSIC_ENABLED) {
+                // LEGACY PATH: disabled by default in V2 mode.
+                // Only active when explicitly opted-in via LEGACY_CLASSIC_ENABLED=true.
+                console.warn('[NLU] LEGACY_CLASSIC_ENABLED=true — classic router is active (single-routing invariant bypassed)');
                 const { detectIntent } = await import('../intents/intentRouterGlue.js');
                 const result = await detectIntent(text, session, entities);
-                // Skip if legacy returns unknown OR a weak clarify_order/choose_restaurant without any actual items
-                // Note: intent-router returns items as result.entities.parsedOrder and options as result.entities.options
                 const parsedOrder = result.items || result.entities?.parsedOrder || result.parsedOrder;
                 const hasOptions = result.options?.length > 0 || result.entities?.options?.length > 0;
                 const isWeakIntent = (result.intent === 'clarify_order' || result.intent === 'choose_restaurant') &&
                     (!parsedOrder?.any && !parsedOrder?.unavailable?.length && !hasOptions);
 
                 if (result && result.intent && result.intent !== 'unknown' && result.intent !== 'UNKNOWN_INTENT' && !isWeakIntent) {
-                    // HARD BLOCK: Legacy ordering disabled in BrainV2 mode
-                    // Korekta 3: Always block to prevent legacy bypass of Safety Guards
                     if (result.intent === 'create_order' || result.intent === 'confirm_order') {
-                        console.warn('🛡️ HARD BLOCK: Legacy ordering disabled (source: classic_legacy)');
-                        // Fall through to find_nearby instead (discovery mode)
+                        console.warn('[NLU] HARD BLOCK: Legacy ordering disabled (source: classic_legacy)');
                         return {
                             intent: 'find_nearby',
                             confidence: 0.7,
@@ -384,7 +394,6 @@ export class NLURouter {
                             }
                         };
                     }
-
                     return {
                         intent: result.intent,
                         confidence: result.confidence || 0.8,
@@ -392,6 +401,9 @@ export class NLURouter {
                         entities: { ...entities, ...result.entities, restaurant: result.restaurant, items: result.parsedOrder || result.items }
                     };
                 }
+            } else {
+                // V2 mode with classic disabled — expected path
+                BrainLogger.nlu('NLU: Classic disabled (V2 mode). Falling through to food_word_fallback.');
             }
         } catch (e) {
             console.warn('SmartIntent/Legacy failed', e);

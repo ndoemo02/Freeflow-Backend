@@ -40,7 +40,38 @@ export default async function handler(req, res) {
           restaurant_id: r.restaurant_id || null
         }));
       }
-    } catch {}
+    } catch { }
+
+    // Fix A5: Fallback to conversation_events when amber_intents is empty
+    // This catches sessions logged via EventLogger (intent_resolved events)
+    if (list.length === 0) {
+      try {
+        let evtQuery = supabase
+          .from('conversation_events')
+          .select('conversation_id,event_type,payload,confidence,created_at')
+          .eq('event_type', 'intent_resolved')
+          .order('created_at', { ascending: false })
+          .limit(limit);
+
+        if (from) evtQuery = evtQuery.gte('created_at', from);
+        if (to) evtQuery = evtQuery.lte('created_at', to);
+
+        const { data: evts, error: evtError } = await evtQuery;
+        if (!evtError && Array.isArray(evts) && evts.length > 0) {
+          const evtMapped = evts.map(e => ({
+            timestamp: e.created_at,
+            intent: e.payload?.intent || null,
+            confidence: typeof e.confidence === 'number' ? e.confidence : null,
+            fallback: false,
+            durationMs: null,
+            replySnippet: (e.payload?.reply || '').slice(0, 120),
+            sessionId: e.conversation_id,
+            source: 'conversation_events'
+          }));
+          list = [...list, ...evtMapped];
+        }
+      } catch { }
+    }
 
     const data = { data: list, count: list.length, timestamp: new Date().toISOString() };
     console.log('[ADMIN] /api/admin/intents', { returned: data.count });

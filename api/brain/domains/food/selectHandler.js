@@ -1,6 +1,7 @@
 
 import { getSession, updateSession } from '../../session/sessionStore.js';
 import { fuzzyMatch } from '../../helpers.js';
+import { extractOrdinal } from '../../core/ConversationGuards.js';
 
 export class SelectRestaurantHandler {
 
@@ -36,20 +37,33 @@ export class SelectRestaurantHandler {
                     contextUpdates: { expectedContext: 'create_order' }
                 };
             }
+            // No list and no current restaurant → ask to narrow down, but NO reset
             return {
-                reply: "Nie mam listy restauracji. Powiedz najpierw 'znajdź restaurację'.",
-                contextUpdates: { expectedContext: 'find_nearby' }
+                reply: "Nie mam listy restauracji do wyboru. Czy możesz podać nazwę restauracji lub powiedz 'znajdź restaurację'?",
+                contextUpdates: { expectedContext: 'select_restaurant' }
             };
         }
 
         let selected = null;
 
-        // 1. Try by Index (1, 2, 3...)
-        const numMatch = text.match(/(\d+)/);
-        if (numMatch) {
-            const idx = parseInt(numMatch[1], 10) - 1; // 1-based to 0-based
+        // 0. Try by Polish ordinal words (Fix A2)
+        const ordinalIndex = extractOrdinal(text);
+        if (ordinalIndex !== null) {
+            const idx = ordinalIndex - 1; // 1-based to 0-based
             if (idx >= 0 && idx < list.length) {
                 selected = list[idx];
+                console.log(`🟢 SelectHandler: ordinal "${text}" → index ${ordinalIndex} → ${selected?.name}`);
+            }
+        }
+
+        // 1. Try by Index (1, 2, 3...) — digit-only fallback
+        if (!selected) {
+            const numMatch = text.match(/(\d+)/);
+            if (numMatch) {
+                const idx = parseInt(numMatch[1], 10) - 1; // 1-based to 0-based
+                if (idx >= 0 && idx < list.length) {
+                    selected = list[idx];
+                }
             }
         }
 

@@ -40,7 +40,10 @@ import {
     isOrderingContext,
     containsDishLikePhrase,
     recoverRestaurantFromFullText,
-    calculatePhase
+    calculatePhase,
+    resolveRestaurantFromMenuRequest,
+    sanitizeLocation,
+    containsOrderingIntent
 } from './ConversationGuards.js';
 
 // Mapa handlerów domenowych (Bezpośrednie mapowanie)
@@ -147,18 +150,47 @@ export class BrainPipeline {
 
     /**
      * Główny punkt wejścia dla każdego zapytania
+     *
+     * SINGLE-ROUTING INVARIANT:
+     * Only one process() per sessionId may run at a time.
+     * Concurrent duplicate calls are rejected immediately to prevent
+     * double intent resolution (e.g. due to React StrictMode double-invoke
+     * or accidental parallel HTTP calls from the same client).
      */
     async process(sessionId, text, options = {}) {
         const startTime = Date.now();
         const IS_SHADOW = options.shadow === true;
+
+        // ═══════════════════════════════════════════════════════════════════
+        // SINGLE-ROUTING INVARIANT: In-flight deduplication guard
+        // ═══════════════════════════════════════════════════════════════════
+        const inflightKey = `${sessionId}::${text.trim()}`;
+        if (!IS_SHADOW) {
+            if (BrainPipeline._inFlight.has(inflightKey)) {
+                console.warn(`🚫 [Pipeline] DUPLICATE_REQUEST blocked: ${sessionId} → "${text.trim().substring(0, 40)}". Single-routing invariant enforced.`);
+                return {
+                    ok: false,
+                    session_id: sessionId,
+                    intent: 'duplicate_request',
+                    reply: null,
+                    should_reply: false,
+                    meta: { source: 'duplicate_blocked', routing: 'single_invariant' }
+                };
+            }
+            BrainPipeline._inFlight.add(inflightKey);
+        }
+
         const config = await getConfig();
 
         // 1. Hydration & Validation
         if (!text || !text.trim()) {
+            if (!IS_SHADOW) BrainPipeline._inFlight.delete(inflightKey);
             return this.createErrorResponse('brak_tekstu', 'Nie usłyszałam, możesz powtórzyć?');
         }
 
         const EXPERT_MODE = process.env.EXPERT_MODE !== 'false';
+        const requestId = `${sessionId.substring(0, 8)}-${startTime.toString(36)}`;
+        console.log(`▶️  [Pipeline] START ${requestId} | session=${sessionId} | text="${text.trim().substring(0, 60)}"`);
 
         // --- Event Logging: Received ---
         if (EXPERT_MODE && !IS_SHADOW) {
@@ -268,10 +300,41 @@ export class BrainPipeline {
             }
 
             // ═══════════════════════════════════════════════════════════════════
+            // FIX A1: MENU RESOLVER BRIDGE
+            // Fuzzy-match restaurant from menu-request phrasing, BEFORE ICM gate
+            // Sets entities + session lock so ICM lets menu_request through cleanly
+            // ═══════════════════════════════════════════════════════════════════
+            const menuResolvedRestaurant = resolveRestaurantFromMenuRequest(
+                text,
+                sessionContext,
+                sessionContext.entityCache
+            );
+
+            if (menuResolvedRestaurant && !entities?.restaurantId) {
+                entities = entities || {};
+                entities.restaurant = menuResolvedRestaurant.name;
+                entities.restaurantId = menuResolvedRestaurant.id;
+                intent = 'menu_request';
+                domain = 'food';
+                source = 'menu_resolver';
+                BrainLogger.pipeline(`🔍 MENU_RESOLVER_BRIDGE: locked to "${menuResolvedRestaurant.name}", forcing menu_request`);
+                // Persist the restaurant lock immediately
+                if (!IS_SHADOW) {
+                    updateSession(sessionId, {
+                        currentRestaurant: {
+                            id: menuResolvedRestaurant.id,
+                            name: menuResolvedRestaurant.name
+                        },
+                        lockedRestaurantId: menuResolvedRestaurant.id
+                    });
+                }
+            }
+
+            // ═══════════════════════════════════════════════════════════════════
             // ICM GATE: Validate FSM state requirements BEFORE executing intent
             // This ensures NO intent (regex/legacy/LLM) can bypass FSM
             // ═══════════════════════════════════════════════════════════════════
-            const stateCheck = checkRequiredState(intent, sessionContext);
+            const stateCheck = checkRequiredState(intent, sessionContext, entities);
             const originalIntent = intent; // Remember for soft dialog bridge
 
             if (!stateCheck.met) {
@@ -398,6 +461,22 @@ export class BrainPipeline {
                 BrainLogger.pipeline('🟢 CONTINUITY_GUARD_TRIGGERED: Preventing discovery reset → create_order');
                 intent = 'create_order';
                 source = 'continuity_guard';
+            }
+
+            // ═══════════════════════════════════════════════════════════════════
+            // FIX A3: STRONG ORDERING CONTINUITY GUARD
+            // If user has a locked restaurant AND uses ordering phrases, NEVER drop to find_nearby
+            // This runs AFTER FIX 3 to catch cases with explicit ordering verbs (skuszę, poprosę, etc.)
+            // SAFETY: Does NOT override confirm_order
+            // ═══════════════════════════════════════════════════════════════════
+            if (
+                intent === 'find_nearby' &&
+                sessionContext?.currentRestaurant &&
+                containsOrderingIntent(text)
+            ) {
+                BrainLogger.pipeline('🟢 STRONG_CONTINUITY_GUARD: ordering phrase + locked restaurant → create_order');
+                intent = 'create_order';
+                source = 'strong_continuity_guard';
             }
 
             // ═══════════════════════════════════════════════════════════════════
@@ -627,8 +706,37 @@ export class BrainPipeline {
                 return this.createErrorResponse('unknown_domain', 'Nie wiem jak to obsłużyć (błąd domeny).');
             }
 
+            // FIX A4: SANITIZE LOCATION before find_nearby dispatch
+            if (context.intent === 'find_nearby' && context.entities?.location) {
+                const rawLocation = context.entities.location;
+                context.entities.location = sanitizeLocation(rawLocation, session);
+                if (context.entities.location !== rawLocation) {
+                    BrainLogger.pipeline(`🧹 LOCATION_SANITIZED: "${rawLocation}" → "${context.entities.location}"`);
+                }
+            }
+
             const handler = this.handlers[context.domain][context.intent] || this.handlers.system.fallback;
             const domainResponse = await handler.execute(context);
+
+            // ═══════════════════════════════════════════════════════════════════
+            // LOCATION COMMIT: Write entities.location to session BEFORE surface detection
+            // Prevents ASK_LOCATION from firing when handler already used the location
+            // ═══════════════════════════════════════════════════════════════════
+            if (context.intent === 'find_nearby' && context.entities?.location && !IS_SHADOW) {
+                const confirmedLocation = context.entities.location;
+                BrainLogger.pipeline(`📍 LOCATION_COMMIT: "${confirmedLocation}" → session`);
+                updateSession(sessionId, {
+                    last_location: confirmedLocation,
+                    currentLocation: confirmedLocation,
+                    awaiting: null,
+                    expectedContext: null
+                });
+                // Also update the in-memory session snapshot so detectSurface sees it
+                sessionContext.last_location = confirmedLocation;
+                sessionContext.currentLocation = confirmedLocation;
+                sessionContext.awaiting = null;
+                sessionContext.expectedContext = null;
+            }
 
             // ═══════════════════════════════════════════════════════════════════
             // DIALOG SURFACE LAYER: Transform structured facts to natural Polish
@@ -835,10 +943,15 @@ export class BrainPipeline {
                 if (menuItems?.length) cacheItems(sessionContext, menuItems);
             }
 
+            if (!IS_SHADOW) {
+                BrainPipeline._inFlight.delete(inflightKey);
+                console.log(`⏹️  [Pipeline] DONE  ${requestId} | intent=${intent} | source=${source} | ${Date.now() - startTime}ms`);
+            }
             return response;
 
         } catch (error) {
             BrainLogger.pipeline('Error:', error.message);
+            if (!IS_SHADOW) BrainPipeline._inFlight.delete(inflightKey);
             return this.createErrorResponse('internal_error', 'Coś poszło nie tak w moich obwodach.');
         }
     }
@@ -872,3 +985,10 @@ export class BrainPipeline {
         };
     }
 }
+
+/**
+ * In-flight request deduplication guard
+ * Key: `${sessionId}::${text}` — prevents double intent resolution
+ * for the same message sent concurrently (React StrictMode, retry bugs, etc.)
+ */
+BrainPipeline._inFlight = new Set();

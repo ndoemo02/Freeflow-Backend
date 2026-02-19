@@ -328,9 +328,14 @@ export function detectSurface(handlerResult, context = {}) {
     }
 
     // Case C: No location, need to ask
-    if (handlerResult.needsLocation ||
-        session.awaiting === 'location' ||
-        session.expectedContext === 'find_nearby_ask_location') {
+    // GUARD: Never ask for location if handler already returned results OR entities.location exists
+    const hasResults = (handlerResult.restaurants?.length ?? 0) > 0;
+    const hasLocationInEntities = !!(entities.location || entities.city);
+
+    if (!hasResults && !hasLocationInEntities &&
+        (handlerResult.needsLocation ||
+            session.awaiting === 'location' ||
+            session.expectedContext === 'find_nearby_ask_location')) {
         return {
             key: 'ASK_LOCATION',
             facts: {

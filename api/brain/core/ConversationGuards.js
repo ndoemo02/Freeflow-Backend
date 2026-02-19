@@ -13,6 +13,7 @@
  */
 
 import { BrainLogger } from '../../../utils/logger.js';
+import { scoreRestaurantMatch } from '../utils/textMatch.js';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // FIX 1: CONTEXT-AWARE LEGACY UNLOCK
@@ -193,10 +194,175 @@ export function calculatePhase(intent, currentPhase = 'discovery', source = '') 
     return currentPhase;
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// FIX A1: MENU REQUEST + FUZZY RESTAURANT RESOLVER
+// Detects menu-request phrasing and fuzzy-matches restaurant from session lists
+// ═══════════════════════════════════════════════════════════════════════════
+
+const MENU_TRIGGERS = [
+    'pokaż menu', 'co mają', 'karta', 'dania z karty', 'menu',
+    'co jest w', 'co macie', 'jakie dania'
+];
+
+/**
+ * Resolve restaurant from a menu-request style utterance.
+ * Fuzzy-matches against session.last_restaurants_list + entityCache.restaurants.
+ * @param {string} text - User input
+ * @param {Object} session - Session object
+ * @param {Object} [entityCache] - Entity cache (optional)
+ * @returns {Object|null} Matched restaurant or null
+ */
+export function resolveRestaurantFromMenuRequest(text, session, entityCache) {
+    if (!text || !session) return null;
+
+    const normalized = text.toLowerCase();
+
+    const isMenuRequest = MENU_TRIGGERS.some(trigger => normalized.includes(trigger));
+    if (!isMenuRequest) return null;
+
+    const candidates = [
+        ...(session.last_restaurants_list || []),
+        ...(entityCache?.restaurants || [])
+    ];
+
+    if (candidates.length === 0) return null;
+
+    let bestMatch = null;
+    let bestScore = 0;
+
+    for (const restaurant of candidates) {
+        if (!restaurant?.name) continue;
+        const score = scoreRestaurantMatch(normalized, restaurant.name);
+        if (score > bestScore) {
+            bestScore = score;
+            bestMatch = restaurant;
+        }
+    }
+
+    if (bestScore >= 0.78) {
+        BrainLogger.pipeline?.(`🔍 MENU_RESOLVER: matched "${bestMatch.name}" score=${bestScore.toFixed(2)}`);
+        return bestMatch;
+    }
+
+    return null;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// FIX A2: ORDINAL EXTRACTION
+// Maps Polish ordinal words / digits to 1-based index
+// ═══════════════════════════════════════════════════════════════════════════
+
+const ORDINAL_MAP = {
+    'ta pierwsza': 1, 'tą pierwszą': 1, 'pierwsza': 1, 'pierwszy': 1,
+    'jedynka': 1, 'numer jeden': 1,
+    'ta druga': 2, 'tą drugą': 2, 'druga': 2, 'drugi': 2,
+    'dwójka': 2, 'numer dwa': 2,
+    'ta trzecia': 3, 'tą trzecią': 3, 'trzecia': 3, 'trzeci': 3,
+    'numer trzy': 3,
+    'czwarta': 4, 'czwarty': 4, 'numer cztery': 4,
+    'piąta': 5, 'piąty': 5, 'numer pięć': 5
+};
+
+/**
+ * Extract 1-based ordinal from user text.
+ * Handles: "ta pierwsza", "1", "dwójka", "numer dwa", etc.
+ * @param {string} text - User input
+ * @returns {number|null} 1-based index or null
+ */
+export function extractOrdinal(text) {
+    if (!text) return null;
+
+    const normalized = text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+    // Check multi-word phrases first (longest match wins)
+    const sortedKeys = Object.keys(ORDINAL_MAP).sort((a, b) => b.length - a.length);
+    for (const key of sortedKeys) {
+        const normKey = key.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        if (normalized.includes(normKey)) {
+            return ORDINAL_MAP[key];
+        }
+    }
+
+    // Fallback: bare single digit (1-9)
+    const numberMatch = normalized.match(/\b(\d)\b/);
+    if (numberMatch) {
+        return parseInt(numberMatch[1], 10);
+    }
+
+    return null;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// FIX A4: LOCATION SANITIZER
+// Rejects NLU-hallucinated locations (e.g. "pizzę może być włoska")
+// ═══════════════════════════════════════════════════════════════════════════
+
+const LOCATION_BLACKLIST = [
+    'pizza', 'makaron', 'wloska', 'wlosk', 'ostre', 'burger',
+    'pokaz', 'polec', 'mam ochote', 'moze byc', 'moze', 'byc'
+];
+
+/**
+ * Sanitize NLU-extracted location.
+ * If location has >2 words and contains non-location terms → use session fallback.
+ * @param {string} location - Extracted location entity
+ * @param {Object} session - Session object
+ * @returns {string|null} Clean location or null
+ */
+export function sanitizeLocation(location, session) {
+    if (!location) return location;
+
+    const normalized = location
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '');
+
+    const wordCount = normalized.trim().split(/\s+/).length;
+
+    if (wordCount > 2 && LOCATION_BLACKLIST.some(word => normalized.includes(word))) {
+        BrainLogger.pipeline?.(`🧹 SANITIZE_LOCATION: rejected "${location}" → fallback`);
+        return session?.last_location || session?.default_city || null;
+    }
+
+    return location;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// FIX A3: ORDERING INTENT DETECTOR
+// Detects ordering phrases (superset of containsDishLikePhrase)
+// ═══════════════════════════════════════════════════════════════════════════
+
+const ORDERING_WORDS = [
+    'zamowię', 'zamawiam', 'skusze sie', 'skusze', 'poprosże', 'prosze',
+    'chce', 'wezme', 'biore', 'dawaj', 'zamowic', 'poprosze',
+    'zamwię', 'zamwiam'
+];
+
+/**
+ * Detect if text contains an ordering intent phrase (broader than dish keywords).
+ * @param {string} text - User input
+ * @returns {boolean}
+ */
+export function containsOrderingIntent(text) {
+    if (!text) return false;
+
+    const normalized = text
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '');
+
+    return ORDERING_WORDS.some(word => normalized.includes(word)) ||
+        containsDishLikePhrase(text);
+}
+
 export default {
     hasLockedRestaurant,
     isOrderingContext,
     containsDishLikePhrase,
     recoverRestaurantFromFullText,
-    calculatePhase
+    calculatePhase,
+    resolveRestaurantFromMenuRequest,
+    extractOrdinal,
+    sanitizeLocation,
+    containsOrderingIntent
 };
