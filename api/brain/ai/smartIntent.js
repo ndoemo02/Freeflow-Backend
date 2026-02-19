@@ -32,12 +32,28 @@ export async function smartResolveIntent({ text, session, restaurants, previousI
     };
 
     // 3. Fast-track (Skip LLM)
-    // Jeśli mamy expectedContext LUB wysokie confidence (> 0.75)
-    // Wyjątek: jeśli classic zwrócił 'none'/'unknown' i nie ma expectedContext, to nie jest "high confidence" w sensie użyteczności.
-    // Ale user mówi: "det.intent ma wysokie confidence".
-
-    // Check strict context existence
+    // Jeśli mamy expectedContext LUB wysokie confidence (>= 0.75)
     const hasExpectedContext = !!session?.expectedContext;
+    const hasRestaurant = !!(session?.currentRestaurant || session?.lockedRestaurantId || session?.lastRestaurant);
+
+    // ═══════════════════════════════════════════════════════════════════
+    // ORDERING CONTEXT GUARD (V2 parity)
+    // If session has a restaurant selected and classic says choose_restaurant
+    // → that's wrong. User is ordering, not picking a place again.
+    // Remap to create_order so pipeline ordering handlers fire correctly.
+    // ═══════════════════════════════════════════════════════════════════
+    if (classicResult.intent === 'choose_restaurant' && hasRestaurant) {
+        console.warn('[SmartIntent] choose_restaurant blocked (restaurant already selected) → remapped to create_order');
+        classicResult.intent = 'create_order';
+        classicResult.source = 'classic_remapped';
+    }
+
+    // HARD BLOCK: classic ordering intents must never bypass V2 safety guards
+    if (classicResult.intent === 'confirm_order' && !session?.pendingOrder) {
+        // No pending order → classic is hallucinating a confirm, downgrade
+        classicResult.intent = 'find_nearby';
+        classicResult.source = 'classic_blocked_no_pending';
+    }
 
     // Confidence check
     const isConfident = (classicResult.confidence >= 0.75) &&
@@ -46,8 +62,6 @@ export async function smartResolveIntent({ text, session, restaurants, previousI
         (classicResult.intent !== 'fallback');
 
     if (hasExpectedContext || isConfident) {
-        // Log decision
-        // console.log(`🧠 [SmartIntent] Skipping LLM (Ctx: ${hasExpectedContext}, Conf: ${classicResult.confidence.toFixed(2)})`);
         return classicResult;
     }
 

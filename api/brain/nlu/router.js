@@ -169,7 +169,7 @@ export class NLURouter {
         // 5. Numeric Discovery (e.g. "dwa kebaby", "trzy lokale") - if no ordering verb, it's discovery
         const NUMERALS = /\b(dwa|dwie|dwoje|trzy|troje|cztery|pięć|sześć|siedem|osiem|dziewięć|dziesięć|kilka|parę)\b/i;
         // UPDATED: Added natural forms: "biorę", "wezmę", "poproszę", "chciałbym", "chciałabym"
-        const ORDER_VERBS = /\b(menu|karta|oferta|zamawiam|wezm[ęe]|dodaj|poprosz[ęe]|chc[ęe]|bior[ęe]|chciał(bym|abym))\b/i;
+        const ORDER_VERBS = /\b(menu|karta|oferta|zamawiam|wezm[ęe]|dodaj|poprosz[ęe]|chc[ęe]|bior[ęe]|chciał(bym|abym)|skusz[ęe]|spr[oó]buj[ęe]|zdecyduj[ęe]|lec[ęe]\s+na|bior[ęe]\s+to)\b/i;
 
         const isRecommend = RECOMMEND_KEYWORDS.some(k => normalized.includes(k));
         const isDiscovery = DISCOVERY_KEYWORDS.some(k => normalized.includes(k));
@@ -218,7 +218,7 @@ export class NLURouter {
             // Check for ordering context FIRST
             // Fix: "Zamawiam z Bar Praha" should be create_order, not select_restaurant
             // UPDATED: Included "chciałbym/chciałabym"
-            const isOrderContext = /\b(zamawiam|zamow|zamów|poprosze|poprosz[ęe]|wezme|wezm[ęe]|biore|bior[ęe]|chce|chc[ęe]|dla mnie|poprosic|chciał(bym|abym))\b/i.test(normalized);
+            const isOrderContext = /\b(zamawiam|zamow|zamów|poprosze|poprosz[ęe]|wezme|wezm[ęe]|biore|bior[ęe]|chce|chc[ęe]|dla mnie|poprosic|chciał(bym|abym)|skusz[ęe]|spr[oó]buj[ęe]|zdecyduj[ęe]|lec[ęe]\s+na|bior[ęe]\s+to)\b/i.test(normalized);
 
             if (isOrderContext) {
                 return {
@@ -271,7 +271,7 @@ export class NLURouter {
 
         // --- OPTIMIZATION: Task 3 - Lexical Override (Priority high) ---
         // UPDATED: Syncing verbs
-        const isOrderingVerb = /(wybieram|poprosze|poprosz[ęe]|wezme|wezm[ęe]|dodaj|zamawiam|zamow|zamów|chce|chc[ęe]|zamowie|zamówię|biore|bior[ęe]|chciał(bym|abym))/i.test(normalized);
+        const isOrderingVerb = /(wybieram|poprosze|poprosz[ęe]|wezme|wezm[ęe]|dodaj|zamawiam|zamow|zamów|chce|chc[ęe]|zamowie|zamówię|biore|bior[ęe]|chciał(bym|abym)|skusz[ęe]|spr[oó]buj[ęe]|zdecyduj[ęe]|lec[ęe]\s+na|bior[ęe]\s+to)/i.test(normalized);
         const wantsMenuFirst = /\b(menu|karta|karte|kartę|oferta|ofertę|oferte|cennik|co\s+macie|lista|pokaz|pokaż|zobacz)\b/i.test(normalized);
         const isChceDiscovery = /chc[ęe]\s+(co|gdzie|zje|jedzenie|kuchni|kuchnia|dania|danie|azjatyckie|wloskie|włoskie|chinskie|chińskie|orientalne|restauracj)/i.test(normalized);
 
@@ -284,7 +284,12 @@ export class NLURouter {
             // FIX: If we found a known dish (parsed.dish), that counts as context!
             // REVERTED: Including parsed.dish breaks Disambiguation Safeguard (generic items like "frytki" become orders).
             // We must rely on legacy/smart layer for specific items, or require restaurant context.
-            const hasRestCtx = session?.lastRestaurant || session?.context === 'IN_RESTAURANT' ||
+            // ═══════════════════════════════════════════════════════════════════
+            // COLLOQUIAL ORDERING in restaurant context: fire immediately,
+            // never fall through to legacy (legacy would set choose_restaurant)
+            // ═══════════════════════════════════════════════════════════════════
+            const hasRestCtx = session?.lastRestaurant || session?.currentRestaurant ||
+                session?.context === 'IN_RESTAURANT' ||
                 entities.restaurant || matchedRestaurant || parsed.restaurant;
 
             if (hasRestCtx) {
@@ -295,7 +300,7 @@ export class NLURouter {
                     entities
                 };
             }
-            // If no context, FALL THROUGH. 
+            // If no context, FALL THROUGH.
             // "Zamawiam frytki" will likely hit FOOD_WORDS fallback -> find_nearby (Safe).
         }
 
@@ -328,7 +333,7 @@ export class NLURouter {
 
         // Guard: don't trigger findRegex if we have strong ordering verbs like "poproszę" or "zamawiam"
         // UPDATED: Syncing verbs
-        const hasOrderVerbStrict = /\b(poprosze|poprosz[ęe]|zamawiam|zamow|wezme|wezm[ęe]|biore|bior[ęe]|dodaj|chciał(bym|abym))\b/i.test(normalized);
+        const hasOrderVerbStrict = /\b(poprosze|poprosz[ęe]|zamawiam|zamow|wezme|wezm[ęe]|biore|bior[ęe]|dodaj|chciał(bym|abym)|skusz[ęe]|spr[oó]buj[ęe]|zdecyduj[ęe]|lec[ęe]\s+na|bior[ęe]\s+to)\b/i.test(normalized);
 
         if (findRegex.test(normalized) && !hasOrderVerbStrict) {
             return {

@@ -126,15 +126,49 @@ export function extractLocation(text) {
 
 function isBlacklisted(locLower) {
     const blacklist = [
+        // navigation words
         'tutaj', 'tu', 'szybko', 'pobliżu', 'okolicy', 'menu', 'coś', 'cos',
-        'azjatyckiego', 'azjatyckie', 'szybkiego', 'dobrego', 'innego', 'inne',
         'zamów', 'pokaż', 'znajdź', 'chcę', 'raz', 'dwa', 'mam',
+        // UI / system
+        'azjatyckiego', 'azjatyckie', 'szybkiego', 'dobrego', 'innego', 'inne',
+        // restaurant name fragments (to avoid partial matches)
         'hubertus', 'kamienica', 'monte', 'carlo',
+        // tableware
         'chleb', 'chlebie', 'talerz', 'talerzu', 'miska', 'misce', 'zupa', 'zupie',
+        // food/drink words already present
         'pizzy', 'pizza', 'burger', 'burgera',
-        'cola', 'coca', 'coca-cola', 'fanta', 'sprite', 'napój', 'napoje', 'woda'
+        'cola', 'coca', 'coca-cola', 'fanta', 'sprite', 'napój', 'napoje', 'woda',
+        // ─── NEW: dish names & food adjectives frequently confused with cities ───
+        // schabowy forms
+        'schabowy', 'schabowego', 'schabowym', 'schabowe', 'schabową',
+        'schab', 'schabu', 'schabem',
+        // naleśnik forms
+        'naleśnik', 'naleśnika', 'naleśniki', 'naleśnikiem',
+        'nalesnik', 'nalesnika', 'nalesniki',
+        // rosół forms
+        'rosół', 'rosołu', 'rosołem', 'rosol', 'rosolu',
+        // pierogi forms
+        'pierogi', 'pierogów', 'pierogami', 'pierog',
+        // kebab extended
+        'kebab', 'kebaba', 'kebaby', 'kebabie',
+        // żurek, bigos
+        'żurek', 'żurku', 'bigos', 'bigosu',
+        // zupa extended
+        'zupę', 'zupy',
+        // common adjectives used with dishes
+        'tradycyjnego', 'tradycyjny', 'tradycyjnej', 'tradycyjnym',
+        'klasycznego', 'klasyczny', 'klasycznej',
+        'domowego', 'domowy', 'domowej',
+        'smażonego', 'smażony', 'smażonej',
+        'grillowany', 'grillowanego', 'grillowanej',
+        'pieczony', 'pieczonego', 'pieczonej',
+        'gotowany', 'gotowanego', 'gotowanej',
+        // portions/sizes
+        'duży', 'dużego', 'mały', 'małego', 'średni', 'średniego'
     ];
-    return blacklist.includes(locLower) || blacklist.some(word => locLower.startsWith(word + ' '));
+    return blacklist.includes(locLower)
+        || blacklist.some(word => locLower.startsWith(word + ' '))
+        || blacklist.some(word => locLower.endsWith(' ' + word));
 }
 
 function normalizePolishCity(raw) {
