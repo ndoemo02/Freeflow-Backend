@@ -357,7 +357,7 @@ export class NLURouter {
         // ═══════════════════════════════════════════════════════════════════
         try {
             const EXPERT_MODE = process.env.EXPERT_MODE === 'true';
-            const LEGACY_CLASSIC_ENABLED = process.env.LEGACY_CLASSIC_ENABLED === 'true';
+            // LEGACY_CLASSIC_ENABLED removed — classic routing disabled permanently
 
             if (EXPERT_MODE) {
                 const smartResult = await smartResolveIntent({
@@ -372,38 +372,6 @@ export class NLURouter {
                         confidence: smartResult.confidence || 0.8,
                         source: smartResult.source || 'smart_hybrid',
                         entities: { ...entities, ...smartResult.slots }
-                    };
-                }
-            } else if (LEGACY_CLASSIC_ENABLED) {
-                // LEGACY PATH: disabled by default in V2 mode.
-                // Only active when explicitly opted-in via LEGACY_CLASSIC_ENABLED=true.
-                console.warn('[NLU] LEGACY_CLASSIC_ENABLED=true — classic router is active (single-routing invariant bypassed)');
-                const { detectIntent } = await import('../intents/intentRouterGlue.js');
-                const result = await detectIntent(text, session, entities);
-                const parsedOrder = result.items || result.entities?.parsedOrder || result.parsedOrder;
-                const hasOptions = result.options?.length > 0 || result.entities?.options?.length > 0;
-                const isWeakIntent = (result.intent === 'clarify_order' || result.intent === 'choose_restaurant') &&
-                    (!parsedOrder?.any && !parsedOrder?.unavailable?.length && !hasOptions);
-
-                if (result && result.intent && result.intent !== 'unknown' && result.intent !== 'UNKNOWN_INTENT' && !isWeakIntent) {
-                    if (result.intent === 'create_order' || result.intent === 'confirm_order') {
-                        console.warn('[NLU] HARD BLOCK: Legacy ordering disabled (source: classic_legacy)');
-                        return {
-                            intent: 'find_nearby',
-                            confidence: 0.7,
-                            source: 'legacy_hard_blocked',
-                            entities: {
-                                ...entities,
-                                dish: entities.dish || parsed.dish,
-                                items: result.items || entities.items
-                            }
-                        };
-                    }
-                    return {
-                        intent: result.intent,
-                        confidence: result.confidence || 0.8,
-                        source: 'classic_legacy',
-                        entities: { ...entities, ...result.entities, restaurant: result.restaurant, items: result.parsedOrder || result.items }
                     };
                 }
             } else {

@@ -266,6 +266,19 @@ export class BrainPipeline {
             // 2. NLU Decision
             const intentResult = await this.nlu.detect(context);
 
+            // ═══════════════════════════════════════════════════════════════════
+            // SINGLE ROUTING INVARIANT — hard guard
+            // If this fires, a classic path leaked through the NLU layer.
+            // ═══════════════════════════════════════════════════════════════════
+            if (intentResult?.source?.includes('classic')) {
+                console.error('🚫 CLASSIC_ROUTE_INVARIANT_VIOLATED', {
+                    source: intentResult.source,
+                    intent: intentResult.intent,
+                    sessionId: activeSessionId
+                });
+                throw new Error(`CLASSIC ROUTE DETECTED — INVALID STATE. source=${intentResult.source}`);
+            }
+
             let { intent, domain, confidence, source, entities } = intentResult;
 
             // --- Event Logging: NLU Result ---

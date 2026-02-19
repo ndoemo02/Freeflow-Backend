@@ -119,20 +119,14 @@ app.get('/api/env-check', (req, res) => {
   });
 });
 
-// === AMBER BRAIN ===
-app.post("/api/brain", async (req, res) => {
-  try {
-    const body = req.body || {};
-    const text = typeof body.text === 'string' ? body.text.trim() : '';
-    if (!text) {
-      return res.status(400).json({ ok: false, error: 'missing_text' });
-    }
-    const brainRouter = await import("./brain/brainRouter.js");
-    return brainRouter.default(req, res);
-  } catch (error) {
-    console.error("❌ Brain error:", error);
-    res.status(500).json({ ok: false, error: error.message });
-  }
+// === AMBER BRAIN V2 ONLY ===
+// DEPRECATED V1 — returns 410 Gone. Use /api/brain/v2
+app.post("/api/brain", (req, res) => {
+  res.status(410).json({
+    ok: false,
+    error: 'deprecated',
+    message: 'This endpoint is retired. Use /api/brain/v2'
+  });
 });
 
 // Explicit V2 Endpoint
@@ -167,13 +161,13 @@ app.post("/api/brain/reset", async (req, res) => {
   }
 });
 
-app.post("/api/brain/router", async (req, res) => {
-  try {
-    const brainRouter = await import("./brain/brainRouter.js");
-    return brainRouter.default(req, res);
-  } catch (err) {
-    res.status(500).json({ ok: false, error: err.message });
-  }
+// DEPRECATED V1 ROUTER — returns 410 Gone. Use /api/brain/v2
+app.post("/api/brain/router", (req, res) => {
+  res.status(410).json({
+    ok: false,
+    error: 'deprecated',
+    message: 'This endpoint is retired. Use /api/brain/v2'
+  });
 });
 
 // === ADMIN ENDPOINTS ===
