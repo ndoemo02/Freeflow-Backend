@@ -6,6 +6,7 @@
 
 import { extractLocation, extractCuisineType } from '../../nlu/extractors.js';
 import { pluralPl } from '../../utils/formatter.js';
+import { calculateDistance } from '../../helpers.js';
 
 // --- Configuration & Constants ---
 
@@ -44,6 +45,7 @@ function resolveDiscoveryMode(ctx) {
 
     const cuisineType = entities?.cuisine || extractCuisineType(text);
     const normalizedLoc = normalizeLocation(rawLocation);
+    const coords = (body && body.lat && body.lng) ? { lat: body.lat, lng: body.lng } : null;
 
     // 2. Determine Mode
     if (normalizedLoc) {
@@ -51,14 +53,15 @@ function resolveDiscoveryMode(ctx) {
             mode: 'CITY',
             location: normalizedLoc,
             cuisine: cuisineType,
-            originalLocation: rawLocation
+            originalLocation: rawLocation,
+            coords
         };
     }
 
-    if (body && body.lat && body.lng) {
+    if (coords) {
         return {
             mode: 'GPS',
-            coords: { lat: body.lat, lng: body.lng },
+            coords,
             cuisine: cuisineType
         };
     }
@@ -202,6 +205,21 @@ export class FindRestaurantHandler {
                     pendingDish: dishEntity || null
                 }
             };
+        }
+
+        // --- ENRICH RESULTS WITH DISTANCE (Cross-cutting concern) ---
+        if (coords && restaurants && restaurants.length > 0) {
+            restaurants = restaurants.map(r => {
+                if (r.lat && r.lng) {
+                    // Calculate distance if missing (City Mode usually misses it)
+                    if (r.distance === undefined) {
+                        // Coords are from body (user location)
+                        const dist = calculateDistance(coords.lat, coords.lng, r.lat, r.lng);
+                        return { ...r, distance: dist };
+                    }
+                }
+                return r;
+            });
         }
 
         // 3. Format Response (Standard Success Path)

@@ -57,6 +57,26 @@ describe('FindRestaurantHandler (Refactored Logic)', () => {
         await handler.execute(ctx);
         expect(repoMock.searchRestaurants).toHaveBeenCalledWith('Radzionków', null);
     });
+
+    it('should calculate distance in CITY mode if coords are present', async () => {
+        const ctx = {
+            text: 'w Bytomiu',
+            entities: { location: 'Bytom' },
+            session: {},
+            body: { lat: 50.348, lng: 18.932 } // User location
+        };
+
+        repoMock.searchRestaurants.mockResolvedValue([
+            { id: 1, name: 'Kebab', city: 'Bytom', lat: 50.350, lng: 18.935 } // Restaurant location (nearby)
+        ]);
+
+        const result = await handler.execute(ctx);
+
+        // Expect distance in reply string (e.g. "(300m)" or "(0.3km)")
+        expect(result.reply).toMatch(/\(\d+(\.\d+)?(km|m)\)/);
+        // Expect enriched data
+        expect(result.restaurants[0].distance).toBeDefined();
+    });
     // --- CITY MODE END ---
 
     // --- GPS MODE START ---
