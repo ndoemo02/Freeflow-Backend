@@ -1,18 +1,118 @@
 /**
  * Food Domain: Find Restaurants
  * Odpowiada za wyszukiwanie restauracji (SQL/Geo).
+ * Refactored: Clean Architecture with Decision Matrix (City > GPS > Fallback)
  */
 
 import { extractLocation, extractCuisineType } from '../../nlu/extractors.js';
 import { pluralPl } from '../../utils/formatter.js';
 
+// --- Configuration & Constants ---
+
+const KNOWN_CITIES = ['Piekary Śląskie', 'Bytom', 'Radzionków', 'Chorzów', 'Katowice', 'Siemianowice Śląskie', 'Świerklaniec', 'Zabrze', 'Tarnowskie Góry', 'Świętochłowice', 'Mysłowice'];
+
+const NEARBY_CITY_MAP = {
+    'piekary śląskie': ['Bytom', 'Radzionków', 'Chorzów', 'Siemianowice Śląskie', 'Świerklaniec'],
+    'bytom': ['Piekary Śląskie', 'Radzionków', 'Chorzów', 'Zabrze'],
+    'radzionków': ['Piekary Śląskie', 'Bytom', 'Tarnowskie Góry'],
+    'chorzów': ['Katowice', 'Bytom', 'Świętochłowice'],
+    'katowice': ['Chorzów', 'Siemianowice Śląskie', 'Mysłowice'],
+};
+
+// --- Helper Functions (Pure Logic) ---
+
 function normalizeLocation(loc) {
     if (!loc) return null;
-    const l = loc.toLowerCase();
+    const l = loc.toLowerCase().trim();
     if (l.includes('piekar')) return 'Piekary Śląskie';
     if (l.includes('katow')) return 'Katowice';
     if (l.includes('bytom')) return 'Bytom';
-    return loc;
+    // Fallback for known cities check
+    const knownMatch = KNOWN_CITIES.find(c => c.toLowerCase() === l);
+    return knownMatch || loc; // Return original if no normalization match, specific handlers might fuzzy match later
+}
+
+function resolveDiscoveryMode(ctx) {
+    const { text, session, entities, body } = ctx;
+
+    // 1. Extract Parameters
+    let rawLocation = entities?.location || extractLocation(text);
+    // Explicit session fallback only if valid known city (prevents poison)
+    if (!rawLocation && session?.last_location && KNOWN_CITIES.includes(session.last_location)) {
+        rawLocation = session.last_location;
+    }
+
+    const cuisineType = entities?.cuisine || extractCuisineType(text);
+    const normalizedLoc = normalizeLocation(rawLocation);
+
+    // 2. Determine Mode
+    if (normalizedLoc) {
+        return {
+            mode: 'CITY',
+            location: normalizedLoc,
+            cuisine: cuisineType,
+            originalLocation: rawLocation
+        };
+    }
+
+    if (body && body.lat && body.lng) {
+        return {
+            mode: 'GPS',
+            coords: { lat: body.lat, lng: body.lng },
+            cuisine: cuisineType
+        };
+    }
+
+    // 3. Fallback Analysis (Implicit Order vs General)
+    // Regex fix: \b doesn't work well with polish chars like 'ę' in standard JS regex without unicode flag.
+    // Using (?:^|\s) ... (?:\s|$) pattern instead.
+    const ORDER_VERBS_REGEX = /(?:^|\s)(zamawiam|zamow|zamów|poprosze|poprosz[ęe]|wezme|wezm[ęe]|biore|bior[ęe]|chce|chc[ęe]|chciał(bym|abym))(?:\s|$|[.,?!])/i;
+    const isImplicitOrder = ORDER_VERBS_REGEX.test(text);
+    const dishEntity = entities?.dish || (entities?.items && entities.items[0]?.name);
+
+    return {
+        mode: 'FALLBACK',
+        isImplicitOrder,
+        dishEntity
+    };
+}
+
+function formatDiscoveryReply(result, modeParams) {
+    const { restaurants, foundInNearby, nearbySourceCity } = result;
+    const { location, cuisine } = modeParams; // modeParams mirrors the resolveDiscoveryMode output structure used during fetch
+
+    const count = restaurants.length;
+    const countTxt = pluralPl(count, 'miejsce', 'miejsca', 'miejsc');
+    const limit = 3;
+    const displayList = restaurants.slice(0, limit);
+
+    // Format list items
+    const listTxt = displayList.map((r, i) => {
+        let extra = '';
+        if (r.distance) {
+            extra = r.distance < 1
+                ? ` (${Math.round(r.distance * 1000)}m)`
+                : ` (${r.distance.toFixed(1)}km)`;
+        } else {
+            extra = ` (${r.cuisine_type || 'Restauracja'})`;
+        }
+        return `${i + 1}. ${r.name}${extra}`;
+    }).join('\n');
+
+    let intro = '';
+
+    if (foundInNearby) {
+        intro = `W ${location} pusto, ale w pobliżu — w ${nearbySourceCity} — znalazłam ${count} ${countTxt}.\n\n`;
+    } else if (modeParams.mode === 'GPS') {
+        intro = cuisine
+            ? `W pobliżu znalazłam ${count} ${countTxt} z kuchnią ${cuisine}:`
+            : `W pobliżu znalazłam ${count} ${countTxt}:`;
+    } else {
+        intro = `Znalazłam ${count} ${countTxt} w ${location}:`;
+    }
+
+    const closing = "Którą wybierasz?";
+    return `${intro}\n${listTxt}\n\n${closing}`;
 }
 
 
@@ -22,146 +122,112 @@ export class FindRestaurantHandler {
     }
 
     async execute(ctx) {
-        const { text, session, entities } = ctx;
+        // 1. Resolve Mode & Context
+        const discoveryParams = resolveDiscoveryMode(ctx);
+        const { mode, location, cuisine, coords, isImplicitOrder, dishEntity } = discoveryParams;
 
-        // 1. Parameter Extraction
-        // Prefer entities from NLU (already extracted nicely), fallback to manual extract
-        let location = entities?.location || extractLocation(text);
-        if (!location) location = session?.last_location;
-        const cuisineType = entities?.cuisine || extractCuisineType(text);
+        console.log(`🔎 Discovery Mode: ${mode}`, discoveryParams);
 
-        // Normalize location for DB
-        let normalizedLoc = normalizeLocation(location);
+        // 2. Execute Strategy
+        let restaurants = [];
+        let foundInNearby = false;
+        let nearbySourceCity = null;
 
+        if (mode === 'CITY') {
+            try {
+                restaurants = await this.repo.searchRestaurants(location, cuisine);
 
-        if (!normalizedLoc) {
-            // NEW: Detect if this is an implicit order (user wanted to order something)
-            const ORDER_VERBS_REGEX = /\b(zamawiam|zamow|zamów|poprosze|poprosz[ęe]|wezme|wezm[ęe]|biore|bior[ęe]|chce|chc[ęe]|chciał(bym|abym))\b/i;
-            const isImplicitOrder = ORDER_VERBS_REGEX.test(text);
-            const dishEntity = entities?.dish || (entities?.items && entities.items[0]?.name);
+                // Internal Fallback: Nearby Cities
+                if (!restaurants || restaurants.length === 0) {
+                    const normalizedKey = location.toLowerCase();
+                    const suggestions = NEARBY_CITY_MAP[normalizedKey] || [];
 
-            // Check if we are asking for "nearby" explicitly without location
-            if (/w pobli[zż]u|blisko|tutaj|okolicy/i.test(text)) {
-                if (ctx.body && ctx.body.lat && ctx.body.lng) {
-                    // Geo logic
-                } else {
-                    return {
-                        reply: isImplicitOrder && dishEntity
-                            ? `Chętnie przyjmę zamówienie ${dishEntity}, ale najpierw podaj miasto. Gdzie szukamy?`
-                            : "W jakiej miejscowości mam szukać?",
-                        contextUpdates: {
-                            expectedContext: 'find_nearby_ask_location',
-                            awaiting: 'location',
-                            pendingDish: dishEntity || null
+                    for (const neighbor of suggestions) {
+                        console.log(`🔎 Fallback: Checking ${neighbor}...`);
+                        const neighborRest = await this.repo.searchRestaurants(neighbor, cuisine);
+                        if (neighborRest && neighborRest.length > 0) {
+                            restaurants = neighborRest;
+                            foundInNearby = true;
+                            nearbySourceCity = neighbor;
+                            break; // Stop at first neighbor with results
                         }
-                    };
+                    }
                 }
-            } else {
+            } catch (error) {
+                console.error('Repo Error (City):', error);
+                return { reply: "Mam problem z bazą danych. Spróbuj później.", error: 'db_error' };
+            }
+
+            // Handle "Still No Results" for CITY mode
+            if (!restaurants || restaurants.length === 0) {
+                const cuisineMsg = cuisine ? ` serwujących ${cuisine}` : '';
                 return {
-                    reply: isImplicitOrder && dishEntity
-                        ? `Świetnie, ${dishEntity} brzmi pysznie! Tylko powiedz mi najpierw - w którym mieście szukamy?`
-                        : "Gdzie mam szukać? Podaj miasto.",
+                    reply: `Nie znalazłam żadnych restauracji w ${location}${cuisineMsg}. Może inna kuchnia?`,
                     contextUpdates: {
-                        expectedContext: 'find_nearby_ask_location',
-                        awaiting: 'location',
-                        pendingDish: dishEntity || null
+                        last_location: location,
+                        pendingDish: dishEntity || ctx.session?.pendingDish || null
                     }
                 };
             }
-        }
 
-        console.log(`🔎 Searching for ${cuisineType || 'any'} in ${normalizedLoc} (Original: ${location})...`);
-
-        // 3. Fallback: Nearby Cities logic (Legacy Port)
-        // Hardcoded Known Cities for Validation
-        const KNOWN_CITIES = ['Piekary Śląskie', 'Bytom', 'Radzionków', 'Chorzów', 'Katowice', 'Siemianowice Śląskie', 'Świerklaniec', 'Zabrze', 'Tarnowskie Góry', 'Świętochłowice', 'Mysłowice'];
-
-        // BUGFIX: If extracted location is valid string but NOT in known cities, overwrite with session location if valid
-        // This prevents aggressive NLU extraction (e.g. "Zamawiam") from poisoning the search
-        if (normalizedLoc && !KNOWN_CITIES.includes(normalizedLoc) && session?.last_location && KNOWN_CITIES.includes(session.last_location)) {
-            console.log(`⚠️ Invalid/Unknown location "${normalizedLoc}" detected. Fallback to valid session location: "${session.last_location}"`);
-            normalizedLoc = session.last_location;
-        }
-
-        let restaurants;
-        try {
-            restaurants = await this.repo.searchRestaurants(normalizedLoc, cuisineType);
-        } catch (error) {
-            console.error('Repo Error:', error);
-            return { reply: "Mam problem z bazą danych. Spróbuj później.", error: 'db_error' };
-        }
-
-        let replyPrefix = "";
-        let foundInNearby = false;
-
-        if (!restaurants?.length) {
-            const nearbyCitySuggestions = {
-                'Piekary Śląskie': ['Bytom', 'Radzionków', 'Chorzów', 'Siemianowice Śląskie', 'Świerklaniec'],
-                'Bytom': ['Piekary Śląskie', 'Radzionków', 'Chorzów', 'Zabrze'],
-                'Radzionków': ['Piekary Śląskie', 'Bytom', 'Tarnowskie Góry'],
-                'Chorzów': ['Katowice', 'Bytom', 'Świętochłowice'],
-                'Katowice': ['Chorzów', 'Siemianowice Śląskie', 'Mysłowice'],
-            };
-
-            const suggestions = nearbyCitySuggestions[normalizedLoc] || [];
-
-            for (const neighbor of suggestions) {
-                console.log(`🔎 Fallback: Checking ${neighbor}...`);
-                const neighborRest = await this.repo.searchRestaurants(neighbor, cuisineType);
-
-                if (neighborRest && neighborRest.length > 0) {
-                    restaurants = neighborRest;
-                    normalizedLoc = neighbor; // Switch context to where we found food
-                    replyPrefix = `W ${location} pusto, ale w pobliżu — w ${neighbor} — znalazłam ${neighborRest.length} miejsc.\n\n`;
-                    foundInNearby = true;
-                    break;
-                }
+        } else if (mode === 'GPS') {
+            try {
+                // Radius: 10km default
+                restaurants = await this.repo.searchNearby(coords.lat, coords.lng, 10, cuisine);
+            } catch (error) {
+                console.error('Repo Error (GPS):', error);
+                return { reply: "Nie udało mi się pobrać lokalizacji.", error: 'db_error' };
             }
-        }
 
-        // 4. Formatting Result
-        if (!restaurants || restaurants.length === 0) {
-            const cuisineMsg = cuisineType ? ` serwujących ${cuisineType}` : '';
+            if (!restaurants || restaurants.length === 0) {
+                return {
+                    reply: cuisine
+                        ? `Nie widzę restauracji ${cuisine} w Twojej okolicy.`
+                        : "Nie widzę żadnych restauracji w pobliżu.",
+                    contextUpdates: {}
+                };
+            }
+
+        } else {
+            // FALLBACK MODE
+            const prompt = (isImplicitOrder && dishEntity)
+                ? `Chętnie przyjmę zamówienie ${dishEntity}, ale najpierw podaj miasto. Gdzie szukamy?`
+                : "Gdzie mam szukać? Podaj miasto lub powiedz 'w pobliżu'.";
+
             return {
-                reply: `Nie znalazłam żadnych restauracji w ${location}${cuisineMsg}. Może inna kuchnia?`,
+                reply: prompt,
                 contextUpdates: {
-                    last_location: normalizedLoc,
-                    // Feature: Keep dish in memory even if search failed, in case user provides a specific place next
-                    pendingDish: entities?.dish || (entities?.items && entities.items[0]?.name) || null
+                    expectedContext: 'find_nearby_ask_location',
+                    awaiting: 'location',
+                    pendingDish: dishEntity || null
                 }
             };
         }
 
-        const count = restaurants.length;
-        const countTxt = pluralPl(count, 'miejsce', 'miejsca', 'miejsc');
-
-        // Logic limit
-        const limit = 3;
-        const displayList = restaurants.slice(0, limit);
-        const listTxt = displayList.map((r, i) => `${i + 1}. ${r.name} (${r.cuisine_type || 'Restauracja'})`).join('\n');
-
-        const intro = foundInNearby ? replyPrefix : `Znalazłam ${count} ${countTxt} w ${normalizedLoc}:`;
-        const closing = "Którą wybierasz?";
-        const reply = `${intro}\n${listTxt}\n\n${closing}`;
+        // 3. Format Response (Standard Success Path)
+        const resultData = { restaurants, foundInNearby, nearbySourceCity };
+        const reply = formatDiscoveryReply(resultData, discoveryParams);
 
         // Smart Context Hint for Frontend
         const suggestedRestaurants = restaurants.map((r, idx) => ({
             id: r.id, name: r.name, index: idx + 1, city: r.city
         }));
 
+        // Determine resolved location for session
+        const finalLocation = nearbySourceCity || location || (mode === 'GPS' ? 'GPS' : null);
+
         return {
             reply,
-            closing_question: closing,
-            restaurants: restaurants, // Full list sent to frontend (only for discovery intents!)
-            menuItems: [], // PARITY
+            closing_question: "Którą wybierasz?",
+            restaurants: restaurants,
+            menuItems: [],
             contextUpdates: {
-                last_location: normalizedLoc,
+                last_location: finalLocation !== 'GPS' ? finalLocation : null, // Don't save "GPS" string as city
                 last_restaurants_list: restaurants,
                 lastRestaurants: suggestedRestaurants,
                 expectedContext: 'select_restaurant',
-                awaiting: null, // Clear awaiting flag - we resolved the location
-                // Feature: Remember implicit dish for subsequent selection
-                pendingDish: entities?.dish || entities?.pendingDish || (entities?.items && entities.items[0]?.name) || null
+                awaiting: null,
+                pendingDish: dishEntity || ctx.entities?.pendingDish || null
             }
         };
     }
