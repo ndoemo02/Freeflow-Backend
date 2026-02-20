@@ -94,9 +94,31 @@ export function extractCuisineType(text) {
     return null;
 }
 
+// ─── CONFIRMATION BLACKLIST ───
+// Prevents extractLocation from processing pure confirmations as locations
+const CONFIRM_BLACKLIST = [
+    'tak', 'nie', 'okej', 'ok', 'dobrze', 'jasne', 'pewnie',
+    'potwierdzam', 'zgoda', 'anuluj', 'cofnij', 'wróć',
+    'dawaj', 'leci', 'jazda', 'no', 'noo', 'mhm', 'aha',
+    'spoko', 'git', 'w porządku', 'oczywiście', 'naturalnie'
+];
+
+// ─── CUTOFF PHRASES ───
+// Strips trailing context phrases from extracted location
+const CUTOFF_PHRASES = [
+    'do jedzenia', 'na obiad', 'na kolację', 'na lunch', 'na śniadanie',
+    'co polecisz', 'coś dobrego', 'coś fajnego', 'coś taniego',
+    'na wynos', 'z dostawą', 'na miejscu', 'na dowóz',
+    'gdzie zjem', 'gdzie mogę', 'polecasz'
+];
+
 // Advanced Location Extractor (Legacy Port)
 export function extractLocation(text) {
     if (!text) return null;
+
+    // 0. Confirmation blacklist — pure confirmations are never locations
+    const trimmedLower = text.toLowerCase().trim();
+    if (CONFIRM_BLACKLIST.includes(trimmedLower)) return null;
 
     // 1. Explicit Prepositions
     const locationKeywords = ['w', 'na', 'blisko', 'koło', 'niedaleko', 'obok', 'przy'];
@@ -120,7 +142,16 @@ export function extractLocation(text) {
     if (!location) return null;
     if (isBlacklisted(location.toLowerCase())) return null;
 
-    // 3. Normalize Polish Grammar (Inflections)
+    // 3. Cutoff trailing context phrases ("Bytom do jedzenia" → "Bytom")
+    for (const phrase of CUTOFF_PHRASES) {
+        const idx = location.toLowerCase().indexOf(phrase);
+        if (idx !== -1) {
+            location = location.substring(0, idx).trim();
+        }
+    }
+    if (!location) return null;
+
+    // 4. Normalize Polish Grammar (Inflections)
     return normalizePolishCity(location);
 }
 
