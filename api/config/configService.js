@@ -17,6 +17,7 @@ const KEYS = [
   "tts_tone",
   "restaurant_aliases",
   "tts_enabled",
+  "stylization_prompt",
   // Dialog UX Enhancement
   "dialog_navigation_enabled",
   "tts_chunking_enabled",
@@ -36,6 +37,7 @@ const DEFAULT_CONFIG = {
   tts_rate: 1.0,
   tts_tone: "swobodny",
   restaurant_aliases: {},
+  stylization_prompt: "Jesteś Amber – asystentką FreeFlow. Przekształć tekst w krótką, naturalną wypowiedź (max 2 zdania). Ciepły, lokalny ton, lekko dowcipny. Bez list, numeracji, nawiasów. Nie dodawaj informacji.",
   // Dialog UX Enhancement defaults
   dialog_navigation_enabled: true,
   tts_chunking_enabled: true,
@@ -115,6 +117,7 @@ export async function getConfig() {
         typeof map.fallback_mode === "string" && ["SMART", "SIMPLE"].includes(map.fallback_mode)
           ? map.fallback_mode
           : DEFAULT_CONFIG.fallback_mode,
+      stylization_prompt: normalizePrompt(map.stylization_prompt, DEFAULT_CONFIG.stylization_prompt),
     }
 
     return cfg
@@ -166,6 +169,18 @@ export async function updatePrompt(prompt) {
   const value = typeof prompt === "string" ? prompt : String(prompt ?? "")
   await updateConfig("amber_prompt", value)
   return getPrompt()
+}
+
+export async function getStylizationPrompt() {
+  const cfg = await getConfig()
+  return cfg.stylization_prompt || DEFAULT_CONFIG.stylization_prompt
+}
+
+export async function updateStylizationPrompt(prompt) {
+  const value = typeof prompt === "string" ? prompt : String(prompt ?? "")
+  if (value.length < 20) throw new Error("Stylization prompt must be at least 20 characters")
+  await updateConfig("stylization_prompt", value)
+  return getStylizationPrompt()
 }
 
 export async function getRestaurantAliases() {

@@ -1,4 +1,4 @@
-﻿// --- SAFE DOTENV LOADER ---
+// --- SAFE DOTENV LOADER ---
 import fs from "fs";
 import path from "path";
 import dotenv from "dotenv";
@@ -125,8 +125,8 @@ app.get("/api/health", async (req, res) => {
 // === [2] AMBER BRAIN ===
 app.post("/api/brain", async (req, res) => {
   try {
-    const brainRouter = await import("./api/brain/brainRouter.js");
-    return brainRouter.default(req, res);
+    const brainV2 = await import("./api/brain/brainV2.js");
+    return brainV2.default(req, res);
   } catch (error) {
     console.error("❌ Brain error:", error);
     res.status(500).json({ ok: false, error: error.message });
@@ -145,8 +145,8 @@ app.post("/api/brain/v2", async (req, res) => {
 
 app.post("/api/brain/router", async (req, res) => {
   try {
-    const brainRouter = await import("./api/brain/brainRouter.js");
-    return brainRouter.default(req, res);
+    const brainV2 = await import("./api/brain/brainV2.js");
+    return brainV2.default(req, res);
   } catch (err) {
     res.status(500).json({ ok: false, error: err.message });
   }

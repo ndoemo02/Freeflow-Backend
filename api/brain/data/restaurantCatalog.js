@@ -76,6 +76,7 @@ import { normalizeTxt } from '../intents/intentRouterGlue.js';
 
 export function findRestaurantInText(text) {
     const normalized = normalizeTxt(text);
+    console.log(`🔍 findRestaurantInText: normalized input="${normalized}"`);
 
     // Helper: check if alias appears as whole word(s) in text
     const matchesAsWord = (aliasNormalized, textNormalized) => {
@@ -83,11 +84,13 @@ export function findRestaurantInText(text) {
         // Escape special regex characters in alias
         const escaped = aliasNormalized.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         const regex = new RegExp(`\\b${escaped}\\b`, 'i');
-        return regex.test(textNormalized);
+        const match = regex.test(textNormalized);
+        if (match) console.log(`✅ Match found for alias "${aliasNormalized}" in "${textNormalized}"`);
+        return match;
     };
 
     // Sort by name length descending to match longest alias first
-    const candidates = RESTAURANT_CATALOG.sort((a, b) => b.name.length - a.name.length);
+    const candidates = [...RESTAURANT_CATALOG].sort((a, b) => b.name.length - a.name.length);
 
     for (const rest of candidates) {
         // Check main name (word boundary match)

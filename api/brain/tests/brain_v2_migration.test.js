@@ -47,7 +47,9 @@ describe('Brain V2 Migration - Cascade Tests', () => {
         const input = "Pokaż menu w Hubertusie";
         const result = await pipeline.process(sessionState.id, input);
 
-        console.log('B Result:', result.reply);
+        if (!result.menu) {
+            console.log('FAIL B - Result:', JSON.stringify(result, null, 2));
+        }
 
         expect(result.intent).toBe('menu_request'); // or show_menu
         expect(result.menu).toBeDefined();

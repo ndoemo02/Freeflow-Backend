@@ -218,8 +218,11 @@ export async function stylizeWithGPT4o(rawText, intent = 'neutral') {
       const style = (cfg?.speech_style || 'standard').toLowerCase();
 
       if (cfg?.amber_prompt && typeof cfg.amber_prompt === "string" && cfg.amber_prompt.trim().length > 0) {
-        // Jeśli admin podał własny system prompt – użyj go 1:1
+        // Legacy override: admin podał własny system prompt w polu amber_prompt
         system = cfg.amber_prompt;
+      } else if (cfg?.stylization_prompt && typeof cfg.stylization_prompt === "string" && cfg.stylization_prompt.trim().length >= 20) {
+        // Nowy: stylization_prompt z configService (edytowalny w panelu admin)
+        system = cfg.stylization_prompt + ` Intencja: ${intent}.`;
       } else if (style === 'silesian' || style === 'śląska' || style === 'slask') {
         system = `Jesteś Amber – głosem FreeFlow. Przekształć surowy tekst w krótką, naturalną wypowiedź (max 2 zdania).
 Mów przyjaźnie i jasno, ale używaj śląskiej gwary (gōdka) – lekkiej i zrozumiałej dla osób spoza regionu.

@@ -841,15 +841,23 @@ export class BrainPipeline {
             }
 
             // 4.5 Synthesis (Expert Layer)
+            console.log(`🟣 PIPELINE FINAL REPLY [${context.intent}]:`, JSON.stringify(domainResponse.reply)?.substring(0, 120));
             let speechText = domainResponse.reply;
             let audioContent = null;
             let stylingMs = 0;
             let ttsMs = 0;
 
             if ((EXPERT_MODE || options.stylize) && domainResponse.reply) {
-                const t0 = Date.now();
-                speechText = await stylizeWithGPT4o(domainResponse.reply, intent);
-                stylingMs = Date.now() - t0;
+                // STYLIZATION GUARD: Skip for data-heavy intents and numbered lists
+                const SKIP_STYLIZATION = new Set(['find_nearby', 'menu_request', 'confirm_order', 'show_menu']);
+                const hasNumberedList = /\d+\.\s/.test(domainResponse.reply);
+                if (SKIP_STYLIZATION.has(intent) || hasNumberedList) {
+                    BrainLogger.pipeline(`🎨 STYLIZATION_SKIPPED: intent=${intent}, hasList=${hasNumberedList}`);
+                } else {
+                    const t0 = Date.now();
+                    speechText = await stylizeWithGPT4o(domainResponse.reply, intent);
+                    stylingMs = Date.now() - t0;
+                }
             }
 
             // Optimization for Voice Presentations:

@@ -28,6 +28,32 @@ export class SelectRestaurantHandler {
             }
         }
 
+        const { entities } = ctx;
+
+        // 🔥 Direct entity selection (when NLU resolved restaurantId via catalog match)
+        // Fixes the NLU→Handler communication gap: router knows the restaurant,
+        // handler was falling through to session list lookup and failing.
+        if (entities?.restaurantId) {
+            console.log(`🟢 SelectHandler: direct entity match → ${entities.restaurant} (id=${entities.restaurantId})`);
+
+            const currentRestaurant = {
+                id: entities.restaurantId,
+                name: entities.restaurant,
+                city: entities.location || null
+            };
+
+            return {
+                reply: `Wybrano ${entities.restaurant}. Co chcesz zrobić? (Pokaż menu lub zamawiam)`,
+                contextUpdates: {
+                    currentRestaurant,
+                    lastRestaurant: currentRestaurant,
+                    lockedRestaurantId: entities.restaurantId,
+                    expectedContext: 'restaurant_menu'
+                },
+                meta: { source: 'entity_direct_selection' }
+            };
+        }
+
         const list = session?.last_restaurants_list || [];
         if (!list || list.length === 0) {
             // UX: If we have currentRestaurant but no list, use current

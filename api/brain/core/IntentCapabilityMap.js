@@ -156,7 +156,7 @@ export function validateIntentTransition(fromIntent, toIntent, session) {
  * Check if session state meets intent requirements
  * @returns {{ met: boolean, reason: string | null }}
  */
-export function checkRequiredState(intent, session) {
+export function checkRequiredState(intent, session, entities = {}) {
     const cap = INTENT_CAPS[intent];
     if (!cap || !cap.requiredState || Object.keys(cap.requiredState).length === 0) {
         return { met: true, reason: null };
@@ -166,13 +166,13 @@ export function checkRequiredState(intent, session) {
 
     // Handle OR conditions
     if (reqs.OR) {
-        const anyMet = reqs.OR.some(cond => checkSingleCondition(cond, session));
+        const anyMet = reqs.OR.some(cond => checkSingleCondition(cond, session, entities));
         return { met: anyMet, reason: anyMet ? null : `None of OR conditions met for ${intent}` };
     }
 
     // Handle AND conditions (default)
     for (const [key, value] of Object.entries(reqs)) {
-        if (!checkSingleCondition({ [key]: value }, session)) {
+        if (!checkSingleCondition({ [key]: value }, session, entities)) {
             return { met: false, reason: `Required state ${key}=${value} not met for ${intent}` };
         }
     }
@@ -182,9 +182,17 @@ export function checkRequiredState(intent, session) {
 /**
  * Check a single state condition
  */
-function checkSingleCondition(cond, session) {
+function checkSingleCondition(cond, session, entities = {}) {
     for (const [key, value] of Object.entries(cond)) {
-        const sessionValue = session?.[key];
+        let sessionValue = session?.[key];
+
+        // NEW: Check entities as well for context-less requests (e.g. "show menu at X")
+        if (key === 'currentRestaurant' && !sessionValue) {
+            sessionValue = entities.restaurantId || entities.restaurant;
+        }
+        if (key === 'lastRestaurant' && !sessionValue) {
+            sessionValue = entities.restaurantId || entities.restaurant;
+        }
 
         if (value === 'any') {
             // Must exist and be truthy

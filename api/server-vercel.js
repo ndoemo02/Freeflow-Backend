@@ -395,6 +395,16 @@ app.post('/api/admin/prompt', async (req, res) => {
   catch (err) { res.status(500).json({ ok: false, error: err.message }); }
 });
 
+app.get('/api/admin/config/stylization', async (req, res) => {
+  try { const mod = await import('./admin/stylization.js'); return mod.default(req, res); }
+  catch (err) { res.status(500).json({ ok: false, error: err.message }); }
+});
+
+app.post('/api/admin/config/stylization', async (req, res) => {
+  try { const mod = await import('./admin/stylization.js'); return mod.default(req, res); }
+  catch (err) { res.status(500).json({ ok: false, error: err.message }); }
+});
+
 app.get('/api/admin/aliases', async (req, res) => {
   try { const mod = await import('./admin/aliases.js'); return mod.default(req, res); }
   catch (err) { res.status(500).json({ ok: false, error: err.message }); }
