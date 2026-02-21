@@ -13,7 +13,7 @@ app.use(express.json());
 // Import the router handler
 import brainRouter from '../brainRouter.js';
 
-app.post('/api/brain', brainRouter);
+app.post('/api/brain/v2', brainRouter);
 
 describe('Monte Carlo E2E Test (Standard Flow)', () => {
     // Generate a unique session ID for this entire E2E flow to avoid context pollution from other runs
@@ -27,7 +27,7 @@ describe('Monte Carlo E2E Test (Standard Flow)', () => {
 
     it('should find restaurants in the city directly', async () => {
         const res = await request(app)
-            .post('/api/brain')
+            .post('/api/brain/v2')
             .send({
                 sessionId,
                 text: 'Gdzie mogę zjeść w Piekarach Śląskich?',
@@ -43,7 +43,7 @@ describe('Monte Carlo E2E Test (Standard Flow)', () => {
 
     it('should show the menu for Pizzeria Monte Carlo', async () => {
         const res = await request(app)
-            .post('/api/brain')
+            .post('/api/brain/v2')
             .send({
                 sessionId,
                 text: 'Pokaż menu Pizzeria Monte Carlo',
@@ -60,7 +60,7 @@ describe('Monte Carlo E2E Test (Standard Flow)', () => {
 
     it('should add Margherita to cart', async () => {
         const res = await request(app)
-            .post('/api/brain')
+            .post('/api/brain/v2')
             .send({
                 sessionId,
                 text: 'Poproszę jedną dużą pizzę Margherita z Pizzeria Monte Carlo',
@@ -76,7 +76,7 @@ describe('Monte Carlo E2E Test (Standard Flow)', () => {
 
     it('should confirm the order', async () => {
         const res = await request(app)
-            .post('/api/brain')
+            .post('/api/brain/v2')
             .send({
                 sessionId,
                 text: 'Tak, potwierdzam zamówienie',

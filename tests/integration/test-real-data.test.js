@@ -7,7 +7,9 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { supabase } from '../../api/brain/supabaseClient.js';
 import { parseOrderItems } from '../../api/brain/intent-router.js';
 
-describe('Real Data Integration Tests', () => {
+const hasSupabaseUrl = !!process.env.SUPABASE_URL || !!process.env.VITE_SUPABASE_URL;
+
+describe.skipIf(!hasSupabaseUrl)('Real Data Integration Tests', () => {
   let realMenuItems = [];
   let realRestaurants = [];
   let sampleCatalog = [];
@@ -31,7 +33,7 @@ describe('Real Data Integration Tests', () => {
       if (realMenuItems.length > 0) {
         // Pobierz nazwy restauracji dla tych pozycji
         const restaurantIds = [...new Set(realMenuItems.map(mi => mi.restaurant_id))];
-        
+
         const { data: restData, error: restError } = await supabase
           .from('restaurants')
           .select('id, name')
@@ -48,7 +50,7 @@ describe('Real Data Integration Tests', () => {
           sampleCatalog = realMenuItems.map(mi => ({
             id: mi.id,
             name: mi.name,
-            price: mi.price_pln,
+            price_pln: mi.price_pln,
             restaurant_id: mi.restaurant_id,
             restaurant_name: restaurantMap[mi.restaurant_id] || 'Unknown',
             category: mi.category,
@@ -73,13 +75,13 @@ describe('Real Data Integration Tests', () => {
       }
 
       const sample = realMenuItems[0];
-      
+
       // Sprawdź wymagane pola
       expect(sample).toHaveProperty('id');
       expect(sample).toHaveProperty('name');
       expect(sample).toHaveProperty('price_pln');
       expect(sample).toHaveProperty('restaurant_id');
-      
+
       // Sprawdź typy
       expect(typeof sample.id).toBe('string');
       expect(typeof sample.name).toBe('string');
@@ -108,11 +110,11 @@ describe('Real Data Integration Tests', () => {
       }
 
       const sample = sampleCatalog[0];
-      
+
       // Sprawdź format zgodny z mockCatalog w testach jednostkowych
       expect(sample).toHaveProperty('id');
       expect(sample).toHaveProperty('name');
-      expect(sample).toHaveProperty('price');
+      expect(sample).toHaveProperty('price_pln');
       expect(sample).toHaveProperty('restaurant_id');
       expect(sample).toHaveProperty('restaurant_name');
     });
@@ -124,8 +126,8 @@ describe('Real Data Integration Tests', () => {
       }
 
       sampleCatalog.forEach(item => {
-        expect(typeof item.price).toBe('number');
-        expect(item.price).toBeGreaterThanOrEqual(0);
+        expect(typeof item.price_pln).toBe('number');
+        expect(item.price_pln).toBeGreaterThanOrEqual(0);
       });
     });
 
@@ -171,7 +173,7 @@ describe('Real Data Integration Tests', () => {
       }
 
       // Znajdź pozycję z polskimi znakami
-      const polishItem = sampleCatalog.find(item => 
+      const polishItem = sampleCatalog.find(item =>
         /[ąćęłńóśźżĄĆĘŁŃÓŚŹŻ]/.test(item.name)
       );
 
@@ -199,7 +201,7 @@ describe('Real Data Integration Tests', () => {
       // Użyj części nazwy (np. pierwsze słowo)
       const testItem = sampleCatalog[0];
       const firstWord = testItem.name.split(' ')[0];
-      
+
       if (firstWord.length < 3) {
         console.warn('⚠️ First word too short for testing');
         return;
@@ -225,7 +227,7 @@ describe('Real Data Integration Tests', () => {
       }
 
       const mockCatalog = [
-        { id: '1', name: 'Pizza Margherita', price: 25.00, category: 'pizza', restaurant_id: 'r1', restaurant_name: 'Test Pizza' }
+        { id: '1', name: 'Pizza Margherita', price_pln: 25.00, category: 'pizza', restaurant_id: 'r1', restaurant_name: 'Test Pizza' }
       ];
 
       const realItem = sampleCatalog[0];
@@ -249,7 +251,7 @@ describe('Real Data Integration Tests', () => {
       const mockItem = {
         id: '1',
         name: 'Test',
-        price: 25.00,
+        price_pln: 25.00,
         restaurant_id: 'r1',
         restaurant_name: 'Test'
       };
@@ -257,7 +259,7 @@ describe('Real Data Integration Tests', () => {
       // Sprawdź typy
       expect(typeof realItem.id).toBe(typeof mockItem.id);
       expect(typeof realItem.name).toBe(typeof mockItem.name);
-      expect(typeof realItem.price).toBe(typeof mockItem.price);
+      expect(typeof realItem.price_pln).toBe(typeof mockItem.price_pln);
       expect(typeof realItem.restaurant_id).toBe(typeof mockItem.restaurant_id);
       expect(typeof realItem.restaurant_name).toBe(typeof mockItem.restaurant_name);
     });
@@ -273,17 +275,17 @@ describe('Real Data Integration Tests', () => {
       const stats = {
         totalItems: sampleCatalog.length,
         uniqueRestaurants: new Set(sampleCatalog.map(item => item.restaurant_id)).size,
-        avgPrice: sampleCatalog.reduce((sum, item) => sum + item.price, 0) / sampleCatalog.length,
-        itemsWithPolishChars: sampleCatalog.filter(item => 
+        avgPrice: sampleCatalog.reduce((sum, item) => sum + item.price_pln, 0) / sampleCatalog.length,
+        itemsWithPolishChars: sampleCatalog.filter(item =>
           /[ąćęłńóśźżĄĆĘŁŃÓŚŹŻ]/.test(item.name)
         ).length,
-        itemsWithSizeVariants: sampleCatalog.filter(item => 
+        itemsWithSizeVariants: sampleCatalog.filter(item =>
           /\b(mała|duża|średnia|small|large|medium)\b/i.test(item.name)
         ).length
       };
 
       console.log('📊 Real Data Statistics:', stats);
-      
+
       expect(stats.totalItems).toBeGreaterThan(0);
       expect(stats.uniqueRestaurants).toBeGreaterThan(0);
       expect(stats.avgPrice).toBeGreaterThan(0);

@@ -4,7 +4,7 @@ export async function callBrain(text, sessionId = "test-session") {
   if (!text && text !== "") throw new Error("Missing text input in callBrain");
 
   try {
-    const res = await fetch("http://localhost:3000/api/brain", {
+    const res = await fetch("http://localhost:3000/api/brain/v2", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ sessionId, text }),
@@ -27,7 +27,7 @@ export async function callBrain(text, sessionId = "test-session") {
 // 🧠 Mock test client for local brain API tests
 export const testClient = async (payload = {}) => {
   try {
-    const res = await fetch('http://localhost:3000/api/brain', {
+    const res = await fetch('http://localhost:3000/api/brain/v2', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)

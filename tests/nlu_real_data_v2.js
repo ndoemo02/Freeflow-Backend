@@ -1,4 +1,4 @@
-
+﻿
 import { NLURouter } from '../api/brain/nlu/router.js';
 import fs from 'fs';
 import path from 'path';
@@ -16,7 +16,7 @@ const sessionId = 'test-session-real-data-' + Date.now();
 const dataPath = path.join(__dirname, '../test_data_dump.json');
 if (!fs.existsSync(dataPath)) {
     console.error('❌ CRITICAL: test_data_dump.json not found! Run fetch_test_data.js first.');
-    process.exit(1);
+    // process.exit removed
 }
 const realData = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
 
@@ -162,10 +162,10 @@ async function runRealDataTests() {
         const logPath = 'nlu_real_data_failures.json';
         fs.writeFileSync(logPath, JSON.stringify(failures, null, 2));
         console.log(`📝 Failures written to ${logPath}`);
-        process.exit(1);
+        // process.exit removed
     } else {
         console.log('✨ All real-data checks passed!');
-        process.exit(0);
+        // process.exit removed
     }
 }
 

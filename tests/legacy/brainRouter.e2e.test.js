@@ -13,7 +13,7 @@ describe('🧠 BrainRouter E2E - Restaurant & Menu Flow', () => {
     describe('A. Intent find_nearby (Znajdowanie restauracji)', () => {
         it('powinien znaleźć restauracje w Piekarach Śląskich', async () => {
             const res = await request(app)
-                .post('/api/brain')
+                .post('/api/brain/v2')
                 .send({
                     sessionId,
                     text: 'Znajdź restaurację w Piekarach Śląskich'
@@ -51,7 +51,7 @@ describe('🧠 BrainRouter E2E - Restaurant & Menu Flow', () => {
 
         it('powinien obsłużyć zapytanie "Pokaż restauracje w Piekarach Śląskich"', async () => {
             const res = await request(app)
-                .post('/api/brain')
+                .post('/api/brain/v2')
                 .send({
                     sessionId,
                     text: 'Pokaż restauracje w Piekarach Śląskich'
@@ -66,7 +66,7 @@ describe('🧠 BrainRouter E2E - Restaurant & Menu Flow', () => {
     describe('B. Intent menu_request (Menu konkretnej restauracji)', () => {
         it('powinien pokazać menu dla Restauracja Stara Kamienica', async () => {
             const res = await request(app)
-                .post('/api/brain')
+                .post('/api/brain/v2')
                 .send({
                     sessionId,
                     text: 'Pokaż menu Restauracja Stara Kamienica'
@@ -74,7 +74,7 @@ describe('🧠 BrainRouter E2E - Restaurant & Menu Flow', () => {
 
             expect(res.status).toBe(200);
             expect(res.body.ok).toBe(true);
-            expect(res.body.intent).toBe('menu_request');
+            expect(res.body.intent).toBe('show_menu');
             // Sprawdzamy czy logika nie utknęła na wybieraniu restauracji
             expect(res.body.reply).not.toMatch(/którą wybierasz/i);
             expect(res.body.reply.toLowerCase()).toMatch(/menu|karta|polecam|proponuję|dostępne|dania/i);
@@ -82,7 +82,7 @@ describe('🧠 BrainRouter E2E - Restaurant & Menu Flow', () => {
 
         it('powinien pokazać menu dla Klaps Burgers', async () => {
             const res = await request(app)
-                .post('/api/brain')
+                .post('/api/brain/v2')
                 .send({
                     sessionId,
                     text: 'Jakie jest menu w Klaps Burgers?'
@@ -90,12 +90,12 @@ describe('🧠 BrainRouter E2E - Restaurant & Menu Flow', () => {
 
             expect(res.status).toBe(200);
             expect(res.body.ok).toBe(true);
-            expect(res.body.intent).toMatch(/menu_request|show_menu/);
+            expect(res.body.intent).toMatch(/show_menu/);
         });
 
         it('powinien pokazać menu dla Pizzeria Monte Carlo', async () => {
             const res = await request(app)
-                .post('/api/brain')
+                .post('/api/brain/v2')
                 .send({
                     sessionId,
                     text: 'Pokaż menu w Pizzeria Monte Carlo'
@@ -103,7 +103,7 @@ describe('🧠 BrainRouter E2E - Restaurant & Menu Flow', () => {
 
             expect(res.status).toBe(200);
             expect(res.body.ok).toBe(true);
-            expect(res.body.intent).toMatch(/menu_request|show_menu/);
+            expect(res.body.intent).toMatch(/show_menu/);
         });
     });
 
@@ -111,11 +111,11 @@ describe('🧠 BrainRouter E2E - Restaurant & Menu Flow', () => {
         it('powinien dodać pizzę margheritę do zamówienia w Pizzeria Monte Carlo', async () => {
             // Najpierw upewniamy się, że restauracja jest w sesji
             await request(app)
-                .post('/api/brain')
+                .post('/api/brain/v2')
                 .send({ sessionId, text: 'Wybieram Pizzeria Monte Carlo' });
 
             const res = await request(app)
-                .post('/api/brain')
+                .post('/api/brain/v2')
                 .send({
                     sessionId,
                     text: 'Zamów jedną dużą pizzę margherita'
@@ -131,11 +131,11 @@ describe('🧠 BrainRouter E2E - Restaurant & Menu Flow', () => {
             const specificSessionId = `e2e_legacy_klaps_${Date.now()}`;
             // Zmiana restauracji w sesji
             await request(app)
-                .post('/api/brain')
+                .post('/api/brain/v2')
                 .send({ sessionId: specificSessionId, text: 'Chcę zamówić w Klaps Burgers' });
 
             const res = await request(app)
-                .post('/api/brain')
+                .post('/api/brain/v2')
                 .send({
                     sessionId: specificSessionId,
                     text: 'Chcę dwa burgery'
@@ -159,16 +159,16 @@ describe('🧠 BrainRouter E2E - Restaurant & Menu Flow', () => {
         it('Test 1 (burger ogólny): powinien obsłużyć "Chcę burgery" po wyborze Klaps Burgers', async () => {
             // Krok 1: Wybór Klaps Burgers
             await request(app)
-                .post('/api/brain')
+                .post('/api/brain/v2')
                 .send({ sessionId: sessionKlaps, text: 'Pokaż restauracje w Piekarach Śląskich' });
 
             await request(app)
-                .post('/api/brain')
+                .post('/api/brain/v2')
                 .send({ sessionId: sessionKlaps, text: 'Wybierz Klaps Burgers' });
 
             // Krok 2: Zamówienie "burgery"
             const res = await request(app)
-                .post('/api/brain')
+                .post('/api/brain/v2')
                 .send({ sessionId: sessionKlaps, text: 'Chcę burgery' });
 
             expect(res.status).toBe(200);
@@ -181,7 +181,7 @@ describe('🧠 BrainRouter E2E - Restaurant & Menu Flow', () => {
 
         it('Test 2 (konkretny burger z aliasem): powinien dopasować "burgera Vegas" do "Smak Vegas"', async () => {
             const res = await request(app)
-                .post('/api/brain')
+                .post('/api/brain/v2')
                 .send({ sessionId: sessionKlaps, text: 'Poproszę burgera Vegas' });
 
             expect(res.status).toBe(200);
@@ -194,7 +194,7 @@ describe('🧠 BrainRouter E2E - Restaurant & Menu Flow', () => {
             // W CSV Klaps ma głównie burgery, ale sprawdzamy czy flow napojów działa
             // (Możemy użyć czegoś co jest w Aliasach lub ogólnie znane, np. Pepsi)
             const res = await request(app)
-                .post('/api/brain')
+                .post('/api/brain/v2')
                 .send({ sessionId: sessionKlaps, text: 'Poproszę dwie pepsi' });
 
             expect(res.status).toBe(200);

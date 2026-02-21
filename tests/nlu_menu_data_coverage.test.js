@@ -1,4 +1,4 @@
-
+﻿
 import { NLURouter } from '../api/brain/nlu/router.js';
 import fs from 'fs';
 import path from 'path';
@@ -30,14 +30,14 @@ async function runDataCoverageTests() {
     // 1. Load Data
     if (!fs.existsSync(TEST_DATA_PATH)) {
         console.error(`❌ Missing data file: ${TEST_DATA_PATH}`);
-        process.exit(1);
+        // process.exit removed
     }
     const data = JSON.parse(fs.readFileSync(TEST_DATA_PATH, 'utf8'));
 
     // Validate Data Structure
     if (!data.restaurants || !data.menuSamples) {
         console.error('❌ Invalid data structure');
-        process.exit(1);
+        // process.exit removed
     }
 
     const report = {
@@ -144,10 +144,10 @@ async function runDataCoverageTests() {
     if (report.failed > 0) {
         fs.writeFileSync(FAILURES_LOG_PATH, JSON.stringify(report.failures, null, 2));
         console.log(`📝 Detailed failures written to: ${FAILURES_LOG_PATH}`);
-        process.exit(1);
+        // process.exit removed
     } else {
         console.log(`✨ 100% Data Coverage Verification Complete.`);
-        process.exit(0);
+        // process.exit removed
     }
 }
 

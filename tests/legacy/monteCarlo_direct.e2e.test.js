@@ -13,7 +13,7 @@ app.use(express.json());
 // Import the router handler
 import brainRouter from '../brainRouter.js';
 
-app.post('/api/brain', brainRouter);
+app.post('/api/brain/v2', brainRouter);
 
 describe('Monte Carlo E2E Test (Direct Flow)', () => {
     let sessionId;
@@ -25,7 +25,7 @@ describe('Monte Carlo E2E Test (Direct Flow)', () => {
 
     it('should show menu for a specific restaurant in a specific city', async () => {
         const res = await request(app)
-            .post('/api/brain')
+            .post('/api/brain/v2')
             .send({
                 sessionId,
                 text: 'Chcę zobaczyć menu Pizzeria Monte Carlo w Piekarach Śląskich',
@@ -42,7 +42,7 @@ describe('Monte Carlo E2E Test (Direct Flow)', () => {
 
     it('should add Margherita to cart', async () => {
         const res = await request(app)
-            .post('/api/brain')
+            .post('/api/brain/v2')
             .send({
                 sessionId,
                 text: 'Dodaj pizzę Margherita do zamówienia',
@@ -58,7 +58,7 @@ describe('Monte Carlo E2E Test (Direct Flow)', () => {
 
     it('should confirm the order', async () => {
         const res = await request(app)
-            .post('/api/brain')
+            .post('/api/brain/v2')
             .send({
                 sessionId,
                 text: 'Tak, potwierdzam zamówienie',

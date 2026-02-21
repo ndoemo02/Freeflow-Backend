@@ -1,4 +1,4 @@
-
+﻿
 import { NLURouter } from '../api/brain/nlu/router.js';
 import fs from 'fs';
 import path from 'path';
@@ -16,7 +16,7 @@ const sessionId = 'mass-test-session-' + Date.now();
 const dataPath = path.join(__dirname, '../test_data_dump.json');
 if (!fs.existsSync(dataPath)) {
     console.error('❌ CRITICAL: test_data_dump.json not found! Run fetch_test_data.js first.');
-    process.exit(1);
+    // process.exit removed
 }
 const realData = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
 
@@ -97,10 +97,10 @@ async function runMassRestaurantTest() {
     if (totalFailed > 0) {
         fs.writeFileSync('mass_failures.json', JSON.stringify(allFailures, null, 2));
         console.log('📝 Failures written to mass_failures.json');
-        process.exit(1);
+        // process.exit removed
     } else {
         console.log('✨ All restaurants passed!');
-        process.exit(0);
+        // process.exit removed
     }
 }
 

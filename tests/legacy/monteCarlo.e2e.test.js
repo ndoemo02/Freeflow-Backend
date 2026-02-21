@@ -13,14 +13,14 @@ app.use(express.json());
 // Import the router handler
 import brainRouter from '../brainRouter.js';
 
-app.post('/api/brain', brainRouter);
+app.post('/api/brain/v2', brainRouter);
 
 describe('Monte Carlo E2E Test (Real DB Data Flow)', () => {
     const sessionId = `test_mc_${Date.now()}`;
 
     it('should ask for restaurants and get confirmation request', async () => {
         const res = await request(app)
-            .post('/api/brain')
+            .post('/api/brain/v2')
             .send({
                 sessionId,
                 text: 'Pokaż mi restauracje w Piekarach Śląskich',
@@ -35,7 +35,7 @@ describe('Monte Carlo E2E Test (Real DB Data Flow)', () => {
 
     it('should confirm and see the list', async () => {
         const res = await request(app)
-            .post('/api/brain')
+            .post('/api/brain/v2')
             .send({
                 sessionId,
                 text: 'Tak, pokaż',
@@ -50,7 +50,7 @@ describe('Monte Carlo E2E Test (Real DB Data Flow)', () => {
 
     it('should show the menu for Pizzeria Monte Carlo', async () => {
         const res = await request(app)
-            .post('/api/brain')
+            .post('/api/brain/v2')
             .send({
                 sessionId,
                 text: 'Chcę zobaczyć menu tej restauracji', // Using "tej" because it was the last found
@@ -66,7 +66,7 @@ describe('Monte Carlo E2E Test (Real DB Data Flow)', () => {
 
     it('should add Margherita to cart', async () => {
         const res = await request(app)
-            .post('/api/brain')
+            .post('/api/brain/v2')
             .send({
                 sessionId,
                 text: 'Dodaj pizzę Margherita do zamówienia',

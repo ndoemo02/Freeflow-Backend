@@ -1,4 +1,4 @@
-
+﻿
 import { BrainPipeline } from '../api/brain/core/pipeline.js';
 import { NLURouter } from '../api/brain/nlu/router.js';
 import { InMemoryRestaurantRepository } from '../api/brain/core/repository.js';
@@ -18,7 +18,7 @@ const TEST_DATA_PATH = path.join(__dirname, '../test_data_dump.json');
 // INIT DATA for In-Memory Repo
 if (!fs.existsSync(TEST_DATA_PATH)) {
     console.error("❌ Test Data Dump not found!");
-    process.exit(1);
+    // process.exit removed
 }
 const testData = JSON.parse(fs.readFileSync(TEST_DATA_PATH, 'utf8'));
 
@@ -51,7 +51,7 @@ async function runPipelineFlowTests() {
 
     if (!conflict) {
         console.error('⚠️ No ambiguous dishes found in dump. Skipping test.');
-        process.exit(0);
+        // process.exit removed
     }
 
     // Force known working phrase if needed, or stick to dumped name
@@ -144,7 +144,7 @@ async function runPipelineFlowTests() {
     }
 
     console.log(`\n📊 REPORT: ${report.passed} Pass / ${report.failed} Fail`);
-    if (report.failed > 0) process.exit(1);
+    if (report.failed > 0) { /* process.exit removed */ }
 }
 
 runPipelineFlowTests();

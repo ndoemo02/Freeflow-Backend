@@ -17,11 +17,11 @@ const originalConsole = { ...console };
 beforeAll(() => {
   // Suppress console.log in tests unless explicitly enabled
   if (!process.env.VERBOSE_TESTS) {
-    console.log = () => {};
-    console.info = () => {};
-    console.debug = () => {};
+    console.log = () => { };
+    console.info = () => { };
+    console.debug = () => { };
   }
-  
+
   // Keep error and warn for debugging
   console.error = originalConsole.error;
   console.warn = originalConsole.warn;
@@ -51,9 +51,9 @@ global.testUtils = {
       ...headers
     },
     method: 'POST',
-    url: '/api/brain'
+    url: '/api/brain/v2'
   }),
-  
+
   createMockResponse: () => {
     const res = {
       status: () => res,
@@ -65,7 +65,7 @@ global.testUtils = {
     };
     return res;
   },
-  
+
   createMockSession: (overrides = {}) => ({
     id: 'test-session',
     lastIntent: null,
@@ -73,7 +73,7 @@ global.testUtils = {
     lastUpdated: Date.now(),
     ...overrides
   }),
-  
+
   createMockCatalog: () => [
     { id: '1', name: 'Pizza Margherita', price: 25.00, category: 'pizza' },
     { id: '2', name: 'Burger Classic', price: 20.00, category: 'burger' },
@@ -81,9 +81,9 @@ global.testUtils = {
     { id: '4', name: 'Mała Pizza Margherita', price: 15.00, category: 'pizza' },
     { id: '5', name: 'Duża Pizza Margherita', price: 35.00, category: 'pizza' }
   ],
-  
+
   wait: (ms) => new Promise(resolve => setTimeout(resolve, ms)),
-  
+
   measureTime: async (fn) => {
     const start = Date.now();
     const result = await fn();
@@ -122,14 +122,14 @@ global.performanceMonitor = {
     global.performanceMonitor._timers = global.performanceMonitor._timers || {};
     global.performanceMonitor._timers[name] = Date.now();
   },
-  
+
   end: (name) => {
     if (!global.performanceMonitor._timers?.[name]) return null;
     const duration = Date.now() - global.performanceMonitor._timers[name];
     delete global.performanceMonitor._timers[name];
     return duration;
   },
-  
+
   measure: async (name, fn) => {
     global.performanceMonitor.start(name);
     const result = await fn();

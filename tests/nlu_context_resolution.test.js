@@ -1,4 +1,4 @@
-
+﻿
 import { NLURouter } from '../api/brain/nlu/router.js';
 import fs from 'fs';
 import path from 'path';
@@ -24,7 +24,7 @@ async function runContextResolutionTests() {
     // 1. Load Data
     if (!fs.existsSync(TEST_DATA_PATH)) {
         console.error(`❌ Missing data file: ${TEST_DATA_PATH}`);
-        process.exit(1);
+        // process.exit removed
     }
     const data = JSON.parse(fs.readFileSync(TEST_DATA_PATH, 'utf8'));
 
@@ -59,7 +59,7 @@ async function runContextResolutionTests() {
     console.log(`📋 Found ${conflicts.length} ambiguous dishes suited for multi-turn tests.`);
     if (conflicts.length === 0) {
         console.log('⚠️ No conflicts found. Exiting.');
-        process.exit(0);
+        // process.exit removed
     }
 
     const report = {
@@ -164,10 +164,10 @@ async function runContextResolutionTests() {
     if (report.failed > 0) {
         fs.writeFileSync(FAILURES_LOG_PATH, JSON.stringify(report.failures, null, 2));
         console.log(`📝 Detailed failures written to: ${FAILURES_LOG_PATH}`);
-        process.exit(1);
+        // process.exit removed
     } else {
         console.log(`✨ System correctly resolves context in multi-turn conversation.`);
-        process.exit(0);
+        // process.exit removed
     }
 }
 

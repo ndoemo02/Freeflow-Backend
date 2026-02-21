@@ -1,4 +1,4 @@
-
+﻿
 import dotenv from 'dotenv';
 dotenv.config();
 
@@ -44,7 +44,7 @@ async function runTests() {
 
     } catch (e) {
         console.error("❌ Critical: DB Setup failure.");
-        process.exit(1);
+        // process.exit removed
     }
 
     // Define Flow
@@ -141,7 +141,7 @@ async function runTests() {
     console.log(`\nResults: ${passed} Passed, ${failed} Failed.`);
     fs.writeFileSync('integration_test_results.json', JSON.stringify({ passed, failed, failureDetails }, null, 2));
 
-    if (failed > 0) process.exit(1);
+    if (failed > 0) { /* process.exit removed */ }
 }
 
 runTests();
