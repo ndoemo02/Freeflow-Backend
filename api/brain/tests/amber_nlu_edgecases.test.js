@@ -7,18 +7,35 @@ import { OrderHandler } from '../domains/food/orderHandler.js';
 vi.mock('../../_supabase.js', () => {
     return {
         supabase: {
-            from: vi.fn(() => ({
-                select: vi.fn(() => Promise.resolve({
-                    data: [
-                        { id: 1, name: 'Zupa Pomidorowa', price_pln: 15, restaurant_id: 'R1', restaurants: { id: 'R1', name: 'Bar Mleczny' } }, // Collision
-                        { id: 2, name: 'Zupa Pomidorowa', price_pln: 25, restaurant_id: 'R2', restaurants: { id: 'R2', name: 'Włoska Knajpa' } }, // Collision
-                        { id: 3, name: 'Burger Drwala', price_pln: 30, restaurant_id: 'R3', restaurants: { id: 'R3', name: 'Kebab King' } }, // Unique
-                        { id: 4, name: 'Frytki', price_pln: 5, restaurant_id: 'R1', restaurants: { id: 'R1', name: 'Bar Mleczny' } },        // Common
-                        { id: 5, name: 'Frytki', price_pln: 8, restaurant_id: 'R2', restaurants: { id: 'R2', name: 'Włoska Knajpa' } },      // Common
-                        { id: 6, name: 'Frytki', price_pln: 6, restaurant_id: 'R3', restaurants: { id: 'R3', name: 'Kebab King' } }         // Common
-                    ],
-                    error: null
-                }))
+            from: vi.fn((table) => ({
+                select: vi.fn(() => {
+                    let responseBase;
+                    if (table === 'restaurants') {
+                        responseBase = {
+                            data: [
+                                { id: 'R1', name: 'Bar Mleczny' },
+                                { id: 'R2', name: 'Włoska Knajpa' },
+                                { id: 'R3', name: 'Kebab King' },
+                            ],
+                            error: null
+                        };
+                    } else {
+                        responseBase = {
+                            data: [
+                                { id: 1, name: 'Zupa Pomidorowa', price_pln: 15, restaurant_id: 'R1' },
+                                { id: 2, name: 'Zupa Pomidorowa', price_pln: 25, restaurant_id: 'R2' },
+                                { id: 3, name: 'Burger Drwala', price_pln: 30, restaurant_id: 'R3' },
+                                { id: 4, name: 'Frytki', price_pln: 5, restaurant_id: 'R1' },
+                                { id: 5, name: 'Frytki', price_pln: 8, restaurant_id: 'R2' },
+                                { id: 6, name: 'Frytki', price_pln: 6, restaurant_id: 'R3' }
+                            ],
+                            error: null
+                        };
+                    }
+                    const queryBuilder = Promise.resolve(responseBase);
+                    queryBuilder.in = vi.fn().mockReturnValue(Promise.resolve(responseBase));
+                    return queryBuilder;
+                })
             }))
         }
     };

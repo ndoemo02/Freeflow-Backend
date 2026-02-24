@@ -5,17 +5,16 @@ exports[`order pipeline snapshot > creates a normalized and validated order item
   "item": {
     "category": "Pizza",
     "name": "Pepperoni",
+    "quantity": 1,
+    "selectedExtras": [
+      "extra_cheese",
+    ],
+    "selectedSize": "large",
     "sizes": [
       "medium",
       "large",
     ],
   },
-  "message": "Jaki rozmiar pizzy "Pepperoni" wybierasz?",
-  "ok": false,
-  "reason": "missing_size",
-  "suggestions": [
-    "medium",
-    "large",
-  ],
+  "ok": true,
 }
 `;

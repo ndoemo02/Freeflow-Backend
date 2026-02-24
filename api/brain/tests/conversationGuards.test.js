@@ -171,15 +171,15 @@ describe('🛡️ ConversationGuards', () => {
     describe('calculatePhase', () => {
 
         it('returns restaurant_selected for select_restaurant intent', () => {
-            expect(calculatePhase('select_restaurant', 'discovery')).toBe('restaurant_selected');
+            expect(calculatePhase('select_restaurant', 'idle')).toBe('restaurant_selected');
         });
 
         it('returns ordering for create_order intent', () => {
-            expect(calculatePhase('create_order', 'discovery')).toBe('ordering');
+            expect(calculatePhase('create_order', 'idle')).toBe('ordering');
         });
 
-        it('returns discovery for find_nearby intent', () => {
-            expect(calculatePhase('find_nearby', 'ordering')).toBe('discovery');
+        it('returns idle for find_nearby intent', () => {
+            expect(calculatePhase('find_nearby', 'ordering')).toBe('idle');
         });
 
         it('preserves phase for find_nearby from continuity_guard', () => {

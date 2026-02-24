@@ -664,7 +664,7 @@ export function parseOrderItems(text, catalog) {
   }
 
   return {
-    any: allHits.length > 0,
+    any: Object.values(byR).length > 0,  // FIX: true ONLY when real grouped matches exist (not just raw hits)
     groups: Object.values(byR),
     clarify: clarifications || [],
     available: matched || [],
@@ -800,6 +800,17 @@ export async function detectIntent(text, session = null, entities = {}) {
       return { intent: 'find_nearby', restaurant: null };
     }
 
+    // ══════════════════════════════════════════════════════════════════════
+    // GREETING GATE — EARLY EXIT (prevents catalog load on neutral input)
+    // Must run BEFORE any catalog/menu/parseOrderItems calls.
+    // ══════════════════════════════════════════════════════════════════════
+    const GREETING_PATTERNS = /^(cze[sś][cć]|hej|hej\s|witaj|dzień\s+dobry|dzien\s+dobry|siema|siemanko|yo|hi|hello|dobry\s+wieczór|dobry\s+wieczor|dobranoc|serwus|moro|hejka|elo|cześć|czesc)([!.,?\s].*)?$/i;
+    if (GREETING_PATTERNS.test(text.trim())) {
+      console.log('[intent-router] 👋 GREETING GATE: Detected greeting – skipping catalog load.');
+      updateDebugSession({ intent: 'greeting', restaurant: null, sessionId: session?.id || null, confidence: 1.0 });
+      return { intent: 'greeting', confidence: 1.0, source: 'greeting_gate', restaurant: null };
+    }
+
     // ——— CONFIRM FLOW - DELEGATED TO boostIntent() in brainRouter.js ———
     // Logika potwierdzania zamówień jest teraz obsługiwana przez:
     // 1. boostIntent() w brainRouter.js (wykrywa confirm_order/cancel_order)
@@ -932,7 +943,36 @@ export async function detectIntent(text, session = null, entities = {}) {
       );
       console.log(`[intent-router] Catalog loaded: ${catalog.length} items`);
 
-      if (catalog.length && !isExploratory(normalizedText)) {
+      // ══════════════════════════════════════════════════════════════════════
+      // ORDER PARSING GATE — only call parseOrderItems when there is evidence
+      // of an actual order intent. This prevents neutral/greeting inputs from
+      // cascading into choose_restaurant via fuzzy catalog matching.
+      // Conditions (any one sufficient):
+      //   a) text contains a known dish alias
+      //   b) text contains a quantity indicator ("2x", "trzy", …)
+      //   c) text contains an explicit order verb
+      //   d) session already has a currentRestaurant/lastRestaurant context
+      // ══════════════════════════════════════════════════════════════════════
+      const ORDER_VERB_GATE = /\b(zamawiam|zamów|zamow|poproszę|proszę|poprosz[ęe]|chcę|chce|wezmę|wezm[ęe]|biore|bior[ęe]|dodaj|dla\s+mnie|chciał(bym|abym)|skusz[ęe]|zdecyduj[ęe]|lec[ęe]\s+na)\b/i;
+      const QUANTITY_GATE = /\b(\d+\s*(x|razy|sztuk)?|dwa|dwie|trzy|cztery|pięć|jeden|jedna)\b/i;
+      const DISH_ALIAS_GATE = new RegExp(
+        Object.keys(DETERMINISTIC_ALIAS_MAP)
+          .sort((a, b) => b.length - a.length) // longest first
+          .map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+          .join('|'),
+        'i'
+      );
+      const hasSessionRestaurantCtx = !!(session?.lastRestaurant?.id || session?.currentRestaurant?.id);
+
+      const passesOrderGate =
+        ORDER_VERB_GATE.test(normalizedText) ||
+        QUANTITY_GATE.test(normalizedText) ||
+        DISH_ALIAS_GATE.test(normalizeTxt(normalizedText)) ||
+        hasSessionRestaurantCtx;
+
+      if (!passesOrderGate) {
+        console.log(`[intent-router] 🛡️ ORDER PARSING GATE: No order evidence in "${text}" – skipping parseOrderItems.`);
+      } else if (catalog.length && !isExploratory(normalizedText)) {
         console.log('[intent-router] 🔍 Calling parseOrderItems...');
         console.log('[intent-router] 🔍 Catalog items:', catalog.map(c => c.name).join(', '));
         const parsed = parseOrderItems(normalizedText, catalog);
@@ -1098,7 +1138,7 @@ export async function detectIntent(text, session = null, entities = {}) {
           console.log('[intent-router] ❌ Continuing to KROK 4 (targetRestaurant check)...');
         }
       } else {
-        console.log('[intent-router] Catalog is empty, skipping dish detection');
+        console.log('[intent-router] Catalog is empty or order gate skipped, skipping dish detection');
       }
     } catch (e) {
       console.error('[intent-router] dish parse error:', e);

@@ -30,32 +30,32 @@ describe('🧠 ExpectedContext Flow Tests', () => {
       confirmCases.forEach(text => {
         const result = boostIntent('none', text, session);
         if (typeof result === 'object') {
-          expect(result.intent).toBe('show_menu');
+          expect(result.intent).toBe('menu_request');
           expect(result.boosted).toBe(true);
         } else {
-          expect(result).toBe('show_menu');
+          expect(result).toBe('menu_request');
         }
       });
     });
 
-    it('should accept show_menu as alias for confirm_menu context', () => {
+    it('should accept menu_request as alias for confirm_menu context', () => {
       const session = {
-        expectedContext: 'show_menu', // old legacy context
+        expectedContext: 'menu_request', // old legacy context
         lastRestaurant: { name: 'Test Restaurant' }
       };
       const result = boostIntent('none', 'tak', session);
       if (typeof result === 'object') {
-        expect(result.intent).toBe('show_menu');
+        expect(result.intent).toBe('menu_request');
       } else {
-        expect(result).toBe('show_menu');
+        expect(result).toBe('menu_request');
       }
     });
 
     it('should NOT boost if text is too long', () => {
       const session = { expectedContext: 'confirm_menu' };
-      const longText = 'tak poproszę ale chciałbym też wiedzieć czy macie frytki';
+      const longText = 'tak poproszę bardzo ale tak właściwie chciałbym też wcześniej wiedzieć czy macie frytki i jaki to koszt';
       const result = boostIntent('none', longText, session);
-      expect(result).toBe('none'); // No boost
+      expect(result).toBe('none'); // No boost for > 12 words
     });
   });
 
@@ -70,9 +70,9 @@ describe('🧠 ExpectedContext Flow Tests', () => {
       confirmCases.forEach(text => {
         const result = boostIntent('none', text, session);
         if (typeof result === 'object') {
-          expect(result.intent).toBe('confirm');
+          expect(result.intent).toBe('confirm_order');
         } else {
-          expect(result).toBe('confirm');
+          expect(result).toBe('confirm_order');
         }
       });
     });

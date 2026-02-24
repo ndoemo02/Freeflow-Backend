@@ -347,6 +347,40 @@ export class BrainPipeline {
             }
 
             // ═══════════════════════════════════════════════════════════════════
+            // EARLY EXITS (Greetings) - Skip everything else
+            // ═══════════════════════════════════════════════════════════════════
+            if (intentResult?.intent === 'greeting') {
+                BrainLogger.pipeline(`👋 GREETING DETECTED: Returning friendly greeting`);
+                const replyText = 'Cześć! W czym mogę pomóc?';
+                let audioContent = null;
+                const wantsTTS = options?.includeTTS === true;
+                const EX_MODE = process.env.EXPERT_MODE === 'true'; // Pipeline constant
+                const ttsEnabled = config?.tts_enabled === true;
+
+                if ((wantsTTS || EX_MODE) && ttsEnabled) {
+                    try {
+                        const t0 = Date.now();
+                        audioContent = await playTTS(replyText, options?.ttsOptions || {});
+                        BrainLogger.pipeline(`🔊 TTS Gen (Greeting): "${replyText}" (${Date.now() - t0}ms)`);
+                    } catch (err) {
+                        BrainLogger.pipeline(`❌ TTS failed: ${err.message}`);
+                    }
+                }
+
+                return {
+                    ok: true,
+                    session_id: activeSessionId,
+                    intent: 'greeting',
+                    reply: replyText,
+                    text: replyText,
+                    audioContent: audioContent,
+                    should_reply: true,
+                    stopTTS: false,
+                    meta: { source: 'pipeline_greeting_handler' }
+                };
+            }
+
+            // ═══════════════════════════════════════════════════════════════════
             // SINGLE ROUTING INVARIANT — hard guard
             // If this fires, a classic path leaked through the NLU layer.
             // ═══════════════════════════════════════════════════════════════════

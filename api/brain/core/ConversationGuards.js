@@ -149,7 +149,7 @@ export async function recoverRestaurantFromFullText(text, restaurants) {
         const nameTokens = nameNorm.split(/\s+/).filter(t => t.length > 2);
         const textTokens = normalized.split(/\s+/);
 
-        // Check for multi-word match
+        // Check for multi-word match (exact token pairing)
         for (let i = 0; i < textTokens.length - 1; i++) {
             const twoWordPhrase = `${textTokens[i]} ${textTokens[i + 1]}`;
             if (nameTokens.length >= 2) {
@@ -158,6 +158,21 @@ export async function recoverRestaurantFromFullText(text, restaurants) {
                     BrainLogger.nlu?.(`🧠 SEMANTIC_RESTAURANT_RECOVERY: Token match "${restaurant.name}"`);
                     return restaurant;
                 }
+            }
+        }
+
+        // Stem matching: match each name token by 4-char prefix (handles Polish inflection)
+        // e.g. "stara kamienica" → stems ["star","kami"] match "starej kamienicy"
+        const STEM_LEN = 4;
+        if (nameTokens.length >= 2) {
+            const nameStems = nameTokens.map(t => t.substring(0, STEM_LEN));
+            const textTokensNorm = normalized.split(/\s+/);
+            const matchCount = nameStems.filter(stem =>
+                stem.length >= 3 && textTokensNorm.some(t => t.startsWith(stem))
+            ).length;
+            if (matchCount >= Math.min(2, nameStems.length)) {
+                BrainLogger.nlu?.(`🧠 SEMANTIC_RESTAURANT_RECOVERY: Stem match "${restaurant.name}" (${matchCount}/${nameStems.length} stems)`);
+                return restaurant;
             }
         }
     }

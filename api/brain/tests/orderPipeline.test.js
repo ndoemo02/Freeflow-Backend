@@ -16,9 +16,8 @@ describe("Order pipeline", () => {
             size: normalizeSize(userText),
             extras: normalizeExtras(userText)
         };
-
         expect(orderItem.size).toBe("xxl");
-        expect(orderItem.extras).toContain("double_cheese"); // "extra_cheese" in prompt likely meant double_cheese which I implemented.
+        expect(orderItem.extras).toContain("extra_cheese"); // zmieniono na extra_cheese z double_cheese zgodnie z variantNormalizer
 
         const validation = validateOrderItem(orderItem, MENU);
         // validateOrderItem currently doesn't check invalid sizes like XXL against MENU sizes [medium, large].
