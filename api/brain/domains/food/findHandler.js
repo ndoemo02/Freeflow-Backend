@@ -45,7 +45,15 @@ function resolveDiscoveryMode(ctx) {
 
     const cuisineType = entities?.cuisine || extractCuisineType(text);
     const normalizedLoc = normalizeLocation(rawLocation);
-    const coords = (body && body.lat && body.lng) ? { lat: body.lat, lng: body.lng } : null;
+    const bodyLat = body?.lat != null ? parseFloat(body.lat) : null;
+    const bodyLng = body?.lng != null ? parseFloat(body.lng) : null;
+    const bodyCoords = (Number.isFinite(bodyLat) && Number.isFinite(bodyLng))
+        ? { lat: bodyLat, lng: bodyLng }
+        : null;
+    const ctxCoords = (ctx?.coords && Number.isFinite(ctx.coords.lat) && Number.isFinite(ctx.coords.lng))
+        ? { lat: ctx.coords.lat, lng: ctx.coords.lng }
+        : null;
+    const coords = bodyCoords || ctxCoords || null;
 
     // 2. Determine Mode
     if (normalizedLoc) {

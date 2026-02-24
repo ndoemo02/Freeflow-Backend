@@ -9,8 +9,9 @@ export function getDefault() {
         status: 'active',           // 'active' | 'closed'
         closedReason: null,         // 'CART_ITEM_ADDED' | 'ORDER_CONFIRMED' | null
         closedAt: null,             // ISO timestamp when closed
-        
+
         // FSM / Dialog State
+        conversationPhase: 'idle',
         expectedContext: "neutral",
         lastIntent: null,
         lastRestaurant: null,
@@ -20,7 +21,7 @@ export function getDefault() {
         lastMenu: [],
         locationOverride: null,
         history: [],
-        
+
         // Pending state (reset on close)
         pendingDish: null,
         awaiting: null,

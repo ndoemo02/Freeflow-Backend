@@ -93,13 +93,13 @@ export class ConfirmOrderHandler {
                 source: 'confirm_handler',
                 conversationClosed: true
             },
-            // NOTE: contextUpdates are now irrelevant as session is closed
-            // But we keep them for backward compatibility
+            // NOTE: contextUpdates help keep the frontend state clean when session is closed
             contextUpdates: {
-                pendingOrder: null,
                 expectedContext: null,
+                pendingOrder: null,
                 lastIntent: 'order_complete',
-                lastOrderId: orderId
+                lastOrderId: orderId,
+                conversationPhase: 'idle'
             }
         };
     }

@@ -33,7 +33,8 @@ export default async function handler(req, res) {
         const options = {
             includeTTS: body.includeTTS || false,
             stylize: body.stylize || false,
-            ttsOptions: body.ttsOptions || {}
+            ttsOptions: body.ttsOptions || {},
+            requestBody: body
         };
 
         const result = await pipeline.process(sessionId, text, options);

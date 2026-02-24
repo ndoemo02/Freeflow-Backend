@@ -177,7 +177,7 @@ export async function recoverRestaurantFromFullText(text, restaurants) {
  * @param {string} source - Intent source
  * @returns {string} - New phase
  */
-export function calculatePhase(intent, currentPhase = 'discovery', source = '') {
+export function calculatePhase(intent, currentPhase = 'idle', source = '') {
     // Phase transitions
     if (intent === 'select_restaurant') return 'restaurant_selected';
     if (intent === 'menu_request') return 'restaurant_selected';
@@ -187,7 +187,7 @@ export function calculatePhase(intent, currentPhase = 'discovery', source = '') 
 
     // find_nearby resets phase UNLESS it came from continuity guard
     if (intent === 'find_nearby' && source !== 'continuity_guard') {
-        return 'discovery';
+        return 'idle';
     }
 
     // Keep current phase for other intents

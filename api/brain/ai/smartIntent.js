@@ -1,24 +1,40 @@
-// intentRouterGlue removed — classic NLU disabled (single-routing invariant)
+// Smart Intent Resolution Layer (V2 + classic NLU compatibility)
+
+import { detectIntent } from '../intents/intentRouterGlue.js';
 
 const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
 
 /**
  * Smart Intent Resolution Layer
- * V2 path: v2_no_match baseline → ordering guards → LLM fallback (if EXPERT_MODE=true)
+ * V2 path: classic NLU baseline → ordering guards → LLM fallback (if EXPERT_MODE=true)
  */
 export async function smartResolveIntent({ text, session, restaurants, previousIntent }) {
     // 1. Guard empty input
     if (!text || !text.trim()) {
-        return { intent: "smalltalk", confidence: 0, slots: {}, source: 'empty' };
+        return { intent: "smalltalk", confidence: 0, slots: {}, source: 'empty', engine: 'v2' };
     }
 
-    // 2. V2-native baseline — no classic NLU call
-    const classicResult = {
-        intent: 'unknown',
-        confidence: 0,
-        slots: {},
-        source: 'v2_no_match'
-    };
+    // 2. Classic NLU baseline — try detectIntent, fallback to unknown
+    let classicResult;
+    try {
+        const det = await detectIntent(text);
+        classicResult = {
+            intent: det?.intent || 'unknown',
+            confidence: det?.confidence || 0,
+            slots: det?.entities || {},
+            source: 'classic',
+            engine: 'v2'
+        };
+    } catch (err) {
+        console.warn('[SmartIntent] Classic NLU failed, using fallback:', err?.message);
+        classicResult = {
+            intent: 'unknown',
+            confidence: 0,
+            slots: {},
+            source: 'classic',
+            engine: 'v2'
+        };
+    }
 
     // 3. Fast-track (Skip LLM)
     // Jeśli mamy expectedContext LUB wysokie confidence (>= 0.75)

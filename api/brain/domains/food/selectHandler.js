@@ -41,15 +41,32 @@ export class SelectRestaurantHandler {
                 city: entities.location || null
             };
 
+            // Auto-show menu after selection
+            ctx.session = {
+                ...ctx.session,
+                lastRestaurant: currentRestaurant,
+                currentRestaurant: currentRestaurant
+            };
+
+            const { MenuHandler } = await import('./menuHandler.js');
+            const menuHandler = new MenuHandler();
+            const menuResponse = await menuHandler.execute(ctx);
+
+            let finalReply = `Wybrano ${entities.restaurant}. `;
+            if (menuResponse.reply) {
+                finalReply += menuResponse.reply.replace(`Wybrano restaurację ${entities.restaurant}. `, '').replace(`Wybrano restaurację ${entities.restaurant}.`, '');
+            }
+
             return {
-                reply: `Wybrano ${entities.restaurant}. Co chcesz zrobić? (Pokaż menu lub zamawiam)`,
+                ...menuResponse,
+                reply: finalReply,
                 contextUpdates: {
+                    ...menuResponse.contextUpdates,
                     currentRestaurant,
                     lastRestaurant: currentRestaurant,
                     lockedRestaurantId: entities.restaurantId,
-                    expectedContext: 'restaurant_menu'
                 },
-                meta: { source: 'entity_direct_selection' }
+                meta: { source: 'entity_direct_selection_auto_menu' }
             };
         }
 
@@ -172,15 +189,33 @@ export class SelectRestaurantHandler {
             };
         }
 
+        // Auto-show menu after selection
+        ctx.session = {
+            ...ctx.session,
+            lastRestaurant: selected,
+            currentRestaurant: currentRestaurant
+        };
+
+        // Import MenuHandler dynamically to avoid circular dependency issues if any
+        const { MenuHandler } = await import('./menuHandler.js');
+        const menuHandler = new MenuHandler();
+        const menuResponse = await menuHandler.execute(ctx);
+
+        let finalReply = `Wybrano ${selected.name}. `;
+        if (menuResponse.reply) {
+            finalReply += menuResponse.reply.replace(`Wybrano restaurację ${selected.name}. `, '').replace(`Wybrano restaurację ${selected.name}.`, '');
+        }
+
         return {
-            reply: `Wybrano ${selected.name}. Co chcesz zrobić? (Pokaż menu lub zamawiam)`,
+            ...menuResponse,
+            reply: finalReply,
             contextUpdates: {
-                currentRestaurant, // NEW: Persistent restaurant
+                ...menuResponse.contextUpdates,
+                currentRestaurant,
                 lastRestaurant: selected,
                 lockedRestaurantId: selected.id,
-                expectedContext: 'restaurant_menu' // Use FSM, not context: 'IN_RESTAURANT'
             },
-            meta: { source: 'selection_handler' }
+            meta: { source: 'selection_auto_menu' }
         };
     }
 }

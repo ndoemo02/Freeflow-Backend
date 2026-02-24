@@ -47,6 +47,51 @@ import {
     containsOrderingIntent
 } from './ConversationGuards.js';
 
+// 📢 Intelligent TTS Summaries
+function buildRestaurantSummaryForTTS(restaurants, location) {
+    if (!restaurants || restaurants.length === 0) return null;
+
+    const count = restaurants.length;
+
+    const sample = restaurants
+        .slice(0, 3)
+        .map(r => r.name)
+        .join(', ');
+
+    return `Znalazłam ${count} miejsc${location ? ' w ' + location : ''}. Między innymi: ${sample}. Którą wybierasz?`;
+}
+
+function buildMenuSummaryForTTS(menuItems) {
+    if (!menuItems || menuItems.length === 0) return null;
+
+    const categories = [...new Set(menuItems.map(i => i.category).filter(Boolean))];
+
+    const hasVege = menuItems.some(i => i.is_vege);
+    const hasSpicy = menuItems.some(i => i.spicy);
+
+    let summary = "W karcie są m.in. ";
+
+    if (categories.length > 0) {
+        summary += categories.join(', ');
+    }
+
+    if (hasVege && !summary.includes('wegetariańskie')) summary += ", opcje wegetariańskie";
+    if (hasSpicy && !summary.includes('ostre')) summary += ", dania ostre";
+
+    // Deduplicate base_name and use it for examples
+    const baseNames = [...new Set(menuItems.map(i => i.base_name || i.name).filter(Boolean))];
+    const sample = baseNames.slice(0, 3).join(', ');
+
+    if (sample) {
+        summary += `. Na przykład: ${sample}. Co wybierasz?`;
+    } else {
+        summary += `. Co wybierasz?`;
+    }
+
+    return summary;
+}
+
+
 // Mapa handlerów domenowych (Bezpośrednie mapowanie)
 // Kluczem jest "domain", a wewnątrz "intent"
 
@@ -514,22 +559,22 @@ export class BrainPipeline {
                     intent = 'create_order';
                     source = 'smart_safe_unlock';
                 } else {
-                    BrainLogger.pipeline('🛡️ HARD_BLOCK: No restaurant context → fallback discovery');
+                    BrainLogger.pipeline('🛡️ HARD_BLOCK: No restaurant context → fallback idle');
                     intent = 'find_nearby';
                 }
             }
 
             // ═══════════════════════════════════════════════════════════════════
             // FIX 3: CONVERSATION CONTINUITY GUARD
-            // Prevent discovery reset when user mentions dish in ordering context
+            // Prevent idle reset when user mentions dish in ordering context
             // ═══════════════════════════════════════════════════════════════════
             if (
                 intent === 'find_nearby' &&
                 isOrderingContext(sessionContext) &&
                 containsDishLikePhrase(text) &&
-                !entities?.location  // EXEMPTION: explicit discovery always wins
+                !entities?.location  // EXEMPTION: explicit idle always wins
             ) {
-                BrainLogger.pipeline('🟢 CONTINUITY_GUARD_TRIGGERED: Preventing discovery reset → create_order');
+                BrainLogger.pipeline('🟢 CONTINUITY_GUARD_TRIGGERED: Preventing idle reset → create_order');
                 intent = 'create_order';
                 source = 'continuity_guard';
             }
@@ -544,7 +589,7 @@ export class BrainPipeline {
                 intent === 'find_nearby' &&
                 sessionContext?.currentRestaurant &&
                 containsOrderingIntent(text) &&
-                !entities?.location  // EXEMPTION: explicit location = user wants new discovery
+                !entities?.location  // EXEMPTION: explicit location = user wants new idle
             ) {
                 BrainLogger.pipeline('🟢 STRONG_CONTINUITY_GUARD: ordering phrase + locked restaurant → create_order');
                 intent = 'create_order';
@@ -559,7 +604,7 @@ export class BrainPipeline {
             // ═══════════════════════════════════════════════════════════════════
 
             // ═══════════════════════════════════════════════════════════════════
-            // DISCOVERY RESET: find_nearby resets restaurant context
+            // IDLE RESET: find_nearby resets restaurant context
             // SAFETY: Skip reset if intent came from a blocked source (preserve context)
             // ═══════════════════════════════════════════════════════════════════
             const isFromBlock = source?.endsWith('_blocked') || source === 'icm_fallback';
@@ -569,7 +614,7 @@ export class BrainPipeline {
                     lastRestaurant: null,
                     lockedRestaurantId: null
                 });
-                BrainLogger.pipeline('🔄 DISCOVERY RESET: Cleared restaurant context for find_nearby');
+                BrainLogger.pipeline('🔄 IDLE RESET: Cleared restaurant context for find_nearby');
             }
 
             // ═══════════════════════════════════════════════════════════════════
@@ -616,7 +661,7 @@ export class BrainPipeline {
             // ═══════════════════════════════════════════════════════════════════
             // PRE-HANDLER CONTEXT OVERRIDE: Fast-track clarify_order with location
             // ═══════════════════════════════════════════════════════════════════
-            if (intent === 'clarify_order' && !sessionContext?.currentRestaurant && (sessionContext?.conversationPhase === 'discovery' || !sessionContext?.conversationPhase)) {
+            if (intent === 'clarify_order' && !sessionContext?.currentRestaurant && (sessionContext?.conversationPhase === 'idle' || !sessionContext?.conversationPhase)) {
                 try {
                     const { supabase } = await import('../../_supabase.js');
                     const { data } = await supabase.from('restaurants').select('city');
@@ -913,21 +958,21 @@ export class BrainPipeline {
 
                 let newPhase = calculatePhase(
                     intent,                                              // finalIntent: post-ICM
-                    updatedSessionContext.conversationPhase || 'discovery', // current phase from updated session
+                    updatedSessionContext.conversationPhase || 'idle', // current phase from updated session
                     source
                 );
 
                 // 🛡️ SAFETY GUARD: restaurant_selected requires currentRestaurant to be set.
                 // If handler did NOT actually persist a restaurant (e.g. select failed),
-                // fall back to 'discovery' to prevent phase/state desync.
+                // fall back to 'idle' to prevent phase/state desync.
                 if (newPhase === 'restaurant_selected' && !updatedSessionContext?.currentRestaurant) {
-                    BrainLogger.pipeline(`⚠️ PHASE_SAFETY_GUARD: restaurant_selected requested but currentRestaurant=null → fallback to 'discovery'`);
-                    newPhase = 'discovery';
+                    BrainLogger.pipeline(`⚠️ PHASE_SAFETY_GUARD: restaurant_selected requested but currentRestaurant=null → fallback to 'idle'`);
+                    newPhase = 'idle';
                 }
 
                 if (newPhase !== updatedSessionContext.conversationPhase) {
                     updateSession(sessionId, { conversationPhase: newPhase });
-                    BrainLogger.pipeline(`📍 PHASE_TRANSITION: ${updatedSessionContext.conversationPhase || 'discovery'} → ${newPhase}`);
+                    BrainLogger.pipeline(`📍 PHASE_TRANSITION: ${updatedSessionContext.conversationPhase || 'idle'} → ${newPhase}`);
                 }
             }
 
@@ -968,19 +1013,27 @@ export class BrainPipeline {
             }
 
             // Optimization for Voice Presentations:
-            // If we have items to present, only TTS the intro part to avoid double reading on frontend
+            // Intelligent TTS Summary Layer
             let speechPartForTTS = speechText;
-            const hasItemsToPresent = (domainResponse.restaurants?.length > 0) || (domainResponse.menuItems?.length > 0);
 
-            if (hasItemsToPresent && speechText && speechText.includes('\n')) {
-                const lines = speechText.split('\n');
-                let intro = lines[0].trim();
-                // If first line is too short (e.g. "Ok:"), take more
-                if (intro.length < 10 && lines.length > 1) {
-                    intro = lines.slice(0, 2).join(' ').trim();
+            if (domainResponse?.restaurants?.length) {
+                const loc = domainResponse.location || (domainResponse.contextUpdates && domainResponse.contextUpdates.last_location) || null;
+                const summary = buildRestaurantSummaryForTTS(
+                    domainResponse.restaurants,
+                    loc
+                );
+                if (summary) {
+                    speechPartForTTS = summary;
+                    BrainLogger.pipeline(`✂️ Smart TTS Restaurant Summary: "${speechPartForTTS.substring(0, 50)}..."`);
                 }
-                speechPartForTTS = intro;
-                BrainLogger.pipeline(`✂️ Truncating TTS for presentation: "${speechPartForTTS.substring(0, 30)}..."`);
+            } else if (domainResponse?.menuItems?.length) {
+                const summary = buildMenuSummaryForTTS(
+                    domainResponse.menuItems
+                );
+                if (summary) {
+                    speechPartForTTS = summary;
+                    BrainLogger.pipeline(`✂️ Smart TTS Menu Summary: "${speechPartForTTS.substring(0, 50)}..."`);
+                }
             }
 
             // Respect options or default to false
@@ -991,15 +1044,14 @@ export class BrainPipeline {
             if (hasReply && (wantsTTS || EXPERT_MODE) && ttsEnabled) {
                 if (speechPartForTTS) {
                     try {
-                        // 🔊 TTS Chunking: Stream first sentence immediately
-                        const { chunk: firstChunk, remaining } = getFirstChunk(speechPartForTTS);
-                        const ttsText = firstChunk?.text || speechPartForTTS;
+                        // 🔊 TTS: Odtwarzamy całe wygenerowane streszczenie (celowo wyłączone chunkowanie)
+                        const ttsText = speechPartForTTS;
 
                         const t0 = Date.now();
                         audioContent = await playTTS(ttsText, options.ttsOptions || {});
                         ttsMs = Date.now() - t0;
 
-                        BrainLogger.pipeline(`🔊 TTS Chunked: first="${ttsText.substring(0, 30)}..." (${ttsMs}ms)${remaining ? ` +${remaining.length} chars remaining` : ''}`);
+                        BrainLogger.pipeline(`🔊 TTS Generated: "${ttsText.substring(0, 30)}..." (${ttsMs}ms)`);
                     } catch (err) {
                         BrainLogger.pipeline(`❌ TTS failed: ${err.message}`);
                     }
