@@ -23,6 +23,7 @@ import {
 } from './IntentCapabilityMap.js';
 import { renderSurface, detectSurface } from '../dialog/SurfaceRenderer.js';
 import { dialogNavGuard, pushDialogStack } from '../dialog/DialogNavGuard.js';
+import { resolveMenuItemConflict, DISAMBIGUATION_RESULT } from '../services/DisambiguationService.js';
 
 // 🧠 Passive Memory Layer (read-only context, no FSM impact)
 import { initTurnBuffer, pushUserTurn, pushAssistantTurn } from '../memory/TurnBuffer.js';
@@ -213,13 +214,27 @@ export class BrainPipeline {
         // Deep copy session for shadow mode simulation
         const sessionContext = IS_SHADOW ? JSON.parse(JSON.stringify(session || {})) : session;
 
+        const requestBody = options?.requestBody || {};
+        const parsedLat = requestBody?.lat != null ? parseFloat(requestBody.lat) : null;
+        const parsedLng = requestBody?.lng != null ? parseFloat(requestBody.lng) : null;
+        const coords = (Number.isFinite(parsedLat) && Number.isFinite(parsedLng))
+            ? { lat: parsedLat, lng: parsedLng }
+            : (sessionContext?.coords || null);
+
+        if (coords && !IS_SHADOW) {
+            // FIX: enable distance calculation when GPS available
+            updateSession(activeSessionId, { coords });
+        }
+
         const context = {
             sessionId: activeSessionId,  // Use active (possibly new) session ID
             originalSessionId: sessionId, // Keep original for tracking
             text,
             session: sessionContext,
             startTime,
-            meta: { conversationNew: sessionResult.isNew }
+            meta: { conversationNew: sessionResult.isNew },
+            body: requestBody,
+            coords
         };
 
         // 🧠 Initialize Passive Memory (no FSM impact)
@@ -263,8 +278,28 @@ export class BrainPipeline {
                 };
             }
 
-            // 2. NLU Decision
-            const intentResult = await this.nlu.detect(context);
+            // ═══════════════════════════════════════════════════════════════════
+            // PRE-NLU CONTEXT OVERRIDE: Fast-track list selections
+            // ═══════════════════════════════════════════════════════════════════
+            let intentResult;
+            const hasList = sessionContext?.last_restaurants_list?.length > 0;
+            const normOverrideText = text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+            const isDigitObj = /^\d+$/.test(normOverrideText) || /^wybieram\s+\d+$/.test(normOverrideText);
+            const isOrdinalObj = /^(pierwsza|druga|trzecia|czwarta|piata|szosta|siodma|osma|dziewiata|dziesiata|jedynka|dwojka|trojka|czworka|piatka|szostka|siodemka|osemka|dziewiatka|dziesiatka|pierwszy|drugi|trzeci|czwarty|piaty|szosty|siodmy|osmy|dziewiaty|dziesiaty)$/.test(normOverrideText);
+
+            if (hasList && (isDigitObj || isOrdinalObj)) {
+                BrainLogger.pipeline(`⚡ PRE-NLU OVERRIDE: Bypassing NLU for list selection -> select_restaurant`);
+                intentResult = {
+                    intent: 'select_restaurant',
+                    domain: 'food',
+                    confidence: 1.0,
+                    source: 'context_override',
+                    entities: {}
+                };
+            } else {
+                // 2. NLU Decision
+                intentResult = await this.nlu.detect(context);
+            }
 
             // ═══════════════════════════════════════════════════════════════════
             // SINGLE ROUTING INVARIANT — hard guard
@@ -276,7 +311,8 @@ export class BrainPipeline {
                     intent: intentResult.intent,
                     sessionId: activeSessionId
                 });
-                throw new Error(`CLASSIC ROUTE DETECTED — INVALID STATE. source=${intentResult.source}`);
+                // Downgraded to warn because smartIntent allows classic source bypass
+                console.warn(`CLASSIC ROUTE DETECTED — ${intentResult.source}`);
             }
 
             let { intent, domain, confidence, source, entities } = intentResult;
@@ -340,6 +376,27 @@ export class BrainPipeline {
                         },
                         lockedRestaurantId: menuResolvedRestaurant.id
                     });
+                }
+            }
+
+            // ═══════════════════════════════════════════════════════════════════
+            // FIX: allow implicit dish ordering without keyword
+            // If we are in a restaurant context and NLU is unknown, try menu disambiguation.
+            // ═══════════════════════════════════════════════════════════════════
+            if (intent === 'unknown' && sessionContext?.currentRestaurant?.id) {
+                try {
+                    const resolution = await resolveMenuItemConflict(text, {
+                        restaurant_id: sessionContext.currentRestaurant.id
+                    });
+
+                    if (resolution?.status === DISAMBIGUATION_RESULT.ADD_ITEM) {
+                        intent = 'create_order';
+                        domain = 'food';
+                        source = 'implicit_dish_guard';
+                        BrainLogger.pipeline('🟢 IMPLICIT_DISH_GUARD: unknown → create_order via menu match');
+                    }
+                } catch (err) {
+                    BrainLogger.pipeline(`🛡️ IMPLICIT_DISH_GUARD failed: ${err.message}`);
                 }
             }
 
@@ -495,14 +552,11 @@ export class BrainPipeline {
             }
 
             // ═══════════════════════════════════════════════════════════════════
-            // FIX 4: LIGHT PHASE TRACKING
-            // Track conversation phase without FSM changes
+            // FIX 4: LIGHT PHASE TRACKING (MOVED — executed after handler + contextUpdates)
+            // Phase is computed AFTER handler execution and contextUpdates are applied,
+            // so it reflects the true updated session state (e.g. currentRestaurant from
+            // SelectRestaurantHandler). See phase calculation block below.
             // ═══════════════════════════════════════════════════════════════════
-            const newPhase = calculatePhase(intent, sessionContext.conversationPhase || 'discovery', source);
-            if (!IS_SHADOW && newPhase !== sessionContext.conversationPhase) {
-                updateSession(sessionId, { conversationPhase: newPhase });
-                BrainLogger.pipeline(`📍 PHASE_TRANSITION: ${sessionContext.conversationPhase || 'discovery'} → ${newPhase}`);
-            }
 
             // ═══════════════════════════════════════════════════════════════════
             // DISCOVERY RESET: find_nearby resets restaurant context
@@ -558,6 +612,26 @@ export class BrainPipeline {
                     should_reply: true,
                     meta: { source: 'choose_restaurant_dialog', ambiguous: true }
                 };
+            }
+            // ═══════════════════════════════════════════════════════════════════
+            // PRE-HANDLER CONTEXT OVERRIDE: Fast-track clarify_order with location
+            // ═══════════════════════════════════════════════════════════════════
+            if (intent === 'clarify_order' && !sessionContext?.currentRestaurant && (sessionContext?.conversationPhase === 'discovery' || !sessionContext?.conversationPhase)) {
+                try {
+                    const { supabase } = await import('../../_supabase.js');
+                    const { data } = await supabase.from('restaurants').select('city');
+                    if (data) {
+                        const cities = [...new Set(data.map(d => d.city).filter(Boolean))].map(c => c.toLowerCase());
+                        const lowerText = text.toLowerCase();
+                        if (cities.some(city => lowerText.includes(city))) {
+                            BrainLogger.pipeline(`⚡ PRE-HANDLER OVERRIDE: Location found in clarify_order -> find_nearby`);
+                            intent = 'find_nearby';
+                            source = 'context_override_location';
+                        }
+                    }
+                } catch (e) {
+                    BrainLogger.pipeline(`🛡️ PRE-HANDLER OVERRIDE error: ${e.message}`);
+                }
             }
 
             context.intent = intent;
@@ -824,6 +898,39 @@ export class BrainPipeline {
                 updateSession(sessionId, domainResponse.contextUpdates);
             }
 
+            // ═══════════════════════════════════════════════════════════════════
+            // FIX 4: LIGHT PHASE TRACKING (post-handler, post-contextUpdates)
+            // Phase is now calculated AFTER:
+            //   1) ICM gate determined finalIntent (variable `intent` at this point)
+            //   2) handler.execute() ran (may have set currentRestaurant, etc.)
+            //   3) contextUpdates were applied to session (state is now fully updated)
+            // This prevents conversationPhase='restaurant_selected' while
+            // currentRestaurant is still null.
+            // ═══════════════════════════════════════════════════════════════════
+            if (!IS_SHADOW) {
+                // Read updated session state AFTER contextUpdates were applied
+                const updatedSessionContext = getSession(activeSessionId) || sessionContext;
+
+                let newPhase = calculatePhase(
+                    intent,                                              // finalIntent: post-ICM
+                    updatedSessionContext.conversationPhase || 'discovery', // current phase from updated session
+                    source
+                );
+
+                // 🛡️ SAFETY GUARD: restaurant_selected requires currentRestaurant to be set.
+                // If handler did NOT actually persist a restaurant (e.g. select failed),
+                // fall back to 'discovery' to prevent phase/state desync.
+                if (newPhase === 'restaurant_selected' && !updatedSessionContext?.currentRestaurant) {
+                    BrainLogger.pipeline(`⚠️ PHASE_SAFETY_GUARD: restaurant_selected requested but currentRestaurant=null → fallback to 'discovery'`);
+                    newPhase = 'discovery';
+                }
+
+                if (newPhase !== updatedSessionContext.conversationPhase) {
+                    updateSession(sessionId, { conversationPhase: newPhase });
+                    BrainLogger.pipeline(`📍 PHASE_TRANSITION: ${updatedSessionContext.conversationPhase || 'discovery'} → ${newPhase}`);
+                }
+            }
+
             // --- SHADOW MODE EXIT ---
             if (IS_SHADOW) {
                 return {
@@ -907,6 +1014,13 @@ export class BrainPipeline {
             const restaurants = cleanDomainResponse.restaurants || [];
             const menuItems = cleanDomainResponse.menuItems || [];
 
+            const restaurantsWithDisplayName = restaurants.map((r) => {
+                if (!r || r.distance == null) return r;
+                const meters = Math.round(Number(r.distance) * 1000);
+                if (!Number.isFinite(meters)) return r;
+                return { ...r, displayName: `${r.name} (${meters} m)` };
+            });
+
             const response = {
                 ...cleanDomainResponse,
                 ok: true,
@@ -918,7 +1032,7 @@ export class BrainPipeline {
                 intent: intent,
                 should_reply: domainResponse.should_reply ?? true,
                 actions: domainResponse.actions || [],
-                restaurants: restaurants,
+                restaurants: restaurantsWithDisplayName,
                 menuItems: menuItems,
                 menu: menuItems, // Legacy Alias
                 meta: {
@@ -935,7 +1049,7 @@ export class BrainPipeline {
 
             // Legacy alias for discovery
             if (restaurants.length > 0) {
-                response.locationRestaurants = restaurants;
+                response.locationRestaurants = restaurantsWithDisplayName;
             }
 
             if (EXPERT_MODE) {

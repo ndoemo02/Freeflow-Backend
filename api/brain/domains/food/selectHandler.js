@@ -1,7 +1,6 @@
 
 import { getSession, updateSession } from '../../session/sessionStore.js';
 import { fuzzyMatch } from '../../helpers.js';
-import { extractOrdinal } from '../../core/ConversationGuards.js';
 
 export class SelectRestaurantHandler {
 
@@ -72,35 +71,62 @@ export class SelectRestaurantHandler {
 
         let selected = null;
 
-        // 0. Try by Polish ordinal words (Fix A2)
-        const ordinalIndex = extractOrdinal(text);
-        if (ordinalIndex !== null) {
-            const idx = ordinalIndex - 1; // 1-based to 0-based
+        // 1. Try numeric digit detection (e.g. "3", "wybieram 3")
+        const numMatch = text.match(/\b(\d+)\b/);
+        if (numMatch) {
+            const idx = parseInt(numMatch[1], 10) - 1; // 1-based to 0-based
             if (idx >= 0 && idx < list.length) {
                 selected = list[idx];
-                console.log(`🟢 SelectHandler: ordinal "${text}" → index ${ordinalIndex} → ${selected?.name}`);
+                console.log(`🟢 SelectHandler: numeric digit "${numMatch[1]}" → ${selected.name}`);
             }
         }
 
-        // 1. Try by Index (1, 2, 3...) — digit-only fallback
+        // 2. Try Polish ordinal / number word mapping (1-10)
         if (!selected) {
-            const numMatch = text.match(/(\d+)/);
-            if (numMatch) {
-                const idx = parseInt(numMatch[1], 10) - 1; // 1-based to 0-based
-                if (idx >= 0 && idx < list.length) {
-                    selected = list[idx];
+            const POLISH_ORDINALS = {
+                'jeden': 1, 'jedynka': 1, 'pierwsza': 1, 'pierwszy': 1, 'pierwsze': 1,
+                'dwa': 2, 'dwojka': 2, 'druga': 2, 'drugi': 2, 'drugie': 2,
+                'trzy': 3, 'trojka': 3, 'trzecia': 3, 'trzeci': 3, 'trzecie': 3,
+                'cztery': 4, 'czworka': 4, 'czwarta': 4, 'czwarty': 4, 'czwarte': 4,
+                'piec': 5, 'piatka': 5, 'piata': 5, 'piaty': 5, 'piate': 5,
+                'szesc': 6, 'szostka': 6, 'szosta': 6, 'szosty': 6, 'szoste': 6,
+                'siedem': 7, 'siodemka': 7, 'siodma': 7, 'siodmy': 7, 'siodme': 7,
+                'osiem': 8, 'osemka': 8, 'osma': 8, 'osmy': 8, 'osme': 8,
+                'dziewiec': 9, 'dziewiatka': 9, 'dziewiata': 9, 'dziewiaty': 9, 'dziewiate': 9,
+                'dziesiec': 10, 'dziesiatka': 10, 'dziesiata': 10, 'dziesiaty': 10, 'dziesiate': 10
+            };
+
+            const normalizedText = text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+            // Split into words, removing punctuation
+            const words = normalizedText.replace(/[^\w\s]/g, '').split(/\s+/);
+
+            for (const word of words) {
+                if (POLISH_ORDINALS[word]) {
+                    const idx = POLISH_ORDINALS[word] - 1;
+                    if (idx >= 0 && idx < list.length) {
+                        selected = list[idx];
+                        console.log(`🟢 SelectHandler: ordinal word "${word}" → ${selected.name}`);
+                        break;
+                    }
                 }
             }
         }
 
-        // 2. Try by Name (Fuzzy)
+        // 3. Try simple name fragment matching using `includes()`
         if (!selected) {
-            // Check against list names
-            // Simple inclusion/fuzzy
-            for (const r of list) {
-                if (fuzzyMatch(r.name, text) || text.toLowerCase().includes(r.name.toLowerCase())) {
-                    selected = r;
-                    break;
+            const cleanText = text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+            // Remove common filler words to extract the likely restaurant fragment
+            const queryWords = cleanText.replace(/\b(wybieram|chce|wezme|poprosze|ta|to|ten)\b/g, '').trim();
+
+            if (queryWords.length > 0) {
+                for (const r of list) {
+                    const rName = r.name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+                    // Match if user's fragment is in the name, or name is in user's phrase
+                    if (rName.includes(queryWords) || queryWords.includes(rName)) {
+                        selected = r;
+                        console.log(`🟢 SelectHandler: fragment match "${queryWords}" → ${selected.name}`);
+                        break;
+                    }
                 }
             }
         }

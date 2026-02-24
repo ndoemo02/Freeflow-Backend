@@ -28,7 +28,11 @@ export class OrderHandler {
         if (resolution.status === DISAMBIGUATION_RESULT.ITEM_NOT_FOUND) {
             const rName = session?.lastRestaurant?.name || "naszej ofercie";
             return {
-                reply: `Nie mogę znaleźć tego dania w ${rName}. Spróbuj podać dokładniejszą nazwę.`
+                intent: 'clarify_order',
+                reply: `Nie mogę znaleźć tego dania w ${rName}. Spróbuj podać dokładniejszą nazwę.`,
+                contextUpdates: {
+                    expectedContext: 'clarify_order'
+                }
             };
         }
 
