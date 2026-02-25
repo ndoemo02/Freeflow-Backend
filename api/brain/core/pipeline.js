@@ -3,6 +3,8 @@
  * Odpowiada za przepływ danych: Request -> Hydration -> NLU -> Domain -> Response
  */
 
+import { getEngineMode, isDev, isStrict, devLog, devWarn, devError, strictAssert, strictRequireSession, sanitizeResponse } from './engineMode.js';
+
 import { getSession, updateSession, getOrCreateActiveSession, closeConversation } from '../session/sessionStore.js';
 import { FindRestaurantHandler } from '../domains/food/findHandler.js';
 import { MenuHandler } from '../domains/food/menuHandler.js';
@@ -234,11 +236,12 @@ export class BrainPipeline {
             return this.createErrorResponse('brak_tekstu', 'Nie usłyszałam, możesz powtórzyć?');
         }
 
-        const EXPERT_MODE = process.env.EXPERT_MODE !== 'false';
+        const ENGINE_MODE = getEngineMode();
+        const EXPERT_MODE = ENGINE_MODE === 'dev'; // backward compat alias
         const requestId = `${sessionId.substring(0, 8)}-${startTime.toString(36)}`;
-        console.log(`▶️  [Pipeline] START ${requestId} | session=${sessionId} | text="${text.trim().substring(0, 60)}"`);
+        devLog(`▶️  [Pipeline] START ${requestId} | session=${sessionId} | text="${text.trim().substring(0, 60)}" | mode=${ENGINE_MODE}`);
 
-        // --- Event Logging: Received ---
+        // --- Event Logging: Received (dev only) ---
         if (EXPERT_MODE && !IS_SHADOW) {
             const initialWorkflowStep = this._mapWorkflowStep('request_received');
             EventLogger.logConversation(sessionId).catch(() => { });
@@ -1085,8 +1088,8 @@ export class BrainPipeline {
                 };
             }
 
-            // 4.5 Synthesis (Expert Layer)
-            console.log(`🟣 PIPELINE FINAL REPLY [${context.intent}]:`, JSON.stringify(domainResponse.reply)?.substring(0, 120));
+            // 4.5 Synthesis (Expert Layer — dev mode only)
+            devLog(`🟣 PIPELINE FINAL REPLY [${context.intent}]:`, JSON.stringify(domainResponse.reply)?.substring(0, 120));
             let speechText = domainResponse.reply;
             let audioContent = null;
             let stylingMs = 0;
@@ -1097,7 +1100,7 @@ export class BrainPipeline {
                 const SKIP_STYLIZATION = new Set(['find_nearby', 'menu_request', 'confirm_order', 'show_menu']);
                 const hasNumberedList = /\d+\.\s/.test(domainResponse.reply);
                 if (SKIP_STYLIZATION.has(intent) || hasNumberedList) {
-                    BrainLogger.pipeline(`🎨 STYLIZATION_SKIPPED: intent=${intent}, hasList=${hasNumberedList}`);
+                    devLog(`🎨 STYLIZATION_SKIPPED: intent=${intent}, hasList=${hasNumberedList}`);
                 } else {
                     const t0 = Date.now();
                     speechText = await stylizeWithGPT4o(domainResponse.reply, intent);
@@ -1228,9 +1231,15 @@ export class BrainPipeline {
 
             if (!IS_SHADOW) {
                 BrainPipeline._inFlight.delete(inflightKey);
-                console.log(`⏹️  [Pipeline] DONE  ${requestId} | intent=${intent} | source=${source} | ${Date.now() - startTime}ms`);
+                devLog(`⏹️  [Pipeline] DONE  ${requestId} | intent=${intent} | source=${source} | ${Date.now() - startTime}ms`);
             }
-            return response;
+
+            // ═══════════════════════════════════════════════════════════════════
+            // ENGINE_MODE RESPONSE SANITIZER
+            // stable/strict: strip debug meta, session dumps, turn_ids
+            // dev: full response passthrough
+            // ═══════════════════════════════════════════════════════════════════
+            return sanitizeResponse(response);
 
         } catch (error) {
             BrainLogger.pipeline('Error:', error.message);
