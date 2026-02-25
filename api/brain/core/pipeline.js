@@ -410,6 +410,35 @@ export class BrainPipeline {
                 };
             }
 
+            // ═══════════════════════════════════════════
+            // UNKNOWN INTENT SAFE FALLBACK
+            // ═══════════════════════════════════════════
+
+            if (intentResult?.intent === 'UNKNOWN_INTENT') {
+
+                const phase = sessionContext?.conversationPhase || 'idle';
+
+                let reply;
+
+                if (phase === 'ordering') {
+                    reply = 'Nie jestem pewna, o co chodzi. Kontynuujemy zamówienie czy chcesz coś zmienić?';
+                } else if (phase === 'restaurant_selected') {
+                    reply = 'Możesz wybrać coś z menu albo zapytać o szczegóły.';
+                } else {
+                    reply = 'Mogę pokazać restauracje w pobliżu albo pomóc w wyborze dania.';
+                }
+
+                return {
+                    ok: true,
+                    session_id: activeSessionId,
+                    intent: 'UNKNOWN_INTENT',
+                    reply,
+                    should_reply: true,
+                    stopTTS: false,
+                    meta: { source: 'safe_unknown_handler' }
+                };
+            }
+
             // ═══════════════════════════════════════════════════════════════════
             // SINGLE ROUTING INVARIANT — hard guard
             // If this fires, a classic path leaked through the NLU layer.
