@@ -522,6 +522,16 @@ export function parseOrderItems(text, catalog) {
 
   const allHits = [];
 
+  function normalizePlural(word) {
+    if (!word) return '';
+    return String(word)
+      .replace(/i$/, '')
+      .replace(/y$/, '')
+      .replace(/ów$/, '')
+      .replace(/ami$/, '')
+      .replace(/ach$/, '');
+  }
+
   for (const itemText of itemTexts) {
     if (!itemText || typeof itemText !== 'string') continue;
 
@@ -530,9 +540,22 @@ export function parseOrderItems(text, catalog) {
       const hits = catalog
         .filter(it => {
           try {
-            return it && it.name && fuzzyIncludes(it.name, itemText);
+            if (!it || !it.name) return false;
+
+            // 1. Spróbuj exact/fuzzy
+            if (fuzzyIncludes(it.name, itemText)) return true;
+
+            // 2. Fallback plural
+            const normalizedInput = normalizePlural(itemText.toLowerCase());
+            const normalizedMenu = normalizePlural(it.name.toLowerCase());
+
+            if (normalizedInput.includes(normalizedMenu) || normalizedMenu.includes(normalizedInput)) {
+              return true;
+            }
+
+            return false;
           } catch (err) {
-            console.warn('[parseOrderItems] fuzzyIncludes error:', err.message);
+            console.warn('[parseOrderItems] processing error:', err.message);
             return false; // Bezpieczne - nie dopasuj jeśli błąd
           }
         })
@@ -809,6 +832,27 @@ export async function detectIntent(text, session = null, entities = {}) {
       console.log('[intent-router] 👋 GREETING GATE: Detected greeting – skipping catalog load.');
       updateDebugSession({ intent: 'greeting', restaurant: null, sessionId: session?.id || null, confidence: 1.0 });
       return { intent: 'greeting', confidence: 1.0, source: 'greeting_gate', restaurant: null };
+    }
+
+    // ═══════════════════════════════════════════
+    // HOURS INTENT (FAQ)
+    // ═══════════════════════════════════════════
+    const hoursPatterns = [
+      /do której/i,
+      /godzin/i,
+      /czynne/i,
+      /zamykacie/i,
+      /otwarte/i
+    ];
+
+    if (hoursPatterns.some(r => r.test(text))) {
+      return {
+        intent: 'restaurant_hours',
+        confidence: 0.95,
+        source: 'faq_guard',
+        entities: {},
+        domain: 'system'
+      };
     }
 
     // ——— CONFIRM FLOW - DELEGATED TO boostIntent() in brainRouter.js ———

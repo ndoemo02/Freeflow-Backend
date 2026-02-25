@@ -380,6 +380,36 @@ export class BrainPipeline {
                 };
             }
 
+            // ═══════════════════════════════════════════
+            // RESTAURANT HOURS HANDLER
+            // ═══════════════════════════════════════════
+
+            if (intentResult?.intent === 'restaurant_hours') {
+                const currentRestaurant = sessionContext?.lastRestaurant || sessionContext?.currentRestaurant;
+
+                if (!currentRestaurant) {
+                    return {
+                        ok: true,
+                        session_id: activeSessionId,
+                        intent: 'restaurant_hours',
+                        reply: 'Której restauracji mam sprawdzić godziny?',
+                        should_reply: true,
+                        stopTTS: false
+                    };
+                }
+
+                const hours = currentRestaurant.opening_hours || 'Nie mam informacji o godzinach.';
+
+                return {
+                    ok: true,
+                    session_id: activeSessionId,
+                    intent: 'restaurant_hours',
+                    reply: `${currentRestaurant.name} jest otwarta: ${hours}.`,
+                    should_reply: true,
+                    stopTTS: false
+                };
+            }
+
             // ═══════════════════════════════════════════════════════════════════
             // SINGLE ROUTING INVARIANT — hard guard
             // If this fires, a classic path leaked through the NLU layer.
