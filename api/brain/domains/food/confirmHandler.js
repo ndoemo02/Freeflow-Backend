@@ -13,6 +13,7 @@
 
 import { persistOrderToDB } from '../../services/OrderPersistence.js';
 import { closeConversation } from '../../session/sessionStore.js';
+import { commitPendingOrder } from '../../session/sessionCart.js';
 
 export class ConfirmOrderHandler {
 
@@ -35,8 +36,7 @@ export class ConfirmOrderHandler {
         const restaurantId = pendingOrder.restaurant_id;
         const restaurantName = pendingOrder.restaurant;
 
-        // 3. Wykonaj akcję - Commit items to session cart
-        const { commitPendingOrder } = await import('../../session/sessionCart.js');
+        // 3. Wykonaj akcję - Commit items to session cart (SYNCHRONOUS ATOMICITY)
         const commitResult = commitPendingOrder(session);
 
         if (!commitResult.committed) {
