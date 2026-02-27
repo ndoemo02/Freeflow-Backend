@@ -41,6 +41,12 @@ export class SelectRestaurantHandler {
                 city: entities.location || null
             };
 
+            // 🛡️ RE-SELECTION SAFETY GUARD (Direct match conflict)
+            const conflict = this._checkCartConflict(session, currentRestaurant, ctx);
+            if (conflict) {
+                return conflict;
+            }
+
             // Auto-show menu after selection
             ctx.session = {
                 ...ctx.session,
@@ -154,6 +160,12 @@ export class SelectRestaurantHandler {
             };
         }
 
+        // 🛡️ RE-SELECTION SAFETY GUARD (Conflict with active cart in ordering phase)
+        const conflict = this._checkCartConflict(session, selected, ctx);
+        if (conflict) {
+            return conflict;
+        }
+
         // 3. Selection Success
         // Build currentRestaurant object for persistence
         const currentRestaurant = {
@@ -217,5 +229,35 @@ export class SelectRestaurantHandler {
             },
             meta: { source: 'selection_auto_menu' }
         };
+    }
+
+    /**
+     * Helper to check if user is trying to switch restaurants while having items in cart.
+     */
+    _checkCartConflict(session, selected, ctx) {
+        // Bypass if forceSwitch is set (user already confirmed)
+        if (ctx.entities?.forceSwitch === true) return null;
+
+        const cart = ctx.body?.meta?.state?.cart || session?.cart;
+        const hasCartItems = cart?.items?.length > 0;
+        const currentPhase = session?.conversationPhase;
+        const isDifferentRestaurant = session?.currentRestaurant && session.currentRestaurant.id !== selected.id;
+
+        if (currentPhase === 'ordering' && hasCartItems && isDifferentRestaurant) {
+            console.log(`🛡️ SelectHandler: Restaurant switch conflict detected! Current: ${session.currentRestaurant.name}, Target: ${selected.name}`);
+            return {
+                reply: `Masz już pozycje z ${session.currentRestaurant.name}. Czy wyczyścić koszyk i przejść do ${selected.name}?`,
+                contextUpdates: {
+                    expectedContext: 'confirm_restaurant_switch',
+                    pendingRestaurantSwitch: {
+                        id: selected.id,
+                        name: selected.name,
+                        city: selected.city || null
+                    }
+                },
+                meta: { source: 'restaurant_switch_conflict' }
+            };
+        }
+        return null;
     }
 }

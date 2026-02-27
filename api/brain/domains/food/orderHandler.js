@@ -7,22 +7,25 @@ import { resolveMenuItemConflict, DISAMBIGUATION_RESULT } from '../../services/D
 export class OrderHandler {
 
     async execute(ctx) {
-        const { text, session } = ctx;
+        const { text, session, entities } = ctx;
         console.log("🧠 OrderHandler executing with disambiguation...");
 
         // 0. Extract basic info
         const quantity = extractQuantity(text);
+
+        // Use the dish resolved by NLU (e.g. from ordinal selection) or fallback to raw text
+        const searchPhrase = entities?.dish || text;
 
         // 1. DISAMBIGUATION CHECK
         // Use the new service to resolve what item user wants
         // We pass the current restaurant context if available
         const currentRestaurantId = session?.lastRestaurant?.id;
 
-        const resolution = await resolveMenuItemConflict(text, {
+        const resolution = await resolveMenuItemConflict(searchPhrase, {
             restaurant_id: currentRestaurantId
         });
 
-        console.log(`🧠 Disambiguation Result: ${resolution.status}`);
+        console.log(`🧠 Disambiguation Result: ${resolution.status} for "${searchPhrase}"`);
 
         // CASE A: Item Not Found
         if (resolution.status === DISAMBIGUATION_RESULT.ITEM_NOT_FOUND) {
@@ -82,6 +85,7 @@ export class OrderHandler {
                 // Clear old cart if needed, or strictly overwrite pendingOrder
                 contextUpdate = {
                     lastRestaurant: restaurant, // UPDATE CONTEXT
+                    currentRestaurant: restaurant, // FIX: Nie resetuj currentRestaurant
                     pendingOrder: {
                         restaurant_id: restaurant.id,
                         restaurant: restaurant.name,
@@ -98,6 +102,7 @@ export class OrderHandler {
                 // If it's a fresh start, allow context set
                 contextUpdate = {
                     lastRestaurant: restaurant,
+                    currentRestaurant: restaurant, // FIX: Nie resetuj currentRestaurant
                     pendingOrder: {
                         restaurant_id: restaurant.id,
                         restaurant: restaurant.name,

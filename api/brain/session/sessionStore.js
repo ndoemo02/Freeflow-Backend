@@ -36,7 +36,7 @@ export function isSessionClosed(sessionId) {
  */
 export function closeConversation(sessionId, reason) {
     const session = getSession(sessionId);
-    
+
     // Mark session as closed
     update(session, {
         status: 'closed',
@@ -48,12 +48,12 @@ export function closeConversation(sessionId, reason) {
         expectedContext: null,
         pendingOrder: null
     });
-    
+
     console.log(`🔒 CONVERSATION CLOSED: ${sessionId} (reason: ${reason})`);
-    
+
     // Generate new session ID for next conversation
     const newSessionId = generateNewSessionId();
-    
+
     return {
         closedSessionId: sessionId,
         newSessionId
@@ -77,23 +77,33 @@ export function getSession(sessionId) {
  */
 export function getOrCreateActiveSession(sessionId) {
     const existing = sessions.get(sessionId);
-    
+
     // If no session exists, create new
     if (!existing) {
         const newSession = getDefault();
         sessions.set(sessionId, newSession);
         return { session: newSession, sessionId, isNew: true };
     }
-    
+
     // If session is closed, generate new ID and session
     if (existing.status === 'closed') {
         const newId = generateNewSessionId();
         const newSession = getDefault();
+
+        // 🛡️ PRZENIESIENIE KONTEKSTU (Fix "Nie wolno: zerować currentRestaurant przy add_to_cart")
+        // Jeśli zamykamy sesję, zaczynamy od nowa, ale zachowujemy w pamięci gdzie jesteśmy
+        if (existing.currentRestaurant) {
+            newSession.currentRestaurant = existing.currentRestaurant;
+        }
+        if (existing.lastRestaurant) {
+            newSession.lastRestaurant = existing.lastRestaurant;
+        }
+
         sessions.set(newId, newSession);
-        console.log(`🔄 AUTO-NEW SESSION: ${sessionId} was closed, created ${newId}`);
+        console.log(`🔄 AUTO-NEW SESSION: ${sessionId} was closed, created ${newId}. Context carried over.`);
         return { session: newSession, sessionId: newId, isNew: true };
     }
-    
+
     // Active session exists
     return { session: existing, sessionId, isNew: false };
 }

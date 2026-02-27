@@ -129,6 +129,13 @@ const defaultHandlers = {
     ordering: {
         create_order: new OrderHandler(),
         confirm_order: new ConfirmOrderHandler(),
+        clarify_order: {
+            execute: async (ctx) => ({
+                reply: 'Nie mam pewności, o które danie chodzi. Co dokładnie chciałbyś zamówić?',
+                intent: 'clarify_order',
+                contextUpdates: { expectedContext: 'create_order' }
+            })
+        }
     },
     system: {
         health_check: { execute: async () => ({ reply: 'System działa', meta: {} }) },
@@ -851,6 +858,52 @@ export class BrainPipeline {
                 }
             }
 
+            // Rule: Restaurant Switch Confirmation
+            if (session?.expectedContext === 'confirm_restaurant_switch') {
+                const normalized = (text || "").toLowerCase();
+                const confirmWords = /\b(tak|potwierdzam|ok|dobra|może być|dawaj|pewnie|jasne|super|świetnie|zmieniaj|wyczyść)\b/i;
+                const negateWords = /\b(nie|pocz[eę]kaj|stop|anuluj|nie\s+chc[eę]|zostaw)\b/i;
+
+                if (confirmWords.test(normalized)) {
+                    BrainLogger.pipeline('🛡️ Guard: Context is confirm_restaurant_switch and confirmation word detected. Executing clear + switch.');
+
+                    const target = session.pendingRestaurantSwitch;
+
+                    // 1. Clear cart in session
+                    if (!IS_SHADOW) {
+                        updateSession(sessionId, {
+                            cart: { items: [], total: 0 },
+                            pendingRestaurantSwitch: null
+                        });
+                    }
+
+                    // 2. Force select_restaurant intent with target
+                    context.intent = 'select_restaurant';
+                    context.domain = 'food';
+                    context.entities = {
+                        ...context.entities,
+                        restaurantId: target.id,
+                        restaurant: target.name,
+                        location: target.city,
+                        forceSwitch: true // Bypass safety check in SelectRestaurantHandler
+                    };
+                } else if (negateWords.test(normalized)) {
+                    BrainLogger.pipeline('🛡️ Guard: Context is confirm_restaurant_switch and negation word detected. Cancelling switch.');
+                    return {
+                        ok: true,
+                        session_id: sessionId,
+                        reply: "Dobrze, zostajemy przy obecnym zamówieniu. Co jeszcze chcesz dodać?",
+                        should_reply: true,
+                        intent: 'cancel_switch',
+                        contextUpdates: {
+                            expectedContext: 'create_order',
+                            pendingRestaurantSwitch: null
+                        },
+                        meta: { source: 'switch_cancelled' }
+                    };
+                }
+            }
+
             // Rule 4: Auto Menu
             if (context.intent === 'select_restaurant') {
                 const normalized = (text || "").toLowerCase();
@@ -1058,8 +1111,24 @@ export class BrainPipeline {
                     source
                 );
 
+                // 👨‍🔧 BACKEND-SIDED CART INSPECTION (Fix "Dodatkowo: Jeśli restauracja nie istnieje w session, wyciągnąć z cart[0]")
+                const requestBody = options?.requestBody || {};
+                const cartMeta = requestBody.meta?.state?.cart;
+
+                if (newPhase === 'ordering' && cartMeta?.items?.length > 0) {
+                    if (!updatedSessionContext.currentRestaurant) {
+                        const fallbackId = cartMeta.restaurantId || cartMeta.items[0].restaurantId || cartMeta.items[0].restaurant_id;
+                        const fallbackName = cartMeta.restaurantName || cartMeta.items[0].restaurantName || cartMeta.items[0].restaurant?.name || 'Nieznana restauracja';
+
+                        if (fallbackId || fallbackName) {
+                            BrainLogger.pipeline(`🛡️ PHASE_SAFETY_GUARD: ordering z koszykiem > 0, przywrócono currentRestaurant z koszyka (${fallbackName})`);
+                            updatedSessionContext.currentRestaurant = { id: fallbackId, name: fallbackName };
+                        }
+                    }
+                }
+
                 // 🛡️ SAFETY GUARD: restaurant_selected requires currentRestaurant to be set.
-                // If handler did NOT actually persist a restaurant (e.g. select failed),
+                // If handler did NOT actually persist a restaurant (e.g. select failed) AND we didn't recover from cart,
                 // fall back to 'idle' to prevent phase/state desync.
                 if (newPhase === 'restaurant_selected' && !updatedSessionContext?.currentRestaurant) {
                     BrainLogger.pipeline(`⚠️ PHASE_SAFETY_GUARD: restaurant_selected requested but currentRestaurant=null → fallback to 'idle'`);
@@ -1188,6 +1257,10 @@ export class BrainPipeline {
                     source: domainMeta?.source || source || 'llm',
                     styling_ms: stylingMs,
                     tts_ms: ttsMs,
+                    state: {
+                        conversationPhase: getSession(activeSessionId)?.conversationPhase || 'idle',
+                        currentRestaurant: getSession(activeSessionId)?.currentRestaurant || null
+                    },
                     ...(domainMeta || {})
                 },
                 context: getSession(sessionId),

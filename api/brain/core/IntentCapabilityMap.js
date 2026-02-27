@@ -56,7 +56,13 @@ export const INTENT_CAPS = {
     // ═══════════════════════════════════════════════════════════════════════════
     select_restaurant: {
         domain: 'food',
-        requiredState: { last_restaurants_list: 'non_empty' },
+        requiredState: {
+            OR: [
+                { last_restaurants_list: 'non_empty' },
+                { 'entities.restaurantId': 'any' },
+                { 'entities.restaurant': 'any' }
+            ]
+        },
         allowedTransitions: ['menu_request', 'create_order', 'confirm_order'],
         setsState: ['currentRestaurant', 'lockedRestaurantId', 'pendingDish=null'],
         fallbackIntent: 'find_nearby',
@@ -73,7 +79,7 @@ export const INTENT_CAPS = {
                 { lastRestaurant: 'any' }
             ]
         },
-        allowedTransitions: ['confirm_order', 'create_order', 'cancel_order'],
+        allowedTransitions: ['confirm_order', 'create_order', 'cancel_order', 'select_restaurant'],
         setsState: ['pendingOrder', 'expectedContext'],
         fallbackIntent: 'find_nearby', // If no restaurant, discover first
         HARD_BLOCK_LEGACY: true, // Cannot be executed from legacy NLU source
@@ -86,7 +92,7 @@ export const INTENT_CAPS = {
             pendingOrder: 'non_empty',
             expectedContext: 'confirm_order'
         },
-        allowedTransitions: ['create_order', 'find_nearby', 'menu_request'],
+        allowedTransitions: ['create_order', 'find_nearby', 'menu_request', 'select_restaurant'],
         setsState: ['cart', 'pendingOrder=null', 'expectedContext=null'],
         fallbackIntent: null, // If requirements not met, ignore
         MUTATES_CART: true, // ⚠️ ONLY INTENT THAT MUTATES CART
@@ -100,7 +106,7 @@ export const INTENT_CAPS = {
                 { 'entities.dish': 'any' }
             ]
         },
-        allowedTransitions: ['create_order', 'confirm_order'],
+        allowedTransitions: ['create_order', 'confirm_order', 'select_restaurant'],
         setsState: ['pendingDish=null', 'expectedContext'],
         fallbackIntent: 'create_order',
         MUTATES_CART: false, // Does NOT mutate cart - only prepares
@@ -184,7 +190,13 @@ export function checkRequiredState(intent, session, entities = {}) {
  */
 function checkSingleCondition(cond, session, entities = {}) {
     for (const [key, value] of Object.entries(cond)) {
-        let sessionValue = session?.[key];
+        let sessionValue;
+
+        if (key.startsWith('entities.')) {
+            sessionValue = entities[key.split('.')[1]];
+        } else {
+            sessionValue = session?.[key];
+        }
 
         // NEW: Check entities as well for context-less requests (e.g. "show menu at X")
         if (key === 'currentRestaurant' && !sessionValue) {

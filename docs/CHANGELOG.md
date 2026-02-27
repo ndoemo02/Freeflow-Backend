@@ -1,5 +1,22 @@
 # Changelog
 
+## [2026-02-26] - Refaktoryzacja Menu i UI Reset
+
+### 🆕 Dodane
+- **`MenuIsland.tsx`** - Nowy komponent menu w prawej strefie ekranu (zastąpił centralny overlay). Posiada scrollowanie i efekt frosted glass.
+- **`usePostOrderReset.ts`** - Hook do automatycznego czyszczenia stanu UI po potwierdzeniu zamówienia (zamyka koszyk, czyści karuzele, resetuje stany).
+- **Shadow Test V2** - Przeprowadzono testy na realnych danych z Piekar Śląskich (wykryto anomalię `currentRestaurant === null` przy `ordering`).
+
+### 🔄 Zmiany
+- **`Home.tsx`** - Przycisk mikrofonu (Logo) jest teraz zawsze widoczny. Dodano obsługę eventu `freeflow:orderItem`.
+- **`MenuIsland`** - Obniżono pozycję o 25vh i dodano cienki scrollbar.
+- **`useConversationStore`** - Rozszerzono `handleOrderSuccess` o czyszczenie większej ilości stanów.
+
+### 🔧 Narzędzia
+- Zainstalowano rozszerzenie **Chronicle Core** (`antigravity-skills-chronicle`) dla wsparcia agentic workflow.
+
+---
+
 ## [2025-10-01] - Mono-API Migration
 
 ### ✅ Naprawione

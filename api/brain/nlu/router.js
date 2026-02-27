@@ -22,7 +22,7 @@ export class NLURouter {
     _mapDomain(intent) {
         if (!intent) return 'unknown';
         if (['find_nearby', 'select_restaurant', 'menu_request', 'show_city_results', 'show_more_options', 'recommend', 'confirm', 'cancel_order'].includes(intent)) return 'food';
-        if (['create_order', 'confirm_order', 'add_item', 'choose_restaurant'].includes(intent)) return 'ordering';
+        if (['create_order', 'confirm_order', 'add_item', 'choose_restaurant', 'clarify_order'].includes(intent)) return 'ordering';
         return 'system';
     }
 
@@ -151,6 +151,52 @@ export class NLURouter {
                     intent: 'show_more_options',
                     confidence: 0.99,
                     source: 'explicit_more_options',
+                    entities
+                };
+            }
+        }
+
+        // --- NEW: Ordinal Item Selection (np. "pierwszy", "ten drugi", "ostatni") ---
+        if (session?.conversationPhase === 'restaurant_selected' || session?.conversationPhase === 'ordering') {
+            const ordinalRegex = /^(?:poprosz[ęe]\s+|wezm[ęe]\s+|chc[ęe]\s+|zamawiam\s+|daj\s+|wybieram\s+|biore\s+|bior[ęe]\s+)?(?:ten\s+|t[aąę]\s+|to\s+)?(pierwsz[yae]|drug[iae]|trzec[iae]|czwart[yae]|pi[aą]t[yae]|ostatni[a|e]?)\s*$/i;
+            const match = normalized.trim().match(ordinalRegex);
+
+            if (match) {
+                const word = match[1].toLowerCase();
+                let idx = -1;
+
+                if (word.startsWith('pierwsz')) idx = 0;
+                else if (word.startsWith('drug')) idx = 1;
+                else if (word.startsWith('trzec')) idx = 2;
+                else if (word.startsWith('czwart')) idx = 3;
+                else if (word.startsWith('piat') || word.startsWith('piąt')) idx = 4;
+                else if (word.startsWith('ostat')) idx = -1;
+
+                const referenceList = session?.last_menu;
+
+                if (referenceList && referenceList.length > 0) {
+                    const actualIdx = (idx === -1) ? referenceList.length - 1 : idx;
+                    if (actualIdx >= 0 && actualIdx < referenceList.length) {
+                        const selectedItem = referenceList[actualIdx];
+                        return {
+                            intent: 'create_order', // Treat as ordering a specific item
+                            confidence: 1.0,
+                            source: 'ordinal_list_selection',
+                            entities: {
+                                ...entities,
+                                dish: selectedItem.name,
+                                restaurantId: session?.currentRestaurant?.id,
+                                restaurant: session?.currentRestaurant?.name
+                            }
+                        };
+                    }
+                }
+
+                // Brak listy referencyjnej, lub index poza tablicą -> prosimy o doprecyzowanie
+                return {
+                    intent: 'clarify_order',
+                    confidence: 1.0,
+                    source: 'ordinal_selection_failed_no_list',
                     entities
                 };
             }
