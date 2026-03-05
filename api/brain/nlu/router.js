@@ -10,7 +10,24 @@ import { smartResolveIntent } from '../ai/smartIntent.js';
 import { parseRestaurantAndDish } from '../order/parseOrderItems.js';
 import { extractLocation, extractCuisineType, extractQuantity } from './extractors.js';
 import { findRestaurantInText } from '../data/restaurantCatalog.js';
-import { fuzzyIncludes, normalizeDish } from '../helpers.js';
+import { fuzzyIncludes, normalizeDish, levenshtein } from '../helpers.js';
+
+function isExplicitRestaurantSearch(text = '') {
+    const t = String(text || '').toLowerCase();
+    return [
+        'restaurac',
+        'pokaż restauracje',
+        'pokaz restauracje',
+        'znajdź restauracje',
+        'znajdz restauracje',
+        'dostępne restauracje',
+        'dostepne restauracje',
+        'w pobliżu',
+        'w poblizu',
+        'gdzie mogę zjeść',
+        'gdzie moge zjesc'
+    ].some(k => t.includes(k));
+}
 
 export class NLURouter {
     constructor() {
@@ -81,6 +98,15 @@ export class NLURouter {
                 intent: 'menu_request',
                 confidence: 1.0,
                 source: 'explicit_menu_override',
+                entities
+            };
+        }
+
+        if (session?.currentRestaurant && isExplicitRestaurantSearch(text)) {
+            return {
+                intent: 'find_nearby',
+                confidence: 0.9,
+                source: 'restaurant_navigation_override',
                 entities
             };
         }
@@ -224,15 +250,69 @@ export class NLURouter {
         //       create_order+qty=2 instead of find_nearby.
         if (session?.currentRestaurant && session?.last_menu?.length > 0) {
             const menu = session.last_menu;
-            const qty = extractQuantity(text) || 1;
+            const rawDishText = ctx?.body?.text || text;
+            const qty = extractQuantity(rawDishText) || 1;
 
             // Strip leading quantity word so "dwa Pizza Margherita" → "Pizza Margherita"
             const QTY_STRIP = /^(?:jeden|jedna|jedno|dwa|dwie|trzy|cztery|pi[eę][cć][u]?|sze[sś][cć][u]?|siedem|osiem|dziewi[eę][cć][u]?|dziesi[eę][cć][u]?|kilka|par[ęe])\s+/i;
-            const textForDish = text.replace(QTY_STRIP, '').trim();
-            const normalizedForDish = normalizeTxt(textForDish);
+            const textForDish = rawDishText.replace(QTY_STRIP, '').trim();
+            const normalizedForDish = normalizeDish(textForDish);
 
-            // 1. Fuzzy name match (existing)
-            let dishMatch = menu.find(item => fuzzyIncludes(item.base_name || item.name, textForDish));
+            const findBestDishMatch = (dishText, catalog) => {
+                const inputNorm = normalizeDish(dishText);
+                if (!inputNorm) return null;
+
+                const scoreText = (candidate, input) => {
+                    const base = normalizeDish(candidate || '');
+                    if (!base || !input) return 0;
+
+                    let score = 0;
+                    if (base === input) score += 1;
+                    if (base.includes(input)) score += 0.3;
+                    if (base.startsWith(input)) score += 0.15;
+
+                    const baseTokens = base.split(' ').filter(Boolean);
+                    const inputTokens = input.split(' ').filter(Boolean);
+                    const overlap = inputTokens.filter(t => baseTokens.includes(t)).length;
+                    if (inputTokens.length > 0) {
+                        score += (overlap / inputTokens.length) * 0.6;
+                    }
+
+                    // Boost near-token matches (e.g. "wege" ~ "vege")
+                    const nearTokenBoost = inputTokens.reduce((acc, token) => {
+                        if (token.length < 3) return acc;
+                        const hasNear = baseTokens.some(bt => bt.length >= 3 && levenshtein(bt, token) <= 1);
+                        return acc + (hasNear ? 0.25 : 0);
+                    }, 0);
+                    score += nearTokenBoost;
+
+                    if (fuzzyIncludes(base, input)) score += 0.2;
+                    return score;
+                };
+
+                const scored = catalog.map((item) => {
+                    const baseScore = scoreText(item.base_name || '', inputNorm) + 0.05;
+                    const nameScore = scoreText(item.name || '', inputNorm);
+                    return {
+                        item,
+                        score: Math.max(baseScore, nameScore)
+                    };
+                }).sort((a, b) => b.score - a.score);
+
+                console.log('[DishMatch]', scored.slice(0, 3).map((s) => ({
+                    name: s.item.base_name || s.item.name,
+                    score: Number(s.score.toFixed(3))
+                })));
+
+                if (scored.length > 0 && scored[0].score > 0.55) {
+                    return scored[0].item;
+                }
+
+                return null;
+            };
+
+            // 1. Best-score match (replaces first-hit selection)
+            let dishMatch = findBestDishMatch(textForDish, menu);
 
             // 2. Alias Layer: auto-generate aliases from dish names
             if (!dishMatch) {
@@ -367,7 +447,7 @@ export class NLURouter {
 
             // If we have a Location entity AND Discovery keyword, Force find_nearby
             // (Even if 'Piekarach' loosely matches a restaurant name)
-            if ((location || !matchedRestaurant) && !session?.currentRestaurant) {
+            if ((location || !matchedRestaurant) && (!session?.currentRestaurant || isExplicitRestaurantSearch(text))) {
                 return {
                     intent: 'find_nearby',
                     confidence: 0.99,
@@ -536,7 +616,7 @@ export class NLURouter {
                 });
 
                 if (smartResult && smartResult.intent && smartResult.intent !== 'unknown') {
-                    if (session?.currentRestaurant && ['find_nearby', 'choose_restaurant', 'select_restaurant'].includes(smartResult.intent)) {
+                    if (session?.currentRestaurant && ['find_nearby', 'choose_restaurant', 'select_restaurant'].includes(smartResult.intent) && !isExplicitRestaurantSearch(text)) {
                         BrainLogger.nlu(`🛡️ SMART_DISCOVERY_GUARD: blocked "${smartResult.intent}" while in restaurant context`);
                     } else {
                     return {
@@ -584,7 +664,7 @@ export class NLURouter {
                 });
 
                 if (llmResult && llmResult.intent !== 'unknown' && llmResult.source === 'llm_translator') {
-                    if (session?.currentRestaurant && ['find_nearby', 'choose_restaurant', 'select_restaurant'].includes(llmResult.intent)) {
+                    if (session?.currentRestaurant && ['find_nearby', 'choose_restaurant', 'select_restaurant'].includes(llmResult.intent) && !isExplicitRestaurantSearch(text)) {
                         BrainLogger.nlu(`🛡️ LLM_DISCOVERY_GUARD: blocked "${llmResult.intent}" while in restaurant context`);
                     } else {
                     // ═══════════════════════════════════════════════════════════════════
@@ -631,6 +711,15 @@ export class NLURouter {
                     : [];
 
             if (!isControlIntent) {
+                if (isExplicitRestaurantSearch(text)) {
+                    return {
+                        intent: 'find_nearby',
+                        confidence: 0.9,
+                        source: 'restaurant_navigation_override',
+                        entities
+                    };
+                }
+
                 const qty = extractQuantity(text) || 1;
                 const textForDish = text.replace(/^(?:jeden|jedna|jedno|dwa|dwie|trzy|cztery|pi[eę][cć][u]?|sze[sś][cć][u]?|siedem|osiem|dziewi[eę][cć][u]?|dziesi[eę][cć][u]?|kilka|par[ęe])\s+/i, '').trim();
                 const dishMatch = menuItems.find(item =>

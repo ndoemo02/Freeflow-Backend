@@ -1,5 +1,5 @@
 # Cascade Test Report
-_Generated: 2026-03-05T17:49:18.649Z_
+_Generated: 2026-03-05T18:36:46.283Z_
 
 ## Main Scenarios
 
@@ -58,7 +58,7 @@ _Generated: 2026-03-05T17:49:18.649Z_
 | 51 | Vien-Thien | Sajgonki z ryżem | qty_2 | `find_nearby→select_restaurant→menu_request→create_order→confirm_add_to_cart` | 1 | - | ✅ PASS | ok |
 | 52 | Vien-Thien | Wołowina 5 smaków | full | `find_nearby→select_restaurant→menu_request→create_order→confirm_add_to_cart` | 1 | - | ✅ PASS | ok |
 | 53 | Vien-Thien | Wołowina 5 smaków | alias | `find_nearby→select_restaurant→menu_request→create_order→confirm_add_to_cart` | 1 | - | ✅ PASS | ok |
-| 54 | Vien-Thien | Wołowina 5 smaków | qty_2 | `find_nearby→select_restaurant→menu_request→create_order→ERROR` | 0 | - | ❌ FAIL | step_error (1 steps errored) |
+| 54 | Vien-Thien | Wołowina 5 smaków | qty_2 | `find_nearby→select_restaurant→menu_request→create_order→confirm_add_to_cart` | 1 | - | ✅ PASS | ok |
 | 55 | Callzone | Pizza Pepperoni | full | `find_nearby→select_restaurant→menu_request→create_order→confirm_add_to_cart` | 1 | - | ✅ PASS | ok |
 | 56 | Callzone | Pizza Pepperoni | alias | `find_nearby→select_restaurant→menu_request→create_order→confirm_add_to_cart` | 1 | - | ✅ PASS | ok |
 | 57 | Callzone | Pizza Pepperoni | qty_2 | `find_nearby→select_restaurant→menu_request→create_order→confirm_add_to_cart` | 1 | - | ✅ PASS | ok |
@@ -87,7 +87,7 @@ _Generated: 2026-03-05T17:49:18.649Z_
 
 ## Summary
 
-- **Main scenarios:** 71/72 PASS
+- **Main scenarios:** 72/72 PASS
 - **Edge tests:** 2/2 PASS
-- **Total:** 73/74 PASS
+- **Total:** 74/74 PASS
 - **State warnings:** 0 scenarios had FSM state issues

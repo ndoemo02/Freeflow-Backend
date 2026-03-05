@@ -80,8 +80,17 @@ export class MenuHandler {
 
         // --- OPTIMIZATION: Task 2 - Menu Cache Shortcut ---
         const lastRestaurant = session?.lastRestaurant;
-        if (lastRestaurant && restaurant.id === lastRestaurant.id && session?.last_menu && session.last_menu.length > 0) {
+        const cachedRestaurantId = session?.last_menu_restaurant_id;
+        const canUseCache =
+            lastRestaurant &&
+            restaurant.id === lastRestaurant.id &&
+            cachedRestaurantId === restaurant.id &&
+            session?.last_menu &&
+            session.last_menu.length > 0;
+
+        if (canUseCache) {
             console.log(`⚡ Cache Hit: Returning cached menu for ${lastRestaurant.name}`);
+            console.log(`[MenuCache] HIT restaurant=${restaurant.id} items=${session.last_menu.length}`);
             const items = session.last_menu;
 
             // Anti-Loop for Cache
@@ -135,7 +144,8 @@ export class MenuHandler {
             restaurant: restaurant,
             contextUpdates: {
                 ...baseContextUpdates,
-                last_menu: preview.menu // FIX 1: Store FULL menu (all items) in context, not only shortlist (6), to support dish_guard matching items lower in the list
+                last_menu: preview.menu, // FIX 1: Store FULL menu (all items) in context, not only shortlist (6), to support dish_guard matching items lower in the list
+                last_menu_restaurant_id: restaurant.id
             },
             meta: { source: 'db' }
         };

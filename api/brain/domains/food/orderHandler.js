@@ -4,11 +4,38 @@
 import { extractQuantity, normalizeDish } from '../../helpers.js';
 import { resolveMenuItemConflict, DISAMBIGUATION_RESULT } from '../../services/DisambiguationService.js';
 
+function hasExplicitQuantityInText(text = '') {
+    const normalized = normalizeDish(String(text || ''));
+    if (!normalized) return false;
+
+    const numberPattern = /\b\d+\s*(?:x|razy|szt|szt\.|sztuk|porcj|ml|l|cm|g|kg)?\b/i;
+    const wordPattern = /\b(jeden|jedna|jedno|dwa|dwie|trzy|cztery|piec|szesc|siedem|osiem|dziewiec|dziesiec|kilka|pare)\b/i;
+    return numberPattern.test(normalized) || wordPattern.test(normalized);
+}
+
+function formatSzt(quantity) {
+    const q = Math.max(1, Math.floor(Number(quantity) || 1));
+    const mod10 = q % 10;
+    const mod100 = q % 100;
+    let form = 'sztuk';
+
+    if (q === 1) {
+        form = 'sztuka';
+    } else if (mod10 >= 2 && mod10 <= 4 && !(mod100 >= 12 && mod100 <= 14)) {
+        form = 'sztuki';
+    }
+
+    return `${q} ${form}`;
+}
+
 export class OrderHandler {
 
     async execute(ctx) {
         const { text, session, entities } = ctx;
         console.log("🧠 OrderHandler executing with disambiguation...");
+
+        const rawUserText = ctx?.body?.text || text || '';
+        const rawExtractedQuantity = extractQuantity(rawUserText);
 
         // 0. Extract quantity — normalize primitive/object/string forms safely.
         let quantity = entities?.quantity;
@@ -21,6 +48,22 @@ export class OrderHandler {
 
         if (!Number.isFinite(quantity) || quantity < 1) {
             quantity = 1;
+        }
+
+        let hasExplicitNumber = hasExplicitQuantityInText(rawUserText);
+        const hasPortionInDish = /\b\d+\s*(?:szt|szt\.|sztuk|ml|l|cm|g|kg)\b/i.test(String(entities?.dish || ''));
+
+        // Prefer quantity explicitly provided by user text over canonized entity quantity.
+        if (rawExtractedQuantity > 1) {
+            quantity = rawExtractedQuantity;
+            hasExplicitNumber = true;
+        }
+
+        // If quantity likely came from canonicalized dish name (e.g. "6 szt.")
+        // and user didn't provide quantity explicitly, default to single item.
+        if (!hasExplicitNumber && hasPortionInDish) {
+            quantity = 1;
+            hasExplicitNumber = false;
         }
 
         // Use the dish resolved by NLU (e.g. from ordinal selection) or fallback to raw text
@@ -106,7 +149,8 @@ export class OrderHandler {
                 id: item.id,
                 name: item.name,
                 price: parseFloat(item.price_pln),
-                quantity: quantity
+                quantity: quantity,
+                hasExplicitNumber
             };
             const total = (orderItem.price * quantity).toFixed(2);
 
@@ -137,7 +181,7 @@ export class OrderHandler {
 
             } else {
                 // Same restaurant or Fresh Start
-                reply = `Dodałam ${quantity}x ${item.name} z ${restaurant.name}. Razem ${total} zł. Potwierdzasz?`;
+                reply = `Dodałam ${formatSzt(quantity)} ${item.name} z ${restaurant.name}. Razem ${total} zł. Potwierdzasz?`;
 
                 // If it's a fresh start, allow context set
                 contextUpdate = {

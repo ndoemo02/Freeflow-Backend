@@ -51,7 +51,9 @@ export class SelectRestaurantHandler {
             ctx.session = {
                 ...ctx.session,
                 lastRestaurant: currentRestaurant,
-                currentRestaurant: currentRestaurant
+                currentRestaurant: currentRestaurant,
+                last_menu: null,
+                last_menu_restaurant_id: null
             };
 
             const { MenuHandler } = await import('./menuHandler.js');
@@ -207,7 +209,9 @@ export class SelectRestaurantHandler {
         ctx.session = {
             ...ctx.session,
             lastRestaurant: selected,
-            currentRestaurant: currentRestaurant
+            currentRestaurant: currentRestaurant,
+            last_menu: null,
+            last_menu_restaurant_id: null
         };
 
         // Import MenuHandler dynamically to avoid circular dependency issues if any
