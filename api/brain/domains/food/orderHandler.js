@@ -10,9 +10,18 @@ export class OrderHandler {
         const { text, session, entities } = ctx;
         console.log("🧠 OrderHandler executing with disambiguation...");
 
-        // 0. Extract quantity — prefer NLU entities (already resolved before phonetic/canonical
-        //    text replacement), fallback to re-parsing raw text, final fallback to 1.
-        const quantity = ctx?.entities?.quantity ?? extractQuantity(text) ?? 1;
+        // 0. Extract quantity — normalize primitive/object/string forms safely.
+        let quantity = entities?.quantity;
+
+        if (typeof quantity === 'object' && quantity !== null) {
+            quantity = quantity.value ?? 1;
+        }
+
+        quantity = Number(quantity ?? extractQuantity(text) ?? 1);
+
+        if (!Number.isFinite(quantity) || quantity < 1) {
+            quantity = 1;
+        }
 
         // Use the dish resolved by NLU (e.g. from ordinal selection) or fallback to raw text
         let searchPhrase = entities?.dish || text || "";

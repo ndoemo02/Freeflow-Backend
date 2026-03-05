@@ -37,6 +37,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const BASE_URL = 'http://localhost:3000/api/brain/v2';
 const REQUEST_TIMEOUT_MS = 15_000;
 const STEP_DELAY_MS = 350; // P4: bumped from 200 to handle pipeline NLU+Supabase latency
+const FILTER = 'Vien-Thien';
 
 // ════════════════════════════════════════════════════════════════════
 // DATASET (P3 — extended with per-dish aliases)
@@ -253,6 +254,7 @@ async function runScenario(steps, sessionId) {
             results.push({
                 text,
                 metrics: { intent: 'ERROR', source: err.message, cartItems: 0, cartItemsRaw: [], conversationClosed: false },
+                details: err.message,
                 error: true,
             });
         }
@@ -452,6 +454,10 @@ async function main() {
 
     for (const row of selectedDishes) {
         const { restaurant, dish_name, alias } = row;
+
+        if (FILTER && !restaurant.includes(FILTER)) {
+            continue;
+        }
 
         // --- Full scenario ---
         {
