@@ -8,7 +8,7 @@ const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
  * Smart Intent Resolution Layer
  * V2 path: classic NLU baseline → ordering guards → LLM fallback (if EXPERT_MODE=true)
  */
-export async function smartResolveIntent({ text, session, restaurants, previousIntent }) {
+export async function smartResolveIntent({ text, session, sessionId, restaurants, previousIntent }) {
     // 1. Guard empty input
     if (!text || !text.trim()) {
         return { intent: "smalltalk", confidence: 0, slots: {}, source: 'empty', engine: 'v2' };
@@ -17,9 +17,17 @@ export async function smartResolveIntent({ text, session, restaurants, previousI
     // 2. Classic NLU baseline — try detectIntent, fallback to unknown
     let classicResult;
     try {
-        const det = await detectIntent(text);
+        const sessionForDetect = session
+            ? {
+                ...session,
+                id: session?.id || session?.sessionId || session?.session_id || sessionId || null
+            }
+            : null;
+        const det = await detectIntent(text, sessionForDetect, {});
+        let detIntent = det?.intent || 'unknown';
+        if (detIntent === 'UNKNOWN_INTENT' || detIntent === 'fallback') detIntent = 'unknown';
         classicResult = {
-            intent: det?.intent || 'unknown',
+            intent: detIntent,
             confidence: det?.confidence || 0,
             slots: det?.entities || {},
             source: 'classic',

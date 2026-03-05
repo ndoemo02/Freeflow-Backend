@@ -10,7 +10,7 @@ import { smartResolveIntent } from '../ai/smartIntent.js';
 import { parseRestaurantAndDish } from '../order/parseOrderItems.js';
 import { extractLocation, extractCuisineType, extractQuantity } from './extractors.js';
 import { findRestaurantInText } from '../data/restaurantCatalog.js';
-import { fuzzyIncludes } from '../helpers.js';
+import { fuzzyIncludes, normalizeDish } from '../helpers.js';
 
 export class NLURouter {
     constructor() {
@@ -338,22 +338,26 @@ export class NLURouter {
         const isNumericDiscovery = NUMERALS.test(normalized) && !ORDER_VERBS.test(normalized);
 
         if (isRecommend) {
+            if (session?.currentRestaurant) {
+                BrainLogger.nlu('🛡️ IN_RESTAURANT_GUARD: blocked recommend/find_nearby inside restaurant context');
+            } else {
             // If recommend + location → treat as find_nearby (implicit discovery)
-            if (location) {
+                if (location) {
+                    return {
+                        intent: 'find_nearby',
+                        confidence: 0.99,
+                        source: 'recommend_with_location',
+                        entities
+                    };
+                }
+                // No location → ask where to search
                 return {
-                    intent: 'find_nearby',
+                    intent: 'recommend',
                     confidence: 0.99,
-                    source: 'recommend_with_location',
+                    source: 'recommend_keyword',
                     entities
                 };
             }
-            // No location → ask where to search
-            return {
-                intent: 'recommend',
-                confidence: 0.99,
-                source: 'recommend_keyword',
-                entities
-            };
         }
 
         if (isDiscovery || isNumericDiscovery || isUncertain) {
@@ -363,7 +367,7 @@ export class NLURouter {
 
             // If we have a Location entity AND Discovery keyword, Force find_nearby
             // (Even if 'Piekarach' loosely matches a restaurant name)
-            if (location || !matchedRestaurant) {
+            if ((location || !matchedRestaurant) && !session?.currentRestaurant) {
                 return {
                     intent: 'find_nearby',
                     confidence: 0.99,
@@ -399,13 +403,15 @@ export class NLURouter {
                     entities
                 };
             }
-            // Default to selecting that restaurant
-            return {
-                intent: 'select_restaurant',
-                confidence: 0.98,
-                source: 'catalog_match_explicit',
-                entities
-            };
+            // Default to selecting that restaurant (outside restaurant context)
+            if (!session?.currentRestaurant) {
+                return {
+                    intent: 'select_restaurant',
+                    confidence: 0.98,
+                    source: 'catalog_match_explicit',
+                    entities
+                };
+            }
         }
 
         // --- RULE 3b: Aliases & Entity Parsing (Dish Detection) ---
@@ -497,7 +503,7 @@ export class NLURouter {
         // UPDATED: Syncing verbs
         const hasOrderVerbStrict = /\b(poprosze|poprosz[ęe]|zamawiam|zamow|wezme|wezm[ęe]|biore|bior[ęe]|dodaj|chciał(bym|abym)|skusz[ęe]|spr[oó]buj[ęe]|zdecyduj[ęe]|lec[ęe]\s+na|bior[ęe]\s+to)\b/i.test(normalized);
 
-        if (findRegex.test(normalized) && !hasOrderVerbStrict) {
+        if (findRegex.test(normalized) && !hasOrderVerbStrict && !session?.currentRestaurant) {
             return {
                 intent: 'find_nearby',
                 confidence: 0.95,
@@ -525,16 +531,21 @@ export class NLURouter {
                 const smartResult = await smartResolveIntent({
                     text,
                     session,
+                    sessionId: ctx?.sessionId,
                     previousIntent: session?.lastIntent
                 });
 
                 if (smartResult && smartResult.intent && smartResult.intent !== 'unknown') {
+                    if (session?.currentRestaurant && ['find_nearby', 'choose_restaurant', 'select_restaurant'].includes(smartResult.intent)) {
+                        BrainLogger.nlu(`🛡️ SMART_DISCOVERY_GUARD: blocked "${smartResult.intent}" while in restaurant context`);
+                    } else {
                     return {
                         intent: smartResult.intent,
                         confidence: smartResult.confidence || 0.8,
                         source: smartResult.source || 'smart_hybrid',
                         entities: { ...entities, ...smartResult.slots }
                     };
+                    }
                 }
             } else {
                 // V2 mode with classic disabled — expected path
@@ -546,7 +557,7 @@ export class NLURouter {
 
         // 3. Food-word Fallback: if unknown but contains food words, assume exploration
         const FOOD_WORDS = /\b(pizza|pizz[aeęyę]|kebab|kebaba|burger|burgera|burgery|sushi|ramen|pad\s*thai|pho|pierogi|pierog|zupy?|zup[ęka]|schabowy?|kotlet|frytki|frytek|king|kfc|mcdonald|mac|jedzenie|cos|coś|zjeść|zjesz|dania|baner|dobry|cola|colę|cole|coca|fanta|sprite|woda|wode|wodę|napój|napoje)\b/i;
-        if (FOOD_WORDS.test(normalized)) {
+        if (FOOD_WORDS.test(normalized) && !session?.currentRestaurant) {
             return {
                 intent: 'find_nearby',
                 confidence: 0.6,
@@ -573,6 +584,9 @@ export class NLURouter {
                 });
 
                 if (llmResult && llmResult.intent !== 'unknown' && llmResult.source === 'llm_translator') {
+                    if (session?.currentRestaurant && ['find_nearby', 'choose_restaurant', 'select_restaurant'].includes(llmResult.intent)) {
+                        BrainLogger.nlu(`🛡️ LLM_DISCOVERY_GUARD: blocked "${llmResult.intent}" while in restaurant context`);
+                    } else {
                     // ═══════════════════════════════════════════════════════════════════
                     // HARD BLOCK: LLM cannot execute ordering intents
                     // ═══════════════════════════════════════════════════════════════════
@@ -599,6 +613,7 @@ export class NLURouter {
                             ...llmResult.entities
                         }
                     };
+                    }
                 }
             } catch (e) {
                 console.warn('🛡️ LLM Translator failed:', e.message);
@@ -606,7 +621,74 @@ export class NLURouter {
             }
         }
 
-        // 5. Last Resort Fallback
+        // 5. Default order fallback inside restaurant context
+        if (session?.currentRestaurant && session?.last_menu) {
+            const isControlIntent = /\b(status|zam[oó]wienie|koszyk|p[lł]ac[ęe]|checkout|help|pomoc|co\s+robi[ćc]|menu|karta)\b/i.test(normalized);
+            const menuItems = Array.isArray(session.last_menu)
+                ? session.last_menu
+                : Array.isArray(session.last_menu?.items)
+                    ? session.last_menu.items
+                    : [];
+
+            if (!isControlIntent) {
+                const qty = extractQuantity(text) || 1;
+                const textForDish = text.replace(/^(?:jeden|jedna|jedno|dwa|dwie|trzy|cztery|pi[eę][cć][u]?|sze[sś][cć][u]?|siedem|osiem|dziewi[eę][cć][u]?|dziesi[eę][cć][u]?|kilka|par[ęe])\s+/i, '').trim();
+                const dishMatch = menuItems.find(item =>
+                    fuzzyIncludes(item.base_name || item.name, textForDish)
+                );
+
+                if (dishMatch) {
+                    return {
+                        intent: 'create_order',
+                        confidence: 0.7,
+                        source: 'default_order_fallback_match',
+                        entities: {
+                            ...entities,
+                            dish: dishMatch.name,
+                            quantity: qty,
+                            restaurant: session.currentRestaurant.name,
+                            restaurantId: session.currentRestaurant.id
+                        }
+                    };
+                }
+
+                return {
+                    intent: 'create_order',
+                    confidence: 0.6,
+                    source: 'default_order_fallback_item_not_found',
+                    entities: {
+                        ...entities,
+                        dish: textForDish || text,
+                        requestedDish: textForDish,
+                        itemLookupStatus: 'ITEM_NOT_FOUND',
+                        quantity: qty,
+                        restaurant: session.currentRestaurant.name,
+                        restaurantId: session.currentRestaurant.id
+                    }
+                };
+            }
+        }
+
+        // Restaurant context dish fallback
+        if (session?.currentRestaurant) {
+            const dishTokenText = normalizeDish(normalized);
+
+            // single-token dish phrases
+            if (dishTokenText && dishTokenText.split(' ').length <= 2) {
+                return {
+                    intent: 'create_order',
+                    confidence: 0.55,
+                    source: 'restaurant_context_dish_fallback',
+                    entities: {
+                        ...entities,
+                        dish: dishTokenText,
+                        quantity: extractQuantity(normalized)
+                    }
+                };
+            }
+        }
+
+        // 6. Last Resort Fallback
         return {
             intent: 'unknown',
             confidence: 0.0,

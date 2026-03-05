@@ -54,6 +54,7 @@ export const dishCanon = {
     "Coca-Cola Zero": "cola zero",
     "Coca-Cola, Fanta, Sprite, Cappy (200 ml)": "napój gazowany",
     "Ćwiartka kaczki": "ćwiartka kaczki",
+    "Ćwiartka kaczki (kaczka)": "kaczka",
 
     // ─── D ───────────────────────────────────────────────────────────────
     "Deska zakąsek dla dwojga": "deska zakąsek",
@@ -84,6 +85,8 @@ export const dishCanon = {
     "Grzanka z krupniokiem": "grzanka",
     "Grzybiarz z Piekaryhill": "grzybiarz",
     "Gulasz wieprzowy po węgiersku": "gulasz",
+    "Gulasz wieprzowy z knedlikiem": "gulasz z knedlikiem",
+    "Gulasz wieprzowy z knedlikiem (gulasz)": "gulasz",
     "Gyros z frytkami i tzatziki": "gyros",
 
     // ─── H ───────────────────────────────────────────────────────────────
@@ -114,6 +117,8 @@ export const dishCanon = {
     "Kawa Biała": "kawa biała",
     "Kawa Czarna": "kawa",
     "Kebab amerykański": "kebab",
+    "Kebab w bułce": "kebab w bułce",
+    "Kebab Box": "kebab box",
     "Klaps Fiction Double": "klaps fiction double",
     "Klaps Fiction Standard": "klaps fiction",
     "Kluski śląskie": "kluski śląskie",
@@ -126,6 +131,7 @@ export const dishCanon = {
     "Kotlet schabowy": "schabowy",
     "Kotlety czopskie": "czopskie",
     "Krem borowikowy": "krem borowikowy",
+    "Krem borowikowy (borowikowy)": "borowikowy",
     "Krem z Cebuli i Czosnku": "krem cebula",
     "Krem z dyni z białą czekoladą": "krem dynia",
     "Krewetki Curry": "krewetki curry",
@@ -172,6 +178,7 @@ export const dishCanon = {
 
     // ─── O ───────────────────────────────────────────────────────────────
     "Onionator": "onionator",
+    "Onionator (cebulowy)": "cebulowy",
     "Oshee": "oshee",
     "Ozór wołowy": "ozór",
 
@@ -237,6 +244,8 @@ export const dishCanon = {
     "Sernik z Musem Malinowym": "sernik",
     "Siekany tatar z polędwicy wołowej": "tatar",
     "Smak Vegas": "vegas",
+    "Smażony ser": "smażony ser",
+    "Smażony ser (ser)": "ser",
     "Sok Cappy": "cappy",
     "Sos": "sos",
     "Sos Jogurtowy": "sos jogurtowy",
@@ -250,6 +259,7 @@ export const dishCanon = {
 
     // ─── T ───────────────────────────────────────────────────────────────
     "Tagliatelle z krewetkami": "tagliatelle krewetki",
+    "Tagliatelle z krewetkami (tagliatelle)": "tagliatelle",
     "Tagliatelle ze szpinakiem, suszonymi pomidorami i płatkami migdałów": "tagliatelle szpinak",
     "Tiramisu": "tiramisu",
     "Tradycyjny schabowy": "schabowy",
@@ -283,6 +293,8 @@ export const dishCanon = {
     "Zapiekaniec": "zapiekaniec",
     "Żeberka wieprzowe z frytkami": "żeberka",
     "Ziemniaki z wody": "ziemniaki",
+    "Zupa czosnkowa": "zupa czosnkowa",
+    "Zupa czosnkowa (czosnkowa)": "czosnkowa",
     "Zupa dnia": "zupa dnia",
     "Zupa krabowa": "zupa krabowa",
     "Zupa łajska": "zupa łajska",

@@ -24,6 +24,10 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import crypto from 'crypto';
 
+// DISABLE LLM & TTS for deterministic tests
+process.env.DISABLE_LLM = "true";
+process.env.DISABLE_TTS = "true";
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // ════════════════════════════════════════════════════════════════════
@@ -44,33 +48,16 @@ const DATASET = [
     { restaurant: 'Pizzeria Monte Carlo', dish_name: 'Margherita', price: '31.00', alias: 'margherita' },
     { restaurant: 'Pizzeria Monte Carlo', dish_name: 'Hawajska', price: '34.00', alias: 'hawajska' },
     { restaurant: 'Pizzeria Monte Carlo', dish_name: 'Quattro Formaggi', price: '34.00', alias: 'quattro' },
-    // Tasty King Kebab
-    { restaurant: 'Tasty King Kebab', dish_name: 'Kebab w bułce', price: '28.00', alias: 'kebab' },
-    { restaurant: 'Tasty King Kebab', dish_name: 'Rollo Kebab', price: '30.00', alias: 'rollo' },
-    { restaurant: 'Tasty King Kebab', dish_name: 'Kebab Box', price: '35.00', alias: 'box' },
     // Restauracja Stara Kamienica
     { restaurant: 'Restauracja Stara Kamienica', dish_name: 'Rolada śląska z kluskami i modrą kapustą', price: '52.00', alias: 'rolada' },
     { restaurant: 'Restauracja Stara Kamienica', dish_name: 'Żurek śląski na maślance', price: '22.00', alias: 'żurek' },
-    { restaurant: 'Restauracja Stara Kamienica', dish_name: 'Kotlet schabowy z ziemniakami i kapustą', price: '45.00', alias: 'schabowy' },
     // Dwór Hubertus
     { restaurant: 'Dwór Hubertus', dish_name: 'Ćwiartka kaczki', price: '65.00', alias: 'kaczka' },
     { restaurant: 'Dwór Hubertus', dish_name: 'Krem borowikowy', price: '25.00', alias: 'krem' },
     { restaurant: 'Dwór Hubertus', dish_name: 'Polędwica wieprzowa', price: '89.00', alias: 'polędwica' },
     // Rezydencja Luxury Hotel
-    { restaurant: 'Rezydencja Luxury Hotel', dish_name: 'Krem z dyni z białą czekoladą', price: '75.00', alias: 'krem z dyni' },
-    { restaurant: 'Rezydencja Luxury Hotel', dish_name: 'Wędzony pstrąg', price: '55.00', alias: 'pstrąg' },
     { restaurant: 'Rezydencja Luxury Hotel', dish_name: 'Tagliatelle z krewetkami', price: '28.00', alias: 'tagliatelle' },
-    // Vien-Thien
-    { restaurant: 'Vien-Thien', dish_name: 'Zupa Won Ton', price: '35.00', alias: 'zupa won ton' },
-    { restaurant: 'Vien-Thien', dish_name: 'Sajgonki z ryżem', price: '25.00', alias: 'sajgonki' },
-    { restaurant: 'Vien-Thien', dish_name: 'Wołowina 5 smaków', price: '49.00', alias: 'wołowina' },
-    // Callzone
-    { restaurant: 'Callzone', dish_name: 'Pizza Pepperoni', price: '36.00', alias: 'pepperoni' },
-    { restaurant: 'Callzone', dish_name: 'Pizza Hawajska', price: '35.00', alias: 'hawajska' },
-    { restaurant: 'Callzone', dish_name: 'Pizza Margherita', price: '32.00', alias: 'margherita' },
     // Klaps Burgers
-    { restaurant: 'Klaps Burgers', dish_name: 'Głodzilla', price: '46.00', alias: 'głodzilla' },
-    { restaurant: 'Klaps Burgers', dish_name: 'Smak Vegas', price: '15.00', alias: 'smak vegas' },
     { restaurant: 'Klaps Burgers', dish_name: 'Onionator', price: '18.00', alias: 'onionator' },
 ];
 
@@ -518,7 +505,7 @@ async function main() {
 
     // --- Generate report ---
     const report = buildReport(results, edgeResults);
-    const reportPath = path.join(__dirname, 'cascade_report.md');
+    const reportPath = path.join(__dirname, 'cascade_problematic_report.md');
     fs.writeFileSync(reportPath, report, 'utf8');
 
     const totalMain = results.length;

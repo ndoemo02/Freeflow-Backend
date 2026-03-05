@@ -362,12 +362,38 @@ export class BrainPipeline {
                 };
             } else {
                 // ═══════════════════════════════════════════════════════════════
+                // LAZY LOAD MENU BEFORE NLU (Fix: UNKNOWN_INTENT after menu_request)
+                // ═══════════════════════════════════════════════════════════════
+                if (sessionContext?.currentRestaurant && (!sessionContext?.last_menu || sessionContext.last_menu.length === 0)) {
+                    BrainLogger.pipeline('🔄 PRE-NLU LAZY LOAD: last_menu is empty. Running MenuHandler to hydrate sessionContext.');
+                    const menuHandler = this.handlers['food']['menu_request'];
+                    if (menuHandler) {
+                        try {
+                            if (!sessionContext.lastRestaurant) {
+                                sessionContext.lastRestaurant = sessionContext.currentRestaurant;
+                            }
+                            const handlerResult = await menuHandler.execute(context);
+                            if (handlerResult?.contextUpdates) {
+                                Object.assign(sessionContext, handlerResult.contextUpdates);
+                                if (!IS_SHADOW) {
+                                    updateSession(activeSessionId, handlerResult.contextUpdates);
+                                }
+                                BrainLogger.pipeline(`✅ PRE-NLU LAZY LOAD: Menu hydrated successfully (${sessionContext.last_menu.length} items).`);
+                            }
+                        } catch (err) {
+                            BrainLogger.pipeline(`❌ PRE-NLU LAZY LOAD failed: ${err.message}`);
+                        }
+                    }
+                }
+
+                // ═══════════════════════════════════════════════════════════════
                 // PRE-NLU: Dish Canonicalization (resolve aliases before NLU)
                 // ═══════════════════════════════════════════════════════════════
                 const canonResult = canonicalizeDish(text, sessionContext);
-                if (canonResult.matchedDish) {
-                    BrainLogger.pipeline(`🔤 DISH_CANON: "${text}" → "${canonResult.matchedDish}"`);
-                    context.canonicalDish = canonResult.matchedDish;
+                if (canonResult && (typeof canonResult === 'string') && canonResult !== text) {
+                    BrainLogger.pipeline(`🔤 DISH_CANON: "${text}" → "${canonResult}"`);
+                    context.canonicalDish = canonResult;
+                    text = canonResult; // Override text for NLU
                 }
 
                 // ═══════════════════════════════════════════════════════════════

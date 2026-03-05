@@ -135,7 +135,7 @@ export class MenuHandler {
             restaurant: restaurant,
             contextUpdates: {
                 ...baseContextUpdates,
-                last_menu: preview.shortlist
+                last_menu: preview.menu // FIX 1: Store FULL menu (all items) in context, not only shortlist (6), to support dish_guard matching items lower in the list
             },
             meta: { source: 'db' }
         };

@@ -29,6 +29,19 @@ export function normalizeTxt(s = '') {
     .trim();
 }
 
+export function normalizeDish(str) {
+  if (!str) return '';
+
+  const map = { ą: 'a', ć: 'c', ę: 'e', ł: 'l', ń: 'n', ó: 'o', ś: 's', ż: 'z', ź: 'z' };
+
+  return str
+    .toLowerCase()
+    .replace(/[ąćęłńóśżź]/g, (c) => map[c])
+    .replace(/\b(z|na|i|w)\b/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 // Mapowanie skrótów/aliasów nazw restauracji na rozwinięte formy,
 // które ułatwiają dopasowanie (np. "rezydencja" → "rezydencja luxury hotel").
 const BASE_RESTAURANT_ALIAS_MAP = {
@@ -99,60 +112,18 @@ export function fuzzyMatch(a, b, threshold = 3) {
 }
 
 export function fuzzyIncludes(name, text) {
-  if (!name || !text) return false;
-  const n = normalizeTxt(name); // Menu Item
-  const t = normalizeTxt(text); // User Request
+  const a = normalizeDish(name);
+  const b = normalizeDish(text);
 
-  // 1. Exact / Substring match (Fast)
-  if (t.includes(n) || n.includes(t)) return true;
+  if (!a || !b) return false;
 
-  const nToks = n.split(' ').filter(x => x.length > 1);
-  const tToks = t.split(' ').filter(x => x.length > 1);
+  if (a.includes(b) || b.includes(a)) return true;
 
-  // Helper: check if token 'query' exists in 'targetArray' loosely
-  const hasToken = (query, targetArray) => {
-    return targetArray.some(target => {
-      if (target.includes(query) || query.includes(target)) return true;
-      // Allow 1-2 char diff for inflections on longer words
-      if (query.length > 3 && target.length > 3) {
-        return levenshtein(query, target) <= 2;
-      }
-      return false;
-    });
-  };
+  const wordsA = a.split(' ').filter(Boolean);
+  const wordsB = b.split(' ').filter(Boolean);
 
-  // 2. Forward Check: Does User Text cover enough of Menu Item? (e.g. User says full name)
-  // Penalize long menu names if user only said one word, UNLESS that word is very unique?
-  // Current logic: requires 60% of menu tokens.
-  const nLong = nToks.filter(tok => tok.length > 2);
-  if (nLong.length > 0) {
-    const hits = nLong.filter(tok => hasToken(tok, tToks));
-    if (hits.length / nLong.length >= 0.6) return true;
-  }
-
-  // 3. Reverse Check: Does Menu Item cover enough of User Request? (Shorthand / "Pizza")
-  // User: "Burger" -> Menu: "Burger Klasyczny" (Match)
-  // User: "Pomidorowa" -> Menu: "Zupa Pomidorowa" (Match)
-  const tLong = tToks.filter(tok => tok.length > 2);
-
-  // Guard: Don't match generic 3-letter words blindly if that's all there is
-  if (tLong.length === 0) return false;
-
-  const matchedUserTokens = tLong.filter(tok => hasToken(tok, nToks));
-  const userCoverage = matchedUserTokens.length / tLong.length;
-
-  // If user said 1 strong word (e.g. "pomidorowa"), and it matches -> 100% -> OK.
-  // If user said "zupę pomidorową" (2 words), and both match -> 100% -> OK.
-  // Threshold: 0.75 allows "zupa pomidorowa szybka" (2/3 match)
-  if (userCoverage >= 0.75) return true;
-
-  // 4. Special Case: Single significant token match (e.g. "Schabowy")
-  // If user provided single significant word that matches perfectly/strongly a significant word in menu
-  if (tLong.length === 1 && nToks.length > 0) {
-    if (hasToken(tLong[0], nToks)) return true;
-  }
-
-  return false;
+  const overlap = wordsB.filter((w) => wordsA.includes(w));
+  return overlap.length > 0;
 }
 
 // ============================================================================

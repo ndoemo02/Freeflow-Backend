@@ -299,7 +299,7 @@ function fuzzyMatch(a, b) {
 // ——— Menu catalog & order parsing ———
 async function loadMenuCatalog(session) {
   // preferuj ostatnią restaurację z kontekstu, jeśli jest
-  const lastId = session?.lastRestaurant?.id || session?.restaurant?.id;
+  const lastId = session?.currentRestaurant?.id || session?.lastRestaurant?.id || session?.restaurant?.id || session?.id;
 
   console.log(`[loadMenuCatalog] 🔍 Session:`, session);
   console.log(`[loadMenuCatalog] 🔍 lastRestaurant:`, session?.lastRestaurant);
@@ -869,7 +869,7 @@ export async function detectIntent(text, session = null, entities = {}) {
     // Sprawdź czy użytkownik ma już restaurację w sesji
     let targetRestaurant = null;
     let restaurantsList = null; // 🔹 Cache dla późniejszego użycia
-    const hasSessionRestaurant = session?.lastRestaurant?.id;
+    const hasSessionRestaurant = session?.currentRestaurant?.id || session?.lastRestaurant?.id;
 
     console.log(`[intent-router] 🔍 Session restaurant: ${hasSessionRestaurant ? session.lastRestaurant.name : 'NONE'}`);
 
@@ -976,8 +976,11 @@ export async function detectIntent(text, session = null, entities = {}) {
     // Priorytet: targetRestaurant (z tekstu) > session.lastRestaurant
     try {
       const sessionWithRestaurant = targetRestaurant
-        ? { lastRestaurant: targetRestaurant }
-        : session;
+        ? { ...session, lastRestaurant: targetRestaurant, currentRestaurant: targetRestaurant }
+        : (session?.lastRestaurant ? session : {
+          ...session,
+          lastRestaurant: session?.currentRestaurant || session?.lastRestaurant || session?.restaurant || null
+        });
 
       // 🔹 Timeout protection: 5s max dla loadMenuCatalog
       const catalog = await withTimeout(

@@ -8,7 +8,7 @@
 
 import { supabase } from '../../_supabase.js'; // Adjust path if needed (depth 2 from domains/food, depth 1 from services)
 // Wait, path from services/DisambiguationService.js (level 3) to api/_supabase.js (level 1) is ../../_supabase.js
-import { fuzzyIncludes, normalize } from '../helpers.js';
+import { fuzzyIncludes, normalize, normalizeDish } from '../helpers.js';
 
 export const DISAMBIGUATION_RESULT = {
     ITEM_NOT_FOUND: 'ITEM_NOT_FOUND',
@@ -34,6 +34,7 @@ export async function resolveMenuItemConflict(itemName, context = {}) {
         .select(`
             id, 
             name, 
+            base_name,
             price_pln, 
             restaurant_id
         `);
@@ -43,8 +44,104 @@ export async function resolveMenuItemConflict(itemName, context = {}) {
         return { status: DISAMBIGUATION_RESULT.ITEM_NOT_FOUND };
     }
 
-    // 2. Filtruj kandydatów (fuzzy)
-    const candidates = allItems.filter(item => fuzzyIncludes(item.name, itemName));
+    const buildCandidateSet = (pool, normalizedInput) => {
+        const token = normalizedInput.trim();
+        const altTokens = [token];
+
+        // Minimal fallback fleksyjny: "zurek" -> "zur"
+        if (token.length <= 6 && token.endsWith('ek')) {
+            altTokens.push(token.slice(0, -2));
+        }
+
+        const tokenWordMatches = pool.filter(item => {
+            const baseTokens = normalizeDish(item.base_name || '').split(' ').filter(Boolean);
+            const nameTokens = normalizeDish(item.name || '').split(' ').filter(Boolean);
+            return altTokens.some(t => baseTokens.includes(t) || nameTokens.includes(t));
+        });
+
+        if (tokenWordMatches.length === 1) {
+            return tokenWordMatches;
+        }
+
+        if (tokenWordMatches.length > 1) {
+            const sorted = [...tokenWordMatches].sort((a, b) =>
+                (a.base_name || '').length - (b.base_name || '').length
+            );
+            return [sorted[0]];
+        }
+
+        const exactBaseMatches = pool.filter(item => {
+            const base = normalizeDish(item.base_name || '');
+            return altTokens.some(t => base.startsWith(t) || base.includes(t));
+        });
+
+        if (exactBaseMatches.length === 1) {
+            return exactBaseMatches;
+        }
+
+        return pool.filter(item =>
+            altTokens.some(t =>
+                fuzzyIncludes(normalizeDish(item.base_name || ''), t) ||
+                fuzzyIncludes(normalizeDish(item.name || ''), t)
+            )
+        );
+    };
+
+    const buildMenuFallbackCandidates = (menu = [], normalizedInput, rid) => {
+        if (!Array.isArray(menu) || menu.length === 0) return [];
+
+        const token = normalizedInput.trim();
+        const altTokens = [token];
+        if (token.length <= 6 && token.endsWith('ek')) {
+            altTokens.push(token.slice(0, -2));
+        }
+
+        const hit = menu.find((item) => {
+            const base = normalizeDish(item.base_name || item.name || '');
+            const tokens = base.split(' ').filter(Boolean);
+            return altTokens.some((t) => tokens.includes(t) || base.includes(t) || fuzzyIncludes(base, t));
+        });
+
+        if (!hit) return [];
+
+        return [{
+            id: hit.id,
+            name: hit.name,
+            base_name: hit.base_name,
+            price_pln: hit.price_pln,
+            restaurant_id: rid
+        }];
+    };
+
+    // 2. Priorytet kontekstu restauracji: zawężenie puli przed każdym dopasowaniem
+    const entities = context?.entities || {};
+    const session = context?.session || {};
+    const restaurantId =
+        entities?.restaurantId ||
+        context?.restaurant_id ||
+        session?.currentRestaurant?.id ||
+        session?.lastRestaurant?.id;
+
+    let searchPool = allItems;
+    if (restaurantId) {
+        searchPool = allItems.filter(
+            item => item.restaurant_id === restaurantId
+        );
+    }
+
+    // 3. Filtruj kandydatów: priorytet base_name, potem fuzzy fallback
+    const normalizedInput = normalizeDish(itemName);
+    let candidates = buildCandidateSet(searchPool, normalizedInput);
+
+    if (candidates.length === 0 && restaurantId) {
+        const sessionMenu = context?.session?.last_menu || context?.last_menu || [];
+        candidates = buildMenuFallbackCandidates(sessionMenu, normalizedInput, restaurantId);
+    }
+
+    // If scoped search found nothing, fallback to global disambiguation
+    if (candidates.length === 0 && restaurantId) {
+        candidates = buildCandidateSet(allItems, normalizedInput);
+    }
 
     if (candidates.length === 0) {
         return { status: DISAMBIGUATION_RESULT.ITEM_NOT_FOUND };
@@ -96,10 +193,10 @@ export async function resolveMenuItemConflict(itemName, context = {}) {
 
     // C) >1 wynik (różne restauracje) - Próba ujednoznacznienia kontekstem
     // Priorytet 1: Obecna restauracja (context.restaurant_id)
-    if (context.restaurant_id) {
-        const inContext = candidates.find(c => c.restaurant_id === context.restaurant_id);
+    if (restaurantId) {
+        const inContext = candidates.find(c => String(c.restaurant_id) === String(restaurantId));
         if (inContext) {
-            console.log(`🧠 Context match: ${inContext.name} in ${inContext.restaurants.name}`);
+            console.log(`🧠 Context match (PRIORITY): ${inContext.name} in ${inContext.restaurants.name}`);
             return {
                 status: DISAMBIGUATION_RESULT.ADD_ITEM,
                 item: inContext,

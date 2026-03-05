@@ -1,7 +1,7 @@
 // Food Domain: Order Handler
 // Odpowiada za proces składania zamówienia (Parsowanie -> Koszyk -> Potwierdzenie).
 
-import { extractQuantity } from '../../helpers.js';
+import { extractQuantity, normalizeDish } from '../../helpers.js';
 import { resolveMenuItemConflict, DISAMBIGUATION_RESULT } from '../../services/DisambiguationService.js';
 
 export class OrderHandler {
@@ -15,16 +15,45 @@ export class OrderHandler {
         const quantity = ctx?.entities?.quantity ?? extractQuantity(text) ?? 1;
 
         // Use the dish resolved by NLU (e.g. from ordinal selection) or fallback to raw text
-        const searchPhrase = entities?.dish || text;
+        let searchPhrase = entities?.dish || text || "";
+
+        if (typeof searchPhrase === "string") {
+            // Remove parenthetical canonicalization hints, e.g. "Dish Name (alias)"
+            searchPhrase = searchPhrase.replace(/\s*\([^)]*\)/g, "").trim();
+        }
 
         // 1. DISAMBIGUATION CHECK
         // Use the new service to resolve what item user wants
         // We pass the current restaurant context if available
-        const currentRestaurantId = session?.lastRestaurant?.id;
+        const currentRestaurantId = session?.currentRestaurant?.id || session?.lastRestaurant?.id;
 
-        const resolution = await resolveMenuItemConflict(searchPhrase, {
-            restaurant_id: currentRestaurantId
-        });
+        const menu = Array.isArray(session?.last_menu) ? session.last_menu : [];
+        const token = normalizeDish(searchPhrase);
+
+        let directMatch = null;
+        if (token && menu.length > 0) {
+            directMatch = menu.find(i => i.base_name && normalizeDish(i.base_name) === token);
+
+            if (!directMatch) {
+                directMatch = menu.find(i => normalizeDish(i.name || '') === token);
+            }
+
+            if (!directMatch) {
+                directMatch = menu.find(i => normalizeDish(i.name || '').includes(token));
+            }
+        }
+
+        const resolution = directMatch
+            ? {
+                status: DISAMBIGUATION_RESULT.ADD_ITEM,
+                item: directMatch,
+                restaurant: session?.currentRestaurant || session?.lastRestaurant
+            }
+            : await resolveMenuItemConflict(searchPhrase, {
+                restaurant_id: currentRestaurantId,
+                entities,
+                session
+            });
 
         console.log(`🧠 Disambiguation Result: ${resolution.status} for "${searchPhrase}"`);
 
