@@ -159,7 +159,8 @@ function isBlacklisted(locLower) {
     const blacklist = [
         // navigation words
         'tutaj', 'tu', 'szybko', 'pobliżu', 'okolicy', 'menu', 'coś', 'cos',
-        'zamów', 'pokaż', 'znajdź', 'chcę', 'raz', 'dwa', 'mam',
+        'zamów', 'zamow', 'pokaż', 'pokaz', 'znajdź', 'znajdz', 'chcę', 'chce', 'raz', 'dwa', 'mam',
+        'co', 'maja', 'mają', 'poprosze', 'poproszę', 'wezme', 'wezmę',
         // UI / system
         'azjatyckiego', 'azjatyckie', 'szybkiego', 'dobrego', 'innego', 'inne',
         // restaurant name fragments (to avoid partial matches)

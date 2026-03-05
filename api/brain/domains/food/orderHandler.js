@@ -10,8 +10,9 @@ export class OrderHandler {
         const { text, session, entities } = ctx;
         console.log("🧠 OrderHandler executing with disambiguation...");
 
-        // 0. Extract basic info
-        const quantity = extractQuantity(text);
+        // 0. Extract quantity — prefer NLU entities (already resolved before phonetic/canonical
+        //    text replacement), fallback to re-parsing raw text, final fallback to 1.
+        const quantity = ctx?.entities?.quantity ?? extractQuantity(text) ?? 1;
 
         // Use the dish resolved by NLU (e.g. from ordinal selection) or fallback to raw text
         const searchPhrase = entities?.dish || text;
@@ -91,7 +92,8 @@ export class OrderHandler {
                         restaurant: restaurant.name,
                         items: [orderItem],
                         total: total,
-                        warning: 'switch_restaurant'
+                        warning: 'switch_restaurant',
+                        createdAt: Date.now()
                     }
                 };
 
@@ -107,7 +109,8 @@ export class OrderHandler {
                         restaurant_id: restaurant.id,
                         restaurant: restaurant.name,
                         items: [orderItem],
-                        total: total
+                        total: total,
+                        createdAt: Date.now()
                     }
                 };
             }
@@ -116,7 +119,7 @@ export class OrderHandler {
                 reply,
                 contextUpdates: {
                     ...contextUpdate,
-                    expectedContext: 'confirm_order',
+                    expectedContext: 'confirm_add_to_cart',
                     lastIntent: 'create_order'
                 }
             };

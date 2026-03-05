@@ -21,7 +21,18 @@ export function commitPendingOrder(session) {
     restaurant_id: session.pendingOrder.restaurant_id,
     restaurant_name: session.pendingOrder.restaurant,
   }));
-  session.cart.items.push(...toAdd);
+
+  // Cart Deduplication: merge same-name items from same restaurant
+  for (const newItem of toAdd) {
+    const existing = session.cart.items.find(
+      i => i.name === newItem.name && i.restaurant_id === newItem.restaurant_id
+    );
+    if (existing) {
+      existing.qty = (existing.qty || 1) + (newItem.qty || 1);
+    } else {
+      session.cart.items.push(newItem);
+    }
+  }
   session.cart.total = Number(sum(session.cart.items).toFixed(2));
   session.lastOrder = { ...session.pendingOrder };
   delete session.pendingOrder;

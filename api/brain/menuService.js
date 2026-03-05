@@ -22,7 +22,7 @@ export async function getMenuItems(restaurantId, { includeUnavailable = false, l
 
   let query = supabase
     .from("menu_items_v2")
-    .select("id, name, price_pln, description, category, available")
+    .select("id, name, base_name, size_or_variant, price_pln, description, category, available")
     .eq("restaurant_id", restaurantId);
 
   if (!includeUnavailable) {

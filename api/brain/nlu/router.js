@@ -10,6 +10,7 @@ import { smartResolveIntent } from '../ai/smartIntent.js';
 import { parseRestaurantAndDish } from '../order/parseOrderItems.js';
 import { extractLocation, extractCuisineType, extractQuantity } from './extractors.js';
 import { findRestaurantInText } from '../data/restaurantCatalog.js';
+import { fuzzyIncludes } from '../helpers.js';
 
 export class NLURouter {
     constructor() {
@@ -22,7 +23,7 @@ export class NLURouter {
     _mapDomain(intent) {
         if (!intent) return 'unknown';
         if (['find_nearby', 'select_restaurant', 'menu_request', 'show_city_results', 'show_more_options', 'recommend', 'confirm', 'cancel_order'].includes(intent)) return 'food';
-        if (['create_order', 'confirm_order', 'add_item', 'choose_restaurant', 'clarify_order'].includes(intent)) return 'ordering';
+        if (['create_order', 'confirm_order', 'confirm_add_to_cart', 'add_item', 'choose_restaurant', 'clarify_order'].includes(intent)) return 'ordering';
         return 'system';
     }
 
@@ -70,9 +71,23 @@ export class NLURouter {
             items: parsed.items || null
         };
 
+        // --- PRIORITY: Explicit Intent Commands Override Awaiting State ---
+        // If user says "Pokaż menu", that's menu_request even if system was awaiting location
+        const isExplicitMenuRequest = /^(poka[zż]\s+)?(menu|karta|karte|kartę|oferta|oferte|ofertę|list[ae])(\s+da[ńn])?$/i.test(normalized) ||
+            /\b(poka[zż]|zobacz|sprawdz|sprawdź|co)\b.*\b(menu|karta|karte|kartę|oferta|oferte|ofertę|list[ae]|cennik|macie)\b/i.test(normalized);
+
+        if (isExplicitMenuRequest && session?.currentRestaurant) {
+            return {
+                intent: 'menu_request',
+                confidence: 1.0,
+                source: 'explicit_menu_override',
+                entities
+            };
+        }
+
         // --- NEW: Context Resolution for Standalone Location Responses ---
         // If system asked for location and user provides just location, continue flow
-        if (session?.awaiting === 'location' && location && !matchedRestaurant) {
+        if (session?.awaiting === 'location' && location && !matchedRestaurant && !isExplicitMenuRequest) {
             // User is answering the location question
             // Reset awaiting state and continue with find_nearby
             return {
@@ -200,6 +215,106 @@ export class NLURouter {
                     entities
                 };
             }
+        }
+
+        // --- GUARD: Dish Selection Inside Restaurant (Menu Match + Alias Layer) ---
+        // If user is in a restaurant and their text matches a dish from last_menu,
+        // force create_order. Supports: exact, fuzzy, and alias matching.
+        // NOTE: This guard runs BEFORE isNumericDiscovery so "dwa Pizza" →
+        //       create_order+qty=2 instead of find_nearby.
+        if (session?.currentRestaurant && session?.last_menu?.length > 0) {
+            const menu = session.last_menu;
+            const qty = extractQuantity(text) || 1;
+
+            // Strip leading quantity word so "dwa Pizza Margherita" → "Pizza Margherita"
+            const QTY_STRIP = /^(?:jeden|jedna|jedno|dwa|dwie|trzy|cztery|pi[eę][cć][u]?|sze[sś][cć][u]?|siedem|osiem|dziewi[eę][cć][u]?|dziesi[eę][cć][u]?|kilka|par[ęe])\s+/i;
+            const textForDish = text.replace(QTY_STRIP, '').trim();
+            const normalizedForDish = normalizeTxt(textForDish);
+
+            // 1. Fuzzy name match (existing)
+            let dishMatch = menu.find(item => fuzzyIncludes(item.base_name || item.name, textForDish));
+
+            // 2. Alias Layer: auto-generate aliases from dish names
+            if (!dishMatch) {
+                const ALIAS_STOPWORDS = ['z', 'i', 'w', 'na', 'do', 'ze', 'the', 'a', 'an'];
+
+                for (const item of menu) {
+                    const dishNorm = normalizeTxt(item.base_name || item.name).toLowerCase();
+                    // Generate aliases: each significant word (>2 chars) from dish name
+                    const words = dishNorm.split(/\s+/).filter(w => w.length > 2 && !ALIAS_STOPWORDS.includes(w));
+
+                    // Check if any unique word from dish is in user input
+                    const matchedWord = words.find(w => {
+                        // Word must be distinctive (not a generic word)
+                        const isDistinctive = !['standard', 'double', 'classic', 'mini', 'mega', 'duzy', 'maly'].includes(w);
+                        return isDistinctive && normalizedForDish.includes(w);
+                    });
+
+                    if (matchedWord) {
+                        dishMatch = item;
+                        BrainLogger.nlu(`🔤 DISH_ALIAS: "${matchedWord}" → "${item.name}"`);
+                        break;
+                    }
+                }
+            }
+
+            if (dishMatch) {
+                BrainLogger.nlu(`🍽️ DISH_GUARD: Matched "${dishMatch.name}" from menu in restaurant ${session.currentRestaurant.name}`);
+                const amountMatches = text.match(/\d+/g);
+                const hasExplicitNumber = Boolean(amountMatches);
+
+                return {
+                    intent: 'create_order',
+                    confidence: 1.0,
+                    source: 'dish_guard',
+                    entities: {
+                        ...entities,
+                        dish: dishMatch.name,
+                        restaurant: session.currentRestaurant.name,
+                        restaurantId: session.currentRestaurant.id,
+                        quantity: qty,
+                        hasExplicitNumber
+                    }
+                };
+            }
+        }
+
+        // --- Patch 3: Quantity + Dish merge (simplified, entities-level) ---
+        // If NLU extracted quantity + dish, and we have any ordering context, force create_order.
+        if (entities.quantity && entities.quantity > 1 && entities.dish) {
+            BrainLogger.nlu(`🔢 QTY_DISH_MERGE: qty=${entities.quantity} dish="${entities.dish}"`);
+            return {
+                intent: 'create_order',
+                domain: 'ordering',
+                confidence: 0.95,
+                source: 'quantity_order',
+                entities
+            };
+        }
+
+        // ═══════════════════════════════════════════════════════════════════
+        // TRANSACTION LOCK — in-router guard (Patch 2)
+        // Fires BEFORE discovery rules so discovery_guard_block cannot leak.
+        // If the user has a pending order or awaits cart confirmation,
+        // any non-ordering intent is blocked here.
+        // ═══════════════════════════════════════════════════════════════════
+        const ORDER_INTENTS_LOCK = [
+            'create_order', 'confirm_add_to_cart', 'remove_from_cart',
+            'confirm_order', 'cancel_order'
+        ];
+        if (session?.pendingOrder || session?.expectedContext === 'confirm_add_to_cart') {
+            // Use expectedContext so FSM stays in the right state
+            const lockedIntent = session.expectedContext || 'create_order';
+            // Only lock if detected intent would escape the ordering flow
+            // We check "preemptively" here before running discovery — no detected intent yet
+            // so we just short-circuit the rest of the router.
+            BrainLogger.nlu(`🔒 ROUTER_TRANSACTION_LOCK: forcing "${lockedIntent}" (pendingOrder=${!!session.pendingOrder})`);
+            return {
+                intent: lockedIntent,
+                confidence: 1.0,
+                source: 'transaction_lock',
+                entities
+            };
         }
 
         // --- RULE 0 & 5: Discovery & Numerals (Blocking Rules) ---
@@ -333,6 +448,7 @@ export class NLURouter {
             // ═══════════════════════════════════════════════════════════════════
             // COLLOQUIAL ORDERING in restaurant context: fire immediately,
             // never fall through to legacy (legacy would set choose_restaurant)
+            // ═══════════════════════════════════════════════════════════════════
             // ═══════════════════════════════════════════════════════════════════
             const hasRestCtx = session?.lastRestaurant || session?.currentRestaurant ||
                 session?.context === 'IN_RESTAURANT' ||

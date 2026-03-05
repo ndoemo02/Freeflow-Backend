@@ -46,6 +46,12 @@ export class ConfirmOrderHandler {
         }
 
         // ═══════════════════════════════════════════════════════════════════
+        // CLEAR CART: Wyczyść koszyk w backendzie po złożeniu zamówienia
+        // To zapobiega 'ghost cart' na nowej sesji.
+        // ═══════════════════════════════════════════════════════════════════
+        session.cart = { items: [], total: 0 };
+
+        // ═══════════════════════════════════════════════════════════════════
         // 4. PERSIST TO DB - DISABLED (New Workflow: Voice -> Cart -> Manual UI -> DB)
         // Zamówienie trafia tylko do koszyka w sesji. Zapis do DB następuje
         // dopiero po manualnym potwierdzeniu w UI (CartContext.jsx).
@@ -85,7 +91,6 @@ export class ConfirmOrderHandler {
             ],
             // Data for items visibility
             meta: {
-                addedToCart: true,
                 cart: session.cart,
                 order_id: orderId,
                 transaction_status: 'success',

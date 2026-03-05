@@ -11,6 +11,11 @@ export function normalize(text) {
   // Remove common quantity words
   s = s.replace(/\b(jeden|jedna|jedno|dwa|dwie|trzy|cztery|pięć|piec|dziesięć|dziesiec|kilka|parę|pare)\b/g, "");
 
+  // New normalizations from Menu NLU migration
+  s = s.replace(/\(.*?\)/g, '');
+  s = s.replace(/\d+\s?(ml|l|cm|szt|szt\.|pcs)/gi, '');
+  s = s.replace(/\b(double|standard)\b/gi, '');
+
   // Polish declension normalization (approximate to root)
   s = s.replace(/ę\b/g, "a"); // pizzę -> pizza
   s = s.replace(/ą\b/g, "a"); // pizzą -> pizza
@@ -110,14 +115,14 @@ export async function findDishInMenu(restaurantId, dishName) {
 
     const normalizedDish = normalize(dishName);
 
-    let matched = menu.find((item) => normalize(item.name) === normalizedDish);
+    let matched = menu.find((item) => normalize(item.base_name || item.name) === normalizedDish);
     if (matched) {
       console.log(`✅ Exact match: "${dishName}" → ${matched.name}`);
       return matched;
     }
 
     matched = menu.find((item) => {
-      const normName = normalize(item.name);
+      const normName = normalize(item.base_name || item.name);
       return normName.includes(normalizedDish) || normalizedDish.includes(normName);
     });
     if (matched) {
@@ -125,7 +130,7 @@ export async function findDishInMenu(restaurantId, dishName) {
       return matched;
     }
 
-    matched = menu.find((item) => fuzzyMatch(dishName, item.name, 3));
+    matched = menu.find((item) => fuzzyMatch(dishName, item.base_name || item.name, 3));
     if (matched) {
       console.log(`✅ Fuzzy match: "${dishName}" → ${matched.name}`);
       return matched;
@@ -152,15 +157,17 @@ export async function parseOrderItems(text, restaurantId) {
     const quantity = extractQuantity(text);
 
     for (const menuItem of menu) {
-      const dishName = normalize(menuItem.name);
+      const dishName = normalize(menuItem.base_name || menuItem.name);
       if (
-        fuzzyMatch(text, menuItem.name, 3) ||
+        fuzzyMatch(text, menuItem.base_name || menuItem.name, 3) ||
         normalized.includes(dishName)
       ) {
         items.push({
           id: menuItem.id,
           name: menuItem.name,
+          base_name: menuItem.base_name,
           price: parseFloat(menuItem.price_pln),
+          size: menuItem.size_or_variant,
           quantity,
         });
         console.log(`✅ Found dish: ${menuItem.name} (qty: ${quantity})`);
@@ -175,7 +182,9 @@ export async function parseOrderItems(text, restaurantId) {
           items.push({
             id: matched.id,
             name: matched.name,
+            base_name: matched.base_name,
             price: parseFloat(matched.price_pln),
+            size: matched.size_or_variant,
             quantity,
           });
           console.log(`✅ Found dish via parsing: ${matched.name} (qty: ${quantity})`);

@@ -29,7 +29,7 @@ export async function handleConfirmOrder({ sessionId, text }) {
         return {
             intent: 'confirm_order',
             reply: "Nic do potwierdzenia.",
-            meta: { addedToCart: false }
+            meta: { cart: null }
         };
     }
 
@@ -76,8 +76,8 @@ export async function handleConfirmOrder({ sessionId, text }) {
     // 7. Prepare Response
     let reply = commitResult.committed ? "Dodano do koszyka. Coś jeszcze?" : "Nic do potwierdzenia.";
     let meta = {
-        addedToCart: !!commitResult.committed,
-        cart: session.cart
+        cart: session.cart,
+        conversationClosed: !!commitResult.committed
     };
 
     if (commitResult.committed) {

@@ -71,6 +71,7 @@ export class SelectRestaurantHandler {
                     currentRestaurant,
                     lastRestaurant: currentRestaurant,
                     lockedRestaurantId: entities.restaurantId,
+                    awaiting: null,
                 },
                 meta: { source: 'entity_direct_selection_auto_menu' }
             };
@@ -194,8 +195,9 @@ export class SelectRestaurantHandler {
                     currentRestaurant, // NEW: Persistent restaurant
                     lastRestaurant: selected,
                     lockedRestaurantId: selected.id,
-                    expectedContext: 'confirm_order', // Use FSM, not context: 'IN_RESTAURANT'
-                    pendingDish: null // Consume the memory
+                    expectedContext: 'confirm_add_to_cart', // Use FSM, not context: 'IN_RESTAURANT'
+                    pendingDish: null, // Consume the memory
+                    awaiting: null,
                 },
                 meta: { source: 'selection_auto_order' }
             };
@@ -226,6 +228,7 @@ export class SelectRestaurantHandler {
                 currentRestaurant,
                 lastRestaurant: selected,
                 lockedRestaurantId: selected.id,
+                awaiting: null,
             },
             meta: { source: 'selection_auto_menu' }
         };

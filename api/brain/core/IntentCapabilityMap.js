@@ -102,6 +102,8 @@ export const INTENT_CAPS = {
         domain: 'ordering',
         requiredState: {
             OR: [
+                { pendingOrder: 'any' },
+                { currentRestaurant: 'any' },
                 { pendingDish: 'any' },
                 { 'entities.dish': 'any' }
             ]
@@ -109,7 +111,7 @@ export const INTENT_CAPS = {
         allowedTransitions: ['create_order', 'confirm_order', 'select_restaurant'],
         setsState: ['pendingDish=null', 'expectedContext'],
         fallbackIntent: 'create_order',
-        MUTATES_CART: false, // Does NOT mutate cart - only prepares
+        MUTATES_CART: true, // Adds item to cart
     },
 
     cancel_order: {

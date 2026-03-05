@@ -4,72 +4,75 @@
  * 
  * CONVERSATION BOUNDARY: This handler CLOSES the conversation.
  * After adding an item to cart, the next input starts a new session.
+ * 
+ * CART AUTHORITY: Backend is the single source of truth for cart state.
+ * This handler mutates session.cart directly, then returns meta.cart
+ * for frontend to render via syncCart (replace, not merge).
  */
 
-import { closeConversation } from '../../session/sessionStore.js';
+import { updateSession } from '../../session/sessionStore.js';
+import { commitPendingOrder } from '../../session/sessionCart.js';
+import crypto from 'node:crypto';
 
 export class ConfirmAddToCartHandler {
     async execute(ctx) {
-        const { session, entities, resolvedRestaurant, sessionId } = ctx;
+        const { session, entities, sessionId } = ctx;
 
-        // Priority: utterance dish > session pendingDish
-        const dish = entities?.dish || session?.pendingDish;
-        const restaurant = resolvedRestaurant || session?.currentRestaurant;
+        // ═══════════════════════════════════════════════════════════════════
+        // CART MUTATION: Commit pendingOrder to session.cart (backend is SSoT)
+        // ═══════════════════════════════════════════════════════════════════
+        const pendingOrder = session?.pendingOrder;
 
-        // Validation
-        if (!dish) {
+        if (!pendingOrder || !pendingOrder.items) {
+            const dish = entities?.dish || session?.pendingDish;
+            if (!dish) {
+                return {
+                    reply: "Co chcesz dodać do koszyka?",
+                    contextUpdates: { expectedContext: 'create_order' }
+                };
+            }
             return {
-                reply: "Co chcesz dodać do koszyka?",
+                reply: "Nie widzę Twojego zamówienia. Możesz powtórzyć?",
                 contextUpdates: { expectedContext: 'create_order' }
             };
         }
 
-        if (!restaurant) {
+        const restaurantName = pendingOrder.restaurant || 'restauracji';
+        const restaurantId = pendingOrder.restaurant_id;
+        const dish = pendingOrder.items[0]?.name || 'danie';
+
+        // Wykonaj akcję - Commit items to session cart (SYNCHRONOUS ATOMICITY)
+        const commitResult = commitPendingOrder(session);
+
+        if (!commitResult.committed) {
             return {
-                reply: `Chcesz dodać ${dish}, ale z jakiej restauracji? Podaj nazwę.`,
-                contextUpdates: {
-                    pendingDish: dish,
-                    expectedContext: 'select_restaurant'
-                }
+                reply: "Wystąpił problem przy dodawaniu do koszyka. Spróbuj raz jeszcze.",
+                contextUpdates: { expectedContext: 'confirm_add_to_cart' }
             };
         }
 
-        const restaurantName = typeof restaurant === 'string'
-            ? restaurant
-            : restaurant.name || 'restauracji';
-
-        // ═══════════════════════════════════════════════════════════════════
-        // CONVERSATION BOUNDARY: Close this conversation after adding item
-        // ═══════════════════════════════════════════════════════════════════
-        const closureResult = closeConversation(sessionId, 'CART_ITEM_ADDED');
-        console.log(`🔒 Conversation closed (item added). Next session: ${closureResult.newSessionId}`);
+        console.log(`🛒 Item added to cart. Session continues.`);
 
         return {
             reply: `Dodano ${dish} z ${restaurantName} do koszyka. Coś jeszcze?`,
             should_reply: true,
-            // NEW: Session lifecycle info for frontend
-            conversationClosed: true,
-            newSessionId: closureResult.newSessionId,
-            closedReason: 'CART_ITEM_ADDED',
+            conversationClosed: false,
             actions: [
                 {
-                    type: 'add_to_cart',
-                    payload: {
-                        dish,
-                        restaurant: typeof restaurant === 'object' ? restaurant : { name: restaurant },
-                        quantity: entities?.quantity || 1
-                    }
+                    type: 'SHOW_CART',
+                    payload: { mode: 'badge' }
                 }
             ],
-            // NOTE: contextUpdates are now irrelevant as session is closed
-            // But we keep them for backward compatibility
             contextUpdates: {
+                pendingOrder: null,
                 pendingDish: null,
                 expectedContext: null
             },
-            meta: { 
+            meta: {
                 source: 'confirm_add_to_cart_handler',
-                conversationClosed: true
+                conversationClosed: false,
+                cart: session.cart,
+                restaurant: { name: restaurantName, id: restaurantId }
             }
         };
     }

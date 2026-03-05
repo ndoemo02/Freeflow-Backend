@@ -7,6 +7,7 @@ import { loadMenuPreview } from '../../menuService.js';
 import { findRestaurantByName, getLocationFallback } from '../../locationService.js';
 import { RESTAURANT_CATALOG } from '../../data/restaurantCatalog.js';
 
+
 export class MenuHandler {
 
     async execute(ctx) {
@@ -100,7 +101,7 @@ export class MenuHandler {
                 reply: `Wybrano restaurację ${lastRestaurant.name}. Polecam: ${items.map(m => m.name).join(', ')}. Co podać?`,
                 menuItems: items,
                 restaurants: [],
-                meta: { source: 'cache', latency_total_ms: 0 }, // Latency calc elsewhere, source is key
+                meta: { source: 'cache', latency_total_ms: 0 },
                 contextUpdates: { ...baseContextUpdates }
             };
         }

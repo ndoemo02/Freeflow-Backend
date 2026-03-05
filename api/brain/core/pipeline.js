@@ -49,6 +49,12 @@ import {
     containsOrderingIntent
 } from './ConversationGuards.js';
 
+// 🍽️ Dish Canonicalization (alias resolution before NLU)
+import { canonicalizeDish } from '../nlu/dishCanon.js';
+
+// 🔊 Phonetic Dish Matcher (STT error recovery before NLU)
+import { matchDishPhonetic } from '../nlu/phoneticDishMatch.js';
+
 // 📢 Intelligent TTS Summaries
 function buildRestaurantSummaryForTTS(restaurants, location) {
     if (!restaurants || restaurants.length === 0) return null;
@@ -129,6 +135,7 @@ const defaultHandlers = {
     ordering: {
         create_order: new OrderHandler(),
         confirm_order: new ConfirmOrderHandler(),
+        confirm_add_to_cart: new ConfirmAddToCartHandler(),
         clarify_order: {
             execute: async (ctx) => ({
                 reply: 'Nie mam pewności, o które danie chodzi. Co dokładnie chciałbyś zamówić?',
@@ -187,6 +194,7 @@ export class BrainPipeline {
             ordering: {
                 create_order: new OrderHandler(),
                 confirm_order: new ConfirmOrderHandler(),
+                confirm_add_to_cart: new ConfirmAddToCartHandler(),
             },
             system: {
                 health_check: { execute: async () => ({ reply: 'System działa', meta: {} }) },
@@ -329,7 +337,8 @@ export class BrainPipeline {
                     reply: navResult.response.reply,
                     should_reply: navResult.response.should_reply,
                     stopTTS: navResult.response.stopTTS || false,
-                    meta: navResult.response.meta
+                    meta: navResult.response.meta,
+                    context: getSession(activeSessionId) || sessionContext
                 };
             }
 
@@ -352,8 +361,75 @@ export class BrainPipeline {
                     entities: {}
                 };
             } else {
+                // ═══════════════════════════════════════════════════════════════
+                // PRE-NLU: Dish Canonicalization (resolve aliases before NLU)
+                // ═══════════════════════════════════════════════════════════════
+                const canonResult = canonicalizeDish(text, sessionContext);
+                if (canonResult.matchedDish) {
+                    BrainLogger.pipeline(`🔤 DISH_CANON: "${text}" → "${canonResult.matchedDish}"`);
+                    context.canonicalDish = canonResult.matchedDish;
+                }
+
+                // ═══════════════════════════════════════════════════════════════
+                // PRE-NLU: Phonetic Dish Matcher (STT error recovery)
+                // Runs AFTER canon so canon has first priority.
+                // If a phonetic match is found, text is replaced before NLU.
+                // ═══════════════════════════════════════════════════════════════
+                if (sessionContext?.last_menu?.length > 0) {
+                    const phoneticMatch = matchDishPhonetic(text, sessionContext.last_menu);
+                    if (phoneticMatch) {
+                        BrainLogger.pipeline(`🔊 PHONETIC_MATCH: "${text}" → "${phoneticMatch}"`);
+                        text = phoneticMatch;
+                        context.text = phoneticMatch;
+                    }
+                }
+
                 // 2. NLU Decision
                 intentResult = await this.nlu.detect(context);
+            }
+
+            // ═══════════════════════════════════════════════════════════════════
+            // TRANSACTION LOCK: Block intent changes mid-order
+            // If the user has a pending order or awaits cart confirmation,
+            // navigation/discovery intents CANNOT break the ordering flow.
+            // ═══════════════════════════════════════════════════════════════════
+            const ORDER_INTENTS = [
+                'create_order', 'confirm_add_to_cart', 'remove_from_cart',
+                'confirm_order', 'cancel_order'
+            ];
+            if (
+                (sessionContext?.pendingOrder || sessionContext?.expectedContext === 'confirm_add_to_cart') &&
+                intentResult?.intent &&
+                !ORDER_INTENTS.includes(intentResult.intent)
+            ) {
+                const lockedIntent = sessionContext.expectedContext || 'create_order';
+                BrainLogger.pipeline(
+                    `🔒 TRANSACTION_LOCK: "${intentResult.intent}" → "${lockedIntent}" (pendingOrder=${!!sessionContext.pendingOrder})`
+                );
+                intentResult.intent = lockedIntent;
+                intentResult.source = 'transaction_lock_override';
+                intentResult.confidence = 1.0;
+                intentResult.domain = 'ordering';
+            }
+
+            // ═══════════════════════════════════════════════════════════════════
+            // HARD GUARD: Respect expectedContext before generic confirm/fallbacks
+            // Standard voice FSM pattern — confirmation words map to pending context
+            // ═══════════════════════════════════════════════════════════════════
+            const normalized = text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\u0142/g, 'l').trim();
+            if (
+                sessionContext?.expectedContext &&
+                /^(tak|ok|okej|potwierdzam|zgadza sie|dawaj|dobra|jasne|leci)$/i.test(normalized) &&
+                intentResult?.intent !== sessionContext.expectedContext
+            ) {
+                BrainLogger.pipeline(`\ud83d\udee1\ufe0f EXPECTED_CONTEXT_OVERRIDE: "${intentResult?.intent}" \u2192 "${sessionContext.expectedContext}" (user said "${text}")`);
+                intentResult.intent = sessionContext.expectedContext;
+                intentResult.source = 'expected_context_override';
+                intentResult.confidence = 1.0;
+                // Re-map domain for the overridden intent
+                if (['confirm_add_to_cart', 'confirm_order', 'create_order'].includes(intentResult.intent)) {
+                    intentResult.domain = 'ordering';
+                }
             }
 
             // ═══════════════════════════════════════════════════════════════════
@@ -386,7 +462,8 @@ export class BrainPipeline {
                     audioContent: audioContent,
                     should_reply: true,
                     stopTTS: false,
-                    meta: { source: 'pipeline_greeting_handler' }
+                    meta: { source: 'pipeline_greeting_handler' },
+                    context: getSession(activeSessionId) || sessionContext
                 };
             }
 
@@ -404,7 +481,8 @@ export class BrainPipeline {
                         intent: 'restaurant_hours',
                         reply: 'Której restauracji mam sprawdzić godziny?',
                         should_reply: true,
-                        stopTTS: false
+                        stopTTS: false,
+                        context: getSession(activeSessionId) || sessionContext
                     };
                 }
 
@@ -416,7 +494,8 @@ export class BrainPipeline {
                     intent: 'restaurant_hours',
                     reply: `${currentRestaurant.name} jest otwarta: ${hours}.`,
                     should_reply: true,
-                    stopTTS: false
+                    stopTTS: false,
+                    context: getSession(activeSessionId) || sessionContext
                 };
             }
 
@@ -445,7 +524,8 @@ export class BrainPipeline {
                     reply,
                     should_reply: true,
                     stopTTS: false,
-                    meta: { source: 'safe_unknown_handler' }
+                    meta: { source: 'safe_unknown_handler' },
+                    context: getSession(activeSessionId) || sessionContext
                 };
             }
 
@@ -476,6 +556,66 @@ export class BrainPipeline {
             // 🧠 Record user turn (passive memory, no FSM impact)
             if (!IS_SHADOW) {
                 pushUserTurn(sessionContext, text, { intent, entities });
+            }
+
+            // ═══════════════════════════════════════════════════════════════════
+            // CONFIDENCE FLOOR: Low-confidence intents trigger disambiguation
+            // Instead of guessing wrong, ask the user what they meant
+            // Skip for rule-based sources (guards, overrides) which are always confident
+            // ═══════════════════════════════════════════════════════════════════
+            const CONFIDENT_SOURCES = ['dish_guard', 'rule_guard', 'context_override', 'expected_context_override',
+                'transaction_lock_override', 'discovery_guard_block', 'catalog_match_explicit', 'explicit_menu_override'];
+            if (
+                confidence < 0.5 &&
+                domain === 'food' &&
+                !CONFIDENT_SOURCES.includes(source) &&
+                !sessionContext?.pendingOrder
+            ) {
+                const hasRestaurant = !!(sessionContext?.currentRestaurant);
+                const disambiguationReply = hasRestaurant
+                    ? `Nie jestem pewna, o co chodzi. Czy chcesz zamówić coś z menu ${sessionContext.currentRestaurant.name}?`
+                    : 'Nie bardzo rozumiem. Mogę pokazać restauracje w pobliżu albo pomóc w zamówieniu.';
+
+                BrainLogger.pipeline(`🤔 CONFIDENCE_FLOOR: ${intent} (${(confidence * 100).toFixed(0)}%) → disambiguation`);
+
+                return {
+                    ok: true,
+                    session_id: activeSessionId,
+                    intent: 'disambiguation',
+                    reply: disambiguationReply,
+                    should_reply: true,
+                    stopTTS: false,
+                    meta: {
+                        source: 'confidence_floor',
+                        originalIntent: intent,
+                        confidence
+                    },
+                    context: getSession(activeSessionId) || sessionContext
+                };
+            }
+
+            // ═══════════════════════════════════════════════════════════════════
+            // TRANSACTION LOCK: Active ordering prevents foreign intents
+            // If user is mid-transaction (pendingOrder or awaiting confirmation),
+            // only ordering-related intents are allowed through.
+            // ═══════════════════════════════════════════════════════════════════
+            const TRANSACTION_ALLOWED_INTENTS = [
+                'create_order',
+                'confirm_add_to_cart',
+                'remove_from_cart',
+                'confirm_order',
+                'cancel_order'
+            ];
+
+            if (
+                (sessionContext?.pendingOrder || sessionContext?.expectedContext === 'confirm_add_to_cart') &&
+                !TRANSACTION_ALLOWED_INTENTS.includes(intent)
+            ) {
+                const lockedIntent = sessionContext.expectedContext || 'create_order';
+                BrainLogger.pipeline(`🔒 TRANSACTION_LOCK: "${intent}" blocked mid-transaction → "${lockedIntent}"`);
+                intent = lockedIntent;
+                source = 'transaction_lock_override';
+                domain = 'ordering';
             }
 
             // ═══════════════════════════════════════════════════════════════════
@@ -517,7 +657,7 @@ export class BrainPipeline {
                 BrainLogger.pipeline(`🔍 MENU_RESOLVER_BRIDGE: locked to "${menuResolvedRestaurant.name}", forcing menu_request`);
                 // Persist the restaurant lock immediately
                 if (!IS_SHADOW) {
-                    updateSession(sessionId, {
+                    updateSession(activeSessionId, {
                         currentRestaurant: {
                             id: menuResolvedRestaurant.id,
                             name: menuResolvedRestaurant.name
@@ -575,7 +715,7 @@ export class BrainPipeline {
 
                     // Set dialog focus for context tracking (KROK 2)
                     if (!IS_SHADOW) {
-                        updateSession(sessionId, {
+                        updateSession(activeSessionId, {
                             dialog_focus: 'CHOOSING_RESTAURANT_FOR_MENU',
                             expectedContext: 'select_restaurant'
                         });
@@ -589,7 +729,8 @@ export class BrainPipeline {
                         uiHints: surfaceResult.uiHints,
                         restaurants: sessionContext.last_restaurants_list.slice(0, 5),
                         should_reply: true,
-                        meta: { source: 'soft_dialog_bridge', originalIntent: 'menu_request' }
+                        meta: { source: 'soft_dialog_bridge', originalIntent: 'menu_request' },
+                        context: getSession(sessionId) || sessionContext
                     };
                 }
 
@@ -607,7 +748,7 @@ export class BrainPipeline {
 
                     // Set dialog focus and preserve pending dish (KROK 2)
                     if (!IS_SHADOW) {
-                        updateSession(sessionId, {
+                        updateSession(activeSessionId, {
                             dialog_focus: 'CHOOSING_RESTAURANT_FOR_ORDER',
                             expectedContext: 'select_restaurant',
                             pendingDish: entities.dish || sessionContext.pendingDish
@@ -622,7 +763,8 @@ export class BrainPipeline {
                         uiHints: surfaceResult.uiHints,
                         restaurants: sessionContext.last_restaurants_list.slice(0, 5),
                         should_reply: true,
-                        meta: { source: 'soft_dialog_bridge', originalIntent: 'create_order' }
+                        meta: { source: 'soft_dialog_bridge', originalIntent: 'create_order' },
+                        context: getSession(sessionId) || sessionContext
                     };
                 }
 
@@ -644,9 +786,10 @@ export class BrainPipeline {
             }
 
             // ═══════════════════════════════════════════════════════════════════
-            // CART MUTATION GUARD: Only confirm_order can mutate cart
+            // CART MUTATION GUARD: Only whitelisted intents can mutate cart
             // ═══════════════════════════════════════════════════════════════════
-            if (mutatesCart(intent) && intent !== 'confirm_order') {
+            const CART_MUTATION_WHITELIST = ['confirm_order', 'confirm_add_to_cart', 'remove_from_cart'];
+            if (mutatesCart(intent) && !CART_MUTATION_WHITELIST.includes(intent)) {
                 BrainLogger.pipeline(`🛡️ CART GUARD: ${intent} tried to mutate cart - BLOCKED`);
                 intent = 'find_nearby';
                 source = 'cart_mutation_blocked';
@@ -707,12 +850,50 @@ export class BrainPipeline {
             // ═══════════════════════════════════════════════════════════════════
 
             // ═══════════════════════════════════════════════════════════════════
+            // FLOATING pendingOrder GUARD: Clear stale transaction state
+            // If intent diverged from ordering, wipe ghost pendingOrder
+            // Prevents old "tak" from adding stale items to cart
+            // ═══════════════════════════════════════════════════════════════════
+            const ORDER_INTENTS_CLEANUP = ['create_order', 'confirm_add_to_cart', 'remove_from_cart', 'confirm_order', 'cancel_order'];
+            if (sessionContext?.pendingOrder && !ORDER_INTENTS_CLEANUP.includes(intent)) {
+                BrainLogger.pipeline(`🧹 FLOATING_ORDER_CLEANUP: Cleared stale pendingOrder (intent=${intent})`);
+                if (!IS_SHADOW) {
+                    updateSession(activeSessionId, {
+                        pendingOrder: null,
+                        expectedContext: null
+                    });
+                }
+                sessionContext.pendingOrder = null;
+                sessionContext.expectedContext = null;
+            }
+
+            // ═══════════════════════════════════════════════════════════════════
+            // SAFETY TIMEOUT: Clear pendingOrder older than 60 seconds
+            // Prevents ghost transactions from lingering across long pauses
+            // ═══════════════════════════════════════════════════════════════════
+            const PENDING_ORDER_TIMEOUT_MS = 60_000;
+            if (sessionContext?.pendingOrder?.createdAt) {
+                const age = Date.now() - sessionContext.pendingOrder.createdAt;
+                if (age > PENDING_ORDER_TIMEOUT_MS) {
+                    BrainLogger.pipeline(`⏰ PENDING_ORDER_TIMEOUT: Cleared after ${Math.round(age / 1000)}s`);
+                    if (!IS_SHADOW) {
+                        updateSession(activeSessionId, {
+                            pendingOrder: null,
+                            expectedContext: null
+                        });
+                    }
+                    sessionContext.pendingOrder = null;
+                    sessionContext.expectedContext = null;
+                }
+            }
+
+            // ═══════════════════════════════════════════════════════════════════
             // IDLE RESET: find_nearby resets restaurant context
             // SAFETY: Skip reset if intent came from a blocked source (preserve context)
             // ═══════════════════════════════════════════════════════════════════
             const isFromBlock = source?.endsWith('_blocked') || source === 'icm_fallback';
             if (intent === 'find_nearby' && !IS_SHADOW && !isFromBlock) {
-                updateSession(sessionId, {
+                updateSession(activeSessionId, {
                     currentRestaurant: null,
                     lastRestaurant: null,
                     lockedRestaurantId: null
@@ -742,7 +923,7 @@ export class BrainPipeline {
 
                 // Set dialog focus and save restaurants list
                 if (!IS_SHADOW) {
-                    updateSession(sessionId, {
+                    updateSession(activeSessionId, {
                         dialog_focus: 'CHOOSING_RESTAURANT_FOR_ORDER',
                         expectedContext: 'select_restaurant',
                         last_restaurants_list: restaurants,
@@ -758,7 +939,8 @@ export class BrainPipeline {
                     uiHints: surfaceResult.uiHints,
                     restaurants: restaurants,
                     should_reply: true,
-                    meta: { source: 'choose_restaurant_dialog', ambiguous: true }
+                    meta: { source: 'choose_restaurant_dialog', ambiguous: true },
+                    context: getSession(sessionId) || sessionContext
                 };
             }
             // ═══════════════════════════════════════════════════════════════════
@@ -841,7 +1023,8 @@ export class BrainPipeline {
                             expectedContext: 'confirm_restaurant',
                             pendingRestaurantConfirm: session.currentRestaurant
                         },
-                        meta: { source: 'ux_guard_fuzzy_confirm' }
+                        meta: { source: 'ux_guard_fuzzy_confirm' },
+                        context: getSession(sessionId) || sessionContext
                     };
                 }
             }
@@ -849,12 +1032,15 @@ export class BrainPipeline {
             // --- GUARDS ---
 
             // Rule: Confirm Guard
-            if (session?.expectedContext === 'confirm_order') {
+            // Rule: Confirm Guard (General confirmation words handler)
+            const confirmationContexts = ['confirm_order', 'confirm_add_to_cart'];
+            if (confirmationContexts.includes(session?.expectedContext)) {
                 const normalized = (text || "").toLowerCase();
                 const confirmWords = /\b(tak|potwierdzam|ok|dobra|może być|dawaj|pewnie|jasne|super|świetnie)\b/i;
                 if (confirmWords.test(normalized)) {
-                    BrainLogger.pipeline('🛡️ Guard: Context is confirm_order and confirmation word detected. Forcing confirm_order.');
-                    context.intent = 'confirm_order';
+                    const targetIntent = session.expectedContext; // Dynamically use the context name as intent name
+                    BrainLogger.pipeline(`🛡️ Guard: Context is ${targetIntent} and confirmation word detected. Forcing ${targetIntent}.`);
+                    context.intent = targetIntent;
                 }
             }
 
@@ -899,7 +1085,8 @@ export class BrainPipeline {
                             expectedContext: 'create_order',
                             pendingRestaurantSwitch: null
                         },
-                        meta: { source: 'switch_cancelled' }
+                        meta: { source: 'switch_cancelled' },
+                        context: getSession(sessionId) || sessionContext
                     };
                 }
             }
@@ -933,7 +1120,8 @@ export class BrainPipeline {
                             reply: "Co chciałbyś zamówić?",
                             should_reply: true,
                             intent: 'create_order',
-                            meta: { source: 'guard_rule_2_explicit_prompt' }
+                            meta: { source: 'guard_rule_2_explicit_prompt' },
+                            context: getSession(sessionId) || sessionContext
                         };
                     }
                 }
@@ -959,7 +1147,8 @@ export class BrainPipeline {
                                 reply: "Co dokładnie chciałbyś zamówić?",
                                 should_reply: true,
                                 intent: 'create_order',
-                                meta: { source: 'guard_rule_6_no_dish' }
+                                meta: { source: 'guard_rule_6_no_dish' },
+                                context: getSession(sessionId) || sessionContext
                             };
                         }
                     }
@@ -973,7 +1162,8 @@ export class BrainPipeline {
                         ok: true,
                         intent: 'session_locked',
                         reply: "Twoje zamówienie zostało już zakończone. Powiedz 'nowe zamówienie', aby zacząć od początku.",
-                        meta: { source: 'guard_lock' }
+                        meta: { source: 'guard_lock' },
+                        context: getSession(sessionId) || sessionContext
                     };
                 }
                 // Reset session if intent is allowed
@@ -1089,7 +1279,7 @@ export class BrainPipeline {
 
             // Apply state changes from handler
             if (domainResponse.contextUpdates && !IS_SHADOW) {
-                updateSession(sessionId, domainResponse.contextUpdates);
+                updateSession(activeSessionId, domainResponse.contextUpdates);
             }
 
             // ═══════════════════════════════════════════════════════════════════
@@ -1136,7 +1326,7 @@ export class BrainPipeline {
                 }
 
                 if (newPhase !== updatedSessionContext.conversationPhase) {
-                    updateSession(sessionId, { conversationPhase: newPhase });
+                    updateSession(activeSessionId, { conversationPhase: newPhase });
                     BrainLogger.pipeline(`📍 PHASE_TRANSITION: ${updatedSessionContext.conversationPhase || 'idle'} → ${newPhase}`);
                 }
             }
@@ -1241,7 +1431,7 @@ export class BrainPipeline {
             const response = {
                 ...cleanDomainResponse,
                 ok: true,
-                session_id: sessionId,
+                session_id: activeSessionId,
                 text: speechText, // Legacy Text
                 reply: speechText, // Legacy Reply
                 tts_text: speechPartForTTS, // Explicitly return what was used for TTS

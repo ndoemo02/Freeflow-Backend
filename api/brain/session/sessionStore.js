@@ -98,6 +98,9 @@ export function getOrCreateActiveSession(sessionId) {
         if (existing.lastRestaurant) {
             newSession.lastRestaurant = existing.lastRestaurant;
         }
+        if (existing.cart && existing.closedReason !== 'ORDER_CONFIRMED') {
+            newSession.cart = existing.cart;
+        }
 
         sessions.set(newId, newSession);
         console.log(`🔄 AUTO-NEW SESSION: ${sessionId} was closed, created ${newId}. Context carried over.`);
