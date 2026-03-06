@@ -1,8 +1,9 @@
-
+﻿
 import { describe, it, expect, beforeAll } from 'vitest';
 import { pipeline } from '../brainV2.js';
 import dotenv from 'dotenv';
 import { RESTAURANT_CATALOG } from '../data/restaurantCatalog.js';
+import { updateSession, getSession } from '../session/sessionStore.js';
 
 dotenv.config();
 
@@ -23,7 +24,7 @@ let sessionState = {
 describe('Brain V2 Migration - Cascade Tests', () => {
 
     it('Scenario A: Discovery Flow (Find Restaurants)', async () => {
-        const input = "Gdzie zjem coś dobrego w Piekarach Śląskich?";
+        const input = "Gdzie zjem coĹ› dobrego w Piekarach ĹšlÄ…skich?";
         const result = await pipeline.process(sessionState.id, input);
 
         console.log('A Result:', result.reply);
@@ -40,11 +41,11 @@ describe('Brain V2 Migration - Cascade Tests', () => {
     });
 
     it('Scenario B: Menu Request (Direct w/ Name)', async () => {
-        // "Pokaż menu w Hubertusie" -> Should use Catalog ID and skip search
+        // "PokaĹĽ menu w Hubertusie" -> Should use Catalog ID and skip search
         const hubertus = RESTAURANT_CATALOG.find(r => r.name.includes('Hubertus'));
         expect(hubertus).toBeDefined();
 
-        const input = "Pokaż menu w Hubertusie";
+        const input = "PokaĹĽ menu w Hubertusie";
         const result = await pipeline.process(sessionState.id, input);
 
         if (!result.menu) {
@@ -60,7 +61,7 @@ describe('Brain V2 Migration - Cascade Tests', () => {
     });
 
     it('Scenario C: Order Creation (Items Parsing)', async () => {
-        const input = "Zamawiam dwie rolady wołowe";
+        const input = "Zamawiam dwie rolady woĹ‚owe";
         const result = await pipeline.process(sessionState.id, input);
 
         if (result.intent !== 'create_order') {
@@ -68,7 +69,7 @@ describe('Brain V2 Migration - Cascade Tests', () => {
         }
 
         expect(result.intent).toBe('create_order');
-        expect(result.reply.toLowerCase()).toMatch(/doda[lł]am/);
+        expect(result.reply.toLowerCase()).toMatch(/doda[lĹ‚]am/);
         // Lenient match for dishes
         expect(result.reply.toLowerCase()).toMatch(/rolad/);
 
@@ -93,3 +94,38 @@ describe('Brain V2 Migration - Cascade Tests', () => {
     });
 
 });
+
+describe('Ordering affirmation regression', () => {
+    it('repeats the last cart item when user says "tak" in ordering phase', async () => {
+        const sessionId = 'affirm_' + Date.now();
+
+        updateSession(sessionId, {
+            conversationPhase: 'ordering',
+            currentRestaurant: { id: 'CALL', name: 'Callzone' },
+            lastRestaurant: { id: 'CALL', name: 'Callzone' },
+            last_menu: [
+                { id: 'v1', name: 'Vege Burger', base_name: 'Vege Burger', price_pln: '28.00' },
+                { id: 'b1', name: 'Bacon Burger', base_name: 'Bacon Burger', price_pln: '32.00' }
+            ],
+            cart: {
+                items: [
+                    { id: 'v1', name: 'Vege Burger', price_pln: '28.00', qty: 1 }
+                ],
+                total: 28
+            },
+            pendingOrder: null,
+            expectedContext: null
+        });
+
+        const result = await pipeline.process(sessionId, 'tak');
+
+        expect(result.intent).toBe('create_order');
+        expect(result.reply).toContain('Vege Burger');
+        expect(result.meta?.cart?.items).toHaveLength(2);
+        expect(result.meta?.cart?.items?.[1]?.name).toBe('Vege Burger');
+
+        const session = getSession(sessionId);
+        expect(session?.cart?.items).toHaveLength(2);
+    });
+});
+

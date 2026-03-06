@@ -74,6 +74,10 @@ export class SelectRestaurantHandler {
                     lastRestaurant: currentRestaurant,
                     lockedRestaurantId: entities.restaurantId,
                     awaiting: null,
+                    cart: { items: [], total: 0, restaurantId: entities.restaurantId },
+                    pendingOrder: null,
+                    conversationPhase: 'ordering',
+                    expectedContext: 'create_order',
                 },
                 meta: { source: 'entity_direct_selection_auto_menu' }
             };
@@ -197,9 +201,9 @@ export class SelectRestaurantHandler {
                     currentRestaurant, // NEW: Persistent restaurant
                     lastRestaurant: selected,
                     lockedRestaurantId: selected.id,
-                    expectedContext: 'confirm_add_to_cart', // Use FSM, not context: 'IN_RESTAURANT'
-                    pendingDish: null, // Consume the memory
                     awaiting: null,
+                    cart: { items: [], total: 0, restaurantId: selected.id },
+                    pendingOrder: null,
                 },
                 meta: { source: 'selection_auto_order' }
             };
@@ -233,8 +237,15 @@ export class SelectRestaurantHandler {
                 lastRestaurant: selected,
                 lockedRestaurantId: selected.id,
                 awaiting: null,
+                cart: { items: [], total: 0, restaurantId: selected.id },
+                pendingOrder: null,
+                conversationPhase: 'ordering',
+                expectedContext: 'create_order',
             },
-            meta: { source: 'selection_auto_menu' }
+            meta: {
+                source: 'selection_auto_menu',
+                debug_cart: ctx.body?.meta?.state?.cart || session?.cart
+            }
         };
     }
 
@@ -247,13 +258,19 @@ export class SelectRestaurantHandler {
 
         const cart = ctx.body?.meta?.state?.cart || session?.cart;
         const hasCartItems = cart?.items?.length > 0;
-        const currentPhase = session?.conversationPhase;
-        const isDifferentRestaurant = session?.currentRestaurant && session.currentRestaurant.id !== selected.id;
 
-        if (currentPhase === 'ordering' && hasCartItems && isDifferentRestaurant) {
-            console.log(`🛡️ SelectHandler: Restaurant switch conflict detected! Current: ${session.currentRestaurant.name}, Target: ${selected.name}`);
+        // Use cart.restaurantId to determine original restaurant, fallback to session.currentRestaurant
+        const cartRestaurantId = cart?.restaurantId || session?.currentRestaurant?.id;
+        const isDifferentRestaurant = cartRestaurantId && cartRestaurantId !== selected.id;
+
+        console.log(`[DEBUG] _checkCartConflict: hasCartItems=${hasCartItems}, cartRestaurantId=${cartRestaurantId}, selected.id=${selected.id}`);
+
+        // If cart has items and they belong to a different restaurant, raise conflict
+        if (hasCartItems && isDifferentRestaurant) {
+            const oldRestaurantName = session?.currentRestaurant?.name || 'innej restauracji';
+            console.log(`🛡️ SelectHandler: Restaurant switch conflict detected! Current: ${oldRestaurantName}, Target: ${selected.name}`);
             return {
-                reply: `Masz już pozycje z ${session.currentRestaurant.name}. Czy wyczyścić koszyk i przejść do ${selected.name}?`,
+                reply: `Masz już pozycje z ${oldRestaurantName}. Czy wyczyścić koszyk i przejść do ${selected.name}?`,
                 contextUpdates: {
                     expectedContext: 'confirm_restaurant_switch',
                     pendingRestaurantSwitch: {

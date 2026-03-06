@@ -46,10 +46,11 @@ export class ConfirmOrderHandler {
         }
 
         // ═══════════════════════════════════════════════════════════════════
-        // CLEAR CART: Wyczyść koszyk w backendzie po złożeniu zamówienia
-        // To zapobiega 'ghost cart' na nowej sesji.
+        // CLEAR CART: DISABLED
+        // W nowym workflow (Voice -> Cart -> Manual UI) NIE czyścimy koszyka w backendzie.
+        // Koszyk musi zostać w sesji, aby frontend mógł go wyświetlić i sfinalizować.
         // ═══════════════════════════════════════════════════════════════════
-        session.cart = { items: [], total: 0 };
+        // session.cart = { items: [], total: 0 }; 
 
         // ═══════════════════════════════════════════════════════════════════
         // 4. PERSIST TO DB - DISABLED (New Workflow: Voice -> Cart -> Manual UI -> DB)

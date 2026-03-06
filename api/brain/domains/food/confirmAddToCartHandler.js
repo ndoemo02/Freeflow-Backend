@@ -66,7 +66,9 @@ export class ConfirmAddToCartHandler {
             contextUpdates: {
                 pendingOrder: null,
                 pendingDish: null,
-                expectedContext: null
+                expectedContext: null,
+                conversationPhase: 'ordering',
+                cart: session.cart
             },
             meta: {
                 source: 'confirm_add_to_cart_handler',

@@ -25,7 +25,7 @@ export async function resolveRestaurantSelectionHybrid({
     llmClient = { callLLM }, // Default to internal helper
     logger = console
 }) {
-    const list = sessionContext?.lastRestaurants || [];
+    const list = sessionContext?.lastRestaurants || sessionContext?.last_restaurants_list || [];
     if (!Array.isArray(list) || list.length === 0) {
         return { restaurant: null, method: "none", confidence: 0 };
     }

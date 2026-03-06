@@ -1,11 +1,11 @@
-/**
+﻿/**
  * Cascade Supabase Test Runner
  * ============================
- * Samodzielny runner (node cascade_supabase_tests.js) testujący pełny
- * flow zamówienia dla każdego dania z Supabase.
+ * Samodzielny runner (node cascade_supabase_tests.js) testujÄ…cy peĹ‚ny
+ * flow zamĂłwienia dla kaĹĽdego dania z Supabase.
  *
  * Uruchomienie: node api/brain/tests/cascade_supabase_tests.js
- * Wymaga: działającego serwera na http://localhost:3000
+ * Wymaga: dziaĹ‚ajÄ…cego serwera na http://localhost:3000
  *
  * Nie modyfikuje: FSM, pipeline, handlers, session lifecycle.
  *
@@ -30,19 +30,19 @@ process.env.DISABLE_TTS = "true";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-// ════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // CONFIG
-// ════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 const BASE_URL = 'http://localhost:3000/api/brain/v2';
 const REQUEST_TIMEOUT_MS = 15_000;
 const STEP_DELAY_MS = 350; // P4: bumped from 200 to handle pipeline NLU+Supabase latency
-const FILTER = 'Vien-Thien';
+const FILTER = '';
 
-// ════════════════════════════════════════════════════════════════════
-// DATASET (P3 — extended with per-dish aliases)
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// DATASET (P3 â€” extended with per-dish aliases)
 // alias: the short/colloquial form a user would say
-// ════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 const DATASET = [
     // Pizzeria Monte Carlo (replaces outdated Bar Praha fixtures)
@@ -50,21 +50,21 @@ const DATASET = [
     { restaurant: 'Pizzeria Monte Carlo', dish_name: 'Hawajska', price: '34.00', alias: 'hawajska' },
     { restaurant: 'Pizzeria Monte Carlo', dish_name: 'Quattro Formaggi', price: '34.00', alias: 'quattro' },
     // Restauracja Stara Kamienica
-    { restaurant: 'Restauracja Stara Kamienica', dish_name: 'Rolada śląska z kluskami i modrą kapustą', price: '52.00', alias: 'rolada' },
-    { restaurant: 'Restauracja Stara Kamienica', dish_name: 'Żurek śląski na maślance', price: '22.00', alias: 'żurek' },
-    // Dwór Hubertus
-    { restaurant: 'Dwór Hubertus', dish_name: 'Ćwiartka kaczki', price: '65.00', alias: 'kaczka' },
-    { restaurant: 'Dwór Hubertus', dish_name: 'Krem borowikowy', price: '25.00', alias: 'krem' },
-    { restaurant: 'Dwór Hubertus', dish_name: 'Polędwica wieprzowa', price: '89.00', alias: 'polędwica' },
+    { restaurant: 'Restauracja Stara Kamienica', dish_name: 'Rolada Ĺ›lÄ…ska z kluskami i modrÄ… kapustÄ…', price: '52.00', alias: 'rolada' },
+    { restaurant: 'Restauracja Stara Kamienica', dish_name: 'Rosół z makaronem', price: '10.00', alias: 'rosol' },
+    // DwĂłr Hubertus
+    { restaurant: 'DwĂłr Hubertus', dish_name: 'Ä†wiartka kaczki', price: '65.00', alias: 'kaczka' },
+    { restaurant: 'DwĂłr Hubertus', dish_name: 'Krem borowikowy', price: '25.00', alias: 'krem' },
+    { restaurant: 'DwĂłr Hubertus', dish_name: 'PolÄ™dwica wieprzowa', price: '89.00', alias: 'poledwica' },
     // Rezydencja Luxury Hotel
     { restaurant: 'Rezydencja Luxury Hotel', dish_name: 'Tagliatelle z krewetkami', price: '28.00', alias: 'tagliatelle' },
     // Klaps Burgers
     { restaurant: 'Klaps Burgers', dish_name: 'Onionator', price: '18.00', alias: 'onionator' },
 ];
 
-// ════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // CORE RUNNER
-// ════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 function extractMetrics(data) {
     const ctx = data?.context || {};
@@ -90,7 +90,13 @@ function extractMetrics(data) {
 async function runStep(sessionId, text) {
     const res = await axios.post(
         BASE_URL,
-        { session_id: sessionId, text },
+        {
+            session_id: sessionId,
+            text,
+            includeTTS: false,
+            stylize: false,
+            meta: { channel: 'test' }
+        },
         { timeout: REQUEST_TIMEOUT_MS }
     );
     const metrics = extractMetrics(res.data);
@@ -105,9 +111,9 @@ function newSession() {
     return `cascade-${crypto.randomBytes(6).toString('hex')}`;
 }
 
-// ════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // P1: STATE VALIDATION HELPERS
-// ════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 /**
  * Validates that after select_restaurant step the session
@@ -131,9 +137,9 @@ function validateMenuLoaded(stepResult) {
     return null;
 }
 
-// ════════════════════════════════════════════════════════════════════
-// PASS EVALUATOR (P6 — improved conditions)
-// ════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// PASS EVALUATOR (P6 â€” improved conditions)
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 /**
  * Determines if a scenario PASSED.
@@ -153,7 +159,7 @@ function evaluatePass(steps, scenarioType) {
     }
 
     if (!hasCreateOrder && !hasAddToCart) {
-        return { pass: false, reason: `no_order_intent (intents: ${intents.join('→')})` };
+        return { pass: false, reason: `no_order_intent (intents: ${intents.join('â†’')})` };
     }
 
     if (last.conversationClosed === true) {
@@ -180,55 +186,55 @@ function evaluatePass(steps, scenarioType) {
     return { pass: false, reason: `cart_empty (cartItems=${last.cartItems})` };
 }
 
-// ════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // SCENARIO BUILDERS (P1+P2: menu_request guaranteed, state validated)
-// ════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 /**
  * Full 5-step canonical scenario.
- * P2: 'pokaż menu' is always step 3, guaranteed before dish order.
+ * P2: 'pokaĹĽ menu' is always step 3, guaranteed before dish order.
  */
 function buildFullScenario(restaurant, dish_name) {
     return [
-        'znajdź restauracje w Piekary Slaskich',
+        'znajdĹş restauracje w Piekary Slaskich',
         restaurant,
-        'pokaż menu',
+        'pokaĹĽ menu',
         dish_name,
         'tak',
     ];
 }
 
 /**
- * Alias test — uses the curated alias from dataset (not blind first word).
+ * Alias test â€” uses the curated alias from dataset (not blind first word).
  * P3: Uses per-dish alias instead of auto-splitting dish_name.
  */
 function buildAliasScenario(restaurant, dish_name, alias) {
     const aliasPhrase = alias || dish_name.split(/\s+/)[0];
     return [
-        'znajdź restauracje w Piekary Slaskich',
+        'znajdĹş restauracje w Piekary Slaskich',
         restaurant,
-        'pokaż menu',
+        'pokaĹĽ menu',
         aliasPhrase,
         'tak',
     ];
 }
 
 /**
- * Quantity test — "dwa {dish_name}" then "tak".
+ * Quantity test â€” "dwa {dish_name}" then "tak".
  */
 function buildQuantityScenario(restaurant, dish_name) {
     return [
-        'znajdź restauracje w Piekary Slaskich',
+        'znajdĹş restauracje w Piekary Slaskich',
         restaurant,
-        'pokaż menu',
+        'pokaĹĽ menu',
         `dwa ${dish_name}`,
         'tak',
     ];
 }
 
-// ════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // SCENARIO EXECUTOR (P1: state validation after key steps)
-// ════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 async function runScenario(steps, sessionId) {
     const results = [];
@@ -263,9 +269,9 @@ async function runScenario(steps, sessionId) {
     return results;
 }
 
-// ════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // EDGE TESTS
-// ════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 async function runGhostCartTest() {
     const label = 'EdgeTest::GhostCart';
@@ -274,20 +280,20 @@ async function runGhostCartTest() {
     const entry = { restaurant: 'Callzone', dish_name: 'Pizza Margherita' };
 
     try {
-        await runStep(sessionA, 'znajdź restauracje w Piekary Slaskich');
+        await runStep(sessionA, 'znajdĹş restauracje w Piekary Slaskich');
         await sleep(STEP_DELAY_MS);
         await runStep(sessionA, entry.restaurant);
         await sleep(STEP_DELAY_MS);
-        await runStep(sessionA, 'pokaż menu');
+        await runStep(sessionA, 'pokaĹĽ menu');
         await sleep(STEP_DELAY_MS);
         await runStep(sessionA, entry.dish_name);
         await sleep(STEP_DELAY_MS);
         await runStep(sessionA, 'tak');
         await sleep(STEP_DELAY_MS);
-        await runStep(sessionA, 'zamów');
+        await runStep(sessionA, 'zamĂłw');
         await sleep(STEP_DELAY_MS);
 
-        const { metrics: newM } = await runStep(sessionB, 'cześć');
+        const { metrics: newM } = await runStep(sessionB, 'czeĹ›Ä‡');
         const cartEmpty = newM.cartItems === 0;
 
         return {
@@ -302,68 +308,97 @@ async function runGhostCartTest() {
 }
 
 /**
- * P5: Transaction Lock Test — fixed to use BBQ Bacon Burger (resolves correctly)
- * and confirm via "tak" before attempting to break out.
- * Only tests lock if pendingOrder is actually established.
+ * P5/P6: TransactionLock test for the autocommit architecture.
+ * After create_order the cart should mutate immediately and expectedContext stays null.
+ * Escape intents must remain available even after an item was added.
  */
 async function runTransactionLockTest() {
     const label = 'EdgeTest::TransactionLock';
-    const sessionId = newSession();
-    // P5: Use a dish that reliably resolves to confirm_add_to_cart
-    const entry = { restaurant: 'Callzone', dish_name: 'Pizza Margherita' };
+    const entry = { restaurant: 'Callzone', dish_name: 'Vege Burger' };
 
-    try {
-        await runStep(sessionId, 'znajdź restauracje w Piekary Slaskich');
+    async function setupAutocommitSession() {
+        const sessionId = newSession();
+        await runStep(sessionId, 'znajdĹş restauracje w Piekary Slaskich');
         await sleep(STEP_DELAY_MS);
         await runStep(sessionId, entry.restaurant);
         await sleep(STEP_DELAY_MS);
-        await runStep(sessionId, 'pokaż menu');
+        await runStep(sessionId, 'pokaĹĽ menu');
         await sleep(STEP_DELAY_MS);
-
-        // Step that creates the pending order
         const { metrics: orderM } = await runStep(sessionId, entry.dish_name);
         await sleep(STEP_DELAY_MS);
+        return { sessionId, orderM };
+    }
 
-        // P5: Only test lock if pendingOrder was actually established
-        const hasPendingOrder = orderM.pendingOrder !== null;
-        const isAwaitingConfirm = orderM.expectedContext === 'confirm_add_to_cart';
+    try {
+        const { orderM } = await setupAutocommitSession();
 
-        if (!hasPendingOrder && !isAwaitingConfirm) {
+        const hasCartItems = orderM.cartItems > 0;
+        const expectedContextCleared = orderM.expectedContext === null;
+
+        if (!hasCartItems || !expectedContextCleared) {
             return {
                 label,
                 pass: false,
-                reason: `setup_failed: no pendingOrder after dish step (intent=${orderM.intent})`,
-                details: `Cannot test lock without pendingOrder. expectedContext=${orderM.expectedContext}`,
+                reason: `setup_failed: autocommit contract mismatch (cartItems=${orderM.cartItems}, expectedContext=${orderM.expectedContext})`,
+                details: `intent=${orderM.intent} pendingOrder=${orderM.pendingOrder}`,
             };
         }
 
-        // Now try to break out of the ordering context
-        const { metrics: lockM } = await runStep(sessionId, 'pokaż restauracje');
+        const escapeCases = [
+            {
+                text: 'wybieram Rezydencja',
+                label: 'select_restaurant',
+                isValid: (m) => m.intent === 'select_restaurant' || m.source === 'restaurant_switch_conflict'
+            },
+            {
+                text: 'znajdz restauracje w poblizu',
+                label: 'find_nearby',
+                isValid: (m) => m.intent === 'find_nearby'
+            },
+            {
+                text: 'pokaz menu',
+                label: 'show_menu',
+                isValid: (m) => m.intent === 'menu_request' || m.intent === 'show_menu'
+            },
+            {
+                text: 'anuluj',
+                label: 'cancel_order',
+                isValid: (m) => m.intent === 'cancel_order' || m.intent === 'DIALOG_CANCEL'
+            },
+        ];
 
-        const contextStaysOrdering = [
-            'confirm_add_to_cart',
-            'create_order',
-            'cancel_order',
-        ].includes(lockM.intent) ||
-            lockM.source === 'transaction_lock_override' ||
-            lockM.source === 'transaction_lock';
+        const failures = [];
+
+        for (const escapeCase of escapeCases) {
+            const { sessionId, orderM: setupMetrics } = await setupAutocommitSession();
+            if (setupMetrics.cartItems <= 0 || setupMetrics.expectedContext !== null) {
+                failures.push(`${escapeCase.text}: invalid setup (cartItems=${setupMetrics.cartItems}, expectedContext=${setupMetrics.expectedContext})`);
+                continue;
+            }
+
+            const { metrics: escapeM } = await runStep(sessionId, escapeCase.text);
+            await sleep(STEP_DELAY_MS);
+
+            if (!escapeCase.isValid(escapeM)) {
+                failures.push(`${escapeCase.text}: expected escape ${escapeCase.label}, got ${escapeM.intent} (source=${escapeM.source})`);
+            }
+        }
 
         return {
             label,
-            pass: contextStaysOrdering,
-            reason: contextStaysOrdering
-                ? 'ok'
-                : `context_leaked: intent=${lockM.intent}, source=${lockM.source}`,
-            details: `After "pokaż restauracje": intent=${lockM.intent} source=${lockM.source}`,
+            pass: failures.length === 0,
+            reason: failures.length === 0 ? 'ok' : 'escape_intent_blocked',
+            details: failures.join(' | '),
         };
     } catch (err) {
         return { label, pass: false, reason: `error: ${err.message}`, details: '' };
     }
 }
 
-// ════════════════════════════════════════════════════════════════════
+
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // REPORT GENERATOR
-// ════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 function buildReport(results, edgeResults) {
     const now = new Date().toISOString();
@@ -378,11 +413,11 @@ function buildReport(results, edgeResults) {
     ];
 
     results.forEach((r, idx) => {
-        const intentChain = r.steps.map(s => s.metrics?.intent ?? '?').join('→');
+        const intentChain = r.steps.map(s => s.metrics?.intent ?? '?').join('â†’');
         const lastStep = r.steps[r.steps.length - 1];
         const cartItems = lastStep?.metrics?.cartItems ?? '?';
         const stateWarns = r.steps.filter(s => s.stateWarn).map(s => s.stateWarn).join('; ') || '-';
-        const status = r.pass ? '✅ PASS' : '❌ FAIL';
+        const status = r.pass ? 'âś… PASS' : 'âťŚ FAIL';
         lines.push(
             `| ${idx + 1} | ${r.restaurant} | ${r.dish} | ${r.scenario} | \`${intentChain}\` | ${cartItems} | ${stateWarns} | ${status} | ${r.reason} |`
         );
@@ -394,7 +429,7 @@ function buildReport(results, edgeResults) {
     lines.push('| test | PASS/FAIL | reason | details |');
     lines.push('|------|-----------|--------|---------|');
     edgeResults.forEach(e => {
-        const status = e.pass ? '✅ PASS' : '❌ FAIL';
+        const status = e.pass ? 'âś… PASS' : 'âťŚ FAIL';
         lines.push(`| ${e.label} | ${status} | ${e.reason} | ${e.details} |`);
     });
 
@@ -417,12 +452,12 @@ function buildReport(results, edgeResults) {
     return lines.join('\n');
 }
 
-// ════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // MAIN RUNNER
-// ════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 async function main() {
-    console.log('🚀 Cascade Supabase Test Runner v2 — starting...');
+    console.log('đźš€ Cascade Supabase Test Runner v2 â€” starting...');
     console.log(`   Endpoint: ${BASE_URL}`);
     console.log(`   Dishes in dataset: ${DATASET.length}`);
     console.log(`   Step delay: ${STEP_DELAY_MS}ms`);
@@ -430,9 +465,9 @@ async function main() {
 
     try {
         await axios.get('http://localhost:3000/api/health', { timeout: 5000 });
-        console.log('✅ Server reachable on port 3000\n');
+        console.log('âś… Server reachable on port 3000\n');
     } catch (err) {
-        console.error('❌ Cannot reach server on port 3000. Start the backend first.');
+        console.error('âťŚ Cannot reach server on port 3000. Start the backend first.');
         process.exit(1);
     }
 
@@ -450,7 +485,7 @@ async function main() {
         selectedDishes.push(...rows.slice(0, 3));
     }
 
-    console.log(`📋 Running ${selectedDishes.length} main scenarios × 3 types = ${selectedDishes.length * 3} tests\n`);
+    console.log(`đź“‹ Running ${selectedDishes.length} main scenarios Ă— 3 types = ${selectedDishes.length * 3} tests\n`);
 
     for (const row of selectedDishes) {
         const { restaurant, dish_name, alias } = row;
@@ -465,11 +500,11 @@ async function main() {
             const steps = await runScenario(buildFullScenario(restaurant, dish_name), sid);
             const { pass, reason } = evaluatePass(steps, 'full');
             results.push({ restaurant, dish: dish_name, scenario: 'full', steps, pass, reason });
-            const icon = pass ? '✅' : '❌';
+            const icon = pass ? 'âś…' : 'âťŚ';
             console.log(`${icon} [full]  ${restaurant} / ${dish_name}`);
-            if (!pass) console.log(`        └─ ${reason}`);
+            if (!pass) console.log(`        â””â”€ ${reason}`);
             const warns = steps.filter(s => s.stateWarn);
-            warns.forEach(s => console.log(`        ⚠️  ${s.stateWarn}`));
+            warns.forEach(s => console.log(`        âš ď¸Ź  ${s.stateWarn}`));
         }
 
         // --- Alias scenario (P3: curated alias) ---
@@ -478,9 +513,9 @@ async function main() {
             const steps = await runScenario(buildAliasScenario(restaurant, dish_name, alias), sid);
             const { pass, reason } = evaluatePass(steps, 'alias');
             results.push({ restaurant, dish: dish_name, scenario: 'alias', steps, pass, reason });
-            const icon = pass ? '✅' : '❌';
+            const icon = pass ? 'âś…' : 'âťŚ';
             console.log(`${icon} [alias] ${restaurant} / ${dish_name} (alias="${alias || dish_name.split(/\s+/)[0]}")`);
-            if (!pass) console.log(`        └─ ${reason}`);
+            if (!pass) console.log(`        â””â”€ ${reason}`);
         }
 
         // --- Quantity scenario ---
@@ -489,24 +524,24 @@ async function main() {
             const steps = await runScenario(buildQuantityScenario(restaurant, dish_name), sid);
             const { pass, reason } = evaluatePass(steps, 'qty_2');
             results.push({ restaurant, dish: dish_name, scenario: 'qty_2', steps, pass, reason });
-            const icon = pass ? '✅' : '❌';
+            const icon = pass ? 'âś…' : 'âťŚ';
             console.log(`${icon} [qty2]  ${restaurant} / dwa ${dish_name}`);
-            if (!pass) console.log(`        └─ ${reason}`);
+            if (!pass) console.log(`        â””â”€ ${reason}`);
         }
 
         console.log('');
     }
 
     // --- Edge tests ---
-    console.log('━━━ Edge Tests ━━━');
+    console.log('â”â”â” Edge Tests â”â”â”');
     const ghostResult = await runGhostCartTest();
     const lockResult = await runTransactionLockTest();
     const edgeResults = [ghostResult, lockResult];
 
     edgeResults.forEach(e => {
-        const icon = e.pass ? '✅' : '❌';
+        const icon = e.pass ? 'âś…' : 'âťŚ';
         console.log(`${icon} ${e.label}: ${e.reason}`);
-        if (e.details) console.log(`   └─ ${e.details}`);
+        if (e.details) console.log(`   â””â”€ ${e.details}`);
     });
 
     // --- Generate report ---
@@ -519,16 +554,21 @@ async function main() {
     const passEdge = edgeResults.filter(e => e.pass).length;
     const warnScenarios = results.filter(r => r.steps.some(s => s.stateWarn)).length;
 
-    console.log('\n━━━ Summary ━━━');
+    console.log('\nâ”â”â” Summary â”â”â”');
     console.log(`Main: ${passMain}/${totalMain} PASS`);
     console.log(`Edge: ${passEdge}/${edgeResults.length} PASS`);
-    if (warnScenarios > 0) console.log(`⚠️  FSM state warnings: ${warnScenarios} scenarios`);
-    console.log(`\n📄 Report saved to: ${reportPath}`);
+    if (warnScenarios > 0) console.log(`âš ď¸Ź  FSM state warnings: ${warnScenarios} scenarios`);
+    console.log(`\nđź“„ Report saved to: ${reportPath}`);
 
     process.exit(passMain === totalMain && passEdge === edgeResults.length ? 0 : 1);
 }
 
 main().catch(err => {
-    console.error('💥 Runner crashed:', err);
+    console.error('đź’Ą Runner crashed:', err);
     process.exit(1);
 });
+
+
+
+
+

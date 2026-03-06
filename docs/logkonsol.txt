@@ -1,0 +1,174 @@
+🚀 Booting FreeFlow Serverless...
+🧠 ENV OK
+🔑 SUPABASE_URL: ✅
+🔑 SUPABASE_KEY: ✅
+✅ Supabase client initialized
+🧠 FreeFlow Brain running locally on http://localhost:3000
+✅ Supabase client initialized (singleton mode)
+[BrainV2] Request: session-1766024127138 -> "calzone" (Channel: web)
+[Supabase] Creating client with URL: https://ezemaacyyvbpjlagchds.supabase.co
+â–¶ď¸Ź  [Pipeline] START session--mmf61e5h | session=session-1766024127138 | text="calzone" | mode=dev
+[NLU] Detecting intent for: calzone
+🔍 findRestaurantInText: normalized input="calzone"
+✅ Match found for alias "calzone" in "calzone"
+🧠 NLURouter Result: {
+  "intent": "select_restaurant",
+  "confidence": 0.98,
+  "source": "catalog_match_explicit",
+  "entities": {
+    "location": null,
+    "cuisine": null,
+    "quantity": 1,
+    "restaurant": "Callzone",
+    "restaurantId": "bd9f2244-7618-4071-aa96-52616a7b4c70",
+    "dish": null,
+    "items": null
+  },
+  "domain": "food"
+}
+[NLU] Result: {
+  intent: 'select_restaurant',
+  confidence: 0.98,
+  source: 'catalog_match_explicit',
+  entities: {
+    location: null,
+    cuisine: null,
+    quantity: 1,
+    restaurant: 'Callzone',
+    restaurantId: 'bd9f2244-7618-4071-aa96-52616a7b4c70',
+    dish: null,
+    items: null
+  },
+  domain: 'food'
+}
+🧠 SelectRestaurantHandler executing... Pending Dish: "null"
+🟢 SelectHandler: direct entity match → Callzone (id=bd9f2244-7618-4071-aa96-52616a7b4c70)
+[DEBUG] _checkCartConflict: hasCartItems=false, cartRestaurantId=undefined, selected.id=bd9f2244-7618-4071-aa96-52616a7b4c70
+🧠 MenuHandler executing for session session-1766024127138. Text: "calzone"
+🧠 MenuHandler: session lastRestaurant: Callzone (bd9f2244-7618-4071-aa96-52616a7b4c70)
+🧠 MenuHandler: entities: {"location":null,"cuisine":null,"quantity":1,"restaurant":"Callzone","restaurantId":"bd9f2244-7618-4071-aa96-52616a7b4c70","dish":null,"items":null}
+🟢 MenuHandler: matched restaurant from text -> Callzone, resetting conversation phase
+✅ MenuHandler: showing 6/35 items for Callzone
+[PIPELINE] đź“Ť PHASE_TRANSITION: restaurant_selected â†’ restaurant_selected
+đźźŁ PIPELINE FINAL REPLY [select_restaurant]: "Wybrano Callzone. W menu m.in.:\nBacon Burger (32.00 zł), Better Than Drwal - Wołowina (34.00 zł), Cheddar Burger (31.0
+stylizeWithGPT4o error: 429 You exceeded your current quota, please check your plan and billing details. For more information on this error, read the docs: https://platform.openai.com/docs/guides/error-codes/api-errors.
+[PIPELINE] âś‚ď¸Ź Smart TTS Menu Summary: "W karcie sÄ… m.in. Burger, Obiad. Na przykĹ‚ad: Ba..."
+[TTS] Generating: W karcie sÄ… m.in. Burger, Obiad. Na przykĹ‚ad: Bacon Burger, Better Than Drwal ...
+✅ Google access token obtained successfully
+🔊 Using Vertex: pl-PL-Wavenet-A
+✅ TTS audio generated successfully
+tts_total: 1.593s
+[PIPELINE] đź”Š TTS Generated: "W karcie sÄ… m.in. Burger, Obi..." (1594ms)
+âŹąď¸Ź  [Pipeline] DONE  session--mmf61e5h | intent=select_restaurant | source=catalog_match_explicit | 6436ms
+[BrainV2] Request: session-1766024127138 -> "wege burger" (Channel: web)
+â–¶ď¸Ź  [Pipeline] START session--mmf620ip | session=session-1766024127138 | text="wege burger" | mode=dev
+[PIPELINE] đź”Š PHONETIC_MATCH: "wege burger" â†’ "Bacon Burger"
+[NLU] Detecting intent for: Bacon Burger
+🔍 findRestaurantInText: normalized input="bacon burger"
+[DishMatch] [
+  { name: 'Vege Burger', score: 2.8 },
+  { name: 'Bacon Burger', score: 0.8 },
+  { name: 'Cheddar Burger', score: 0.8 }
+]
+[NLU] 🍽️ DISH_GUARD: Matched "Vege Burger" from menu in restaurant Callzone
+🧠 NLURouter Result: {
+  "intent": "create_order",
+  "confidence": 1,
+  "source": "dish_guard",
+  "entities": {
+    "location": null,
+    "cuisine": "Amerykańska",
+    "quantity": 1,
+    "restaurant": "Callzone",
+    "restaurantId": "bd9f2244-7618-4071-aa96-52616a7b4c70",
+    "dish": "Vege Burger",
+    "items": null,
+    "hasExplicitNumber": false
+  },
+  "domain": "ordering"
+}
+[NLU] Result: {
+  intent: 'create_order',
+  confidence: 1,
+  source: 'dish_guard',
+  entities: {
+    location: null,
+    cuisine: 'Amerykańska',
+    quantity: 1,
+    restaurant: 'Callzone',
+    restaurantId: 'bd9f2244-7618-4071-aa96-52616a7b4c70',
+    dish: 'Vege Burger',
+    items: null,
+    hasExplicitNumber: false
+  },
+  domain: 'ordering'
+}
+[KROK5-DEBUG] order entry {"text":"Bacon Burger","dish":"Vege Burger","quantity":1,"currentRestaurant":"Callzone","lastRestaurant":"Callzone","lastMenuCount":35}
+đź§  OrderHandler executing with disambiguation...
+[DishMatch] [
+  { name: 'Vege Burger', score: 2.8 },
+  { name: 'Bacon Burger', score: 0.8 },
+  { name: 'Cheddar Burger', score: 0.8 }
+]
+[KROK5-DEBUG] match state {"searchPhrase":"Vege Burger","token":"vege burger","menuLength":35,"directMatch":"Vege Burger"}
+đź§  Disambiguation Result: ADD_ITEM for "Vege Burger"
+đźźŁ PIPELINE FINAL REPLY [create_order]: "Dodałam 1 sztuka Vege Burger z Callzone. Razem 28.00 zł."
+stylizeWithGPT4o error: 429 You exceeded your current quota, please check your plan and billing details. For more information on this error, read the docs: https://platform.openai.com/docs/guides/error-codes/api-errors.
+[TTS] Generating: Dodałam 1 sztuka Vege Burger z Callzone. Razem 28,00 zł....
+✅ Google access token obtained successfully
+🔊 Using Vertex: pl-PL-Wavenet-A
+✅ TTS audio generated successfully
+tts_total: 1.052s
+[PIPELINE] đź”Š TTS Generated: "Dodałam 1 sztuka Vege Burger z..." (1052ms)
+âŹąď¸Ź  [Pipeline] DONE  session--mmf620ip | intent=create_order | source=dish_guard | 4555ms
+[BrainV2] Request: session-1766024127138 -> "tak" (Channel: web)
+â–¶ď¸Ź  [Pipeline] START session--mmf62rn6 | session=session-1766024127138 | text="tak" | mode=dev
+[NLU] Detecting intent for: tak
+🔍 findRestaurantInText: normalized input="tak"
+[DishMatch] [
+  { name: 'Pepsi', score: 0.05 },
+  { name: 'Bacon Burger', score: 0.05 },
+  { name: 'Better Than Drwal - Wołowina', score: 0.05 }
+]
+🧠 NLURouter Result: {
+  "intent": "confirm",
+  "confidence": 0.9,
+  "source": "generic_confirm",
+  "entities": {
+    "location": null,
+    "cuisine": null,
+    "quantity": 1,
+    "restaurant": null,
+    "restaurantId": null,
+    "dish": null,
+    "items": null
+  },
+  "domain": "food"
+}
+[NLU] Result: {
+  intent: 'confirm',
+  confidence: 0.9,
+  source: 'generic_confirm',
+  entities: {
+    location: null,
+    cuisine: null,
+    quantity: 1,
+    restaurant: null,
+    restaurantId: null,
+    dish: null,
+    items: null
+  },
+  domain: 'food'
+}
+[PIPELINE] ORDERING_AFFIRMATION_GUARD: repeating last cart item "Vege Burger"
+[PIPELINE] đź›ˇď¸Ź Guard Rule 2: Implicit order without verb. Downgrading to find_nearby/menu_request.
+[KROK5-DEBUG] missing handler {"intent":"menu_request","domain":"ordering","entities":{"location":null,"cuisine":null,"quantity":1,"restaurant":{"id":"bd9f2244-7618-4071-aa96-52616a7b4c70","name":"Callzone","city":null},"restaurantId":"bd9f2244-7618-4071-aa96-52616a7b4c70","dish":"Vege Burger","items":null}}
+đźźŁ PIPELINE FINAL REPLY [menu_request]: "Nie rozumiem tego polecenia."
+stylizeWithGPT4o error: 429 You exceeded your current quota, please check your plan and billing details. For more information on this error, read the docs: https://platform.openai.com/docs/guides/error-codes/api-errors.
+[TTS] Generating: Nie rozumiem tego polecenia....
+✅ Google access token obtained successfully
+🔊 Using Vertex: pl-PL-Wavenet-A
+✅ TTS audio generated successfully
+tts_total: 913.458ms
+[PIPELINE] đź”Š TTS Generated: "Nie rozumiem tego polecenia...." (914ms)
+âŹąď¸Ź  [Pipeline] DONE  session--mmf62rn6 | intent=create_order | source=ordering_affirmation_repeat | 4465ms

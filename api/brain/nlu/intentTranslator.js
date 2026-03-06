@@ -16,8 +16,7 @@
 
 import { validateLLMOutput, sanitizeLLMOutput, ALLOWED_INTENTS, FORBIDDEN_FIELDS } from './intents/IntentSchema.js';
 
-const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
-const TIMEOUT_MS = 5000;
+const TIMEOUT_MS = 15000;
 
 /**
  * Safe fallback returned when LLM fails
@@ -84,9 +83,9 @@ CRITICAL RULES:
 export async function translateIntent(text, hints = {}) {
     const startTime = Date.now();
 
-    // Guard: Must have OpenAI key
-    if (!process.env.OPENAI_API_KEY) {
-        console.warn('🛡️ LLM Translator: No OPENAI_API_KEY');
+    // Guard: Must have Gemini key
+    if (!process.env.GEMINI_API_KEY) {
+        console.warn('🛡️ LLM Translator: No GEMINI_API_KEY');
         return SAFE_FALLBACK;
     }
 
@@ -107,21 +106,24 @@ export async function translateIntent(text, hints = {}) {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
-        const response = await fetch(OPENAI_URL, {
+        const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`;
+
+        const response = await fetch(GEMINI_URL, {
             method: "POST",
             headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`
+                "Content-Type": "application/json"
             },
             body: JSON.stringify({
-                model: "gpt-4o-mini",
-                temperature: 0.1,           // Low temp for determinism
-                max_tokens: 200,            // Intent is small
-                response_format: { type: "json_object" },
-                messages: [
-                    { role: "system", content: SYSTEM_PROMPT },
-                    { role: "user", content: userPrompt }
-                ]
+                system_instruction: {
+                    parts: [{ text: SYSTEM_PROMPT }]
+                },
+                contents: [{
+                    parts: [{ text: userPrompt }]
+                }],
+                generationConfig: {
+                    temperature: 0.1,
+                    responseMimeType: "application/json"
+                }
             }),
             signal: controller.signal
         });
@@ -139,7 +141,7 @@ export async function translateIntent(text, hints = {}) {
         }
 
         const json = await response.json();
-        const rawContent = json.choices?.[0]?.message?.content;
+        const rawContent = json.candidates?.[0]?.content?.parts?.[0]?.text;
 
         if (!rawContent) {
             console.warn('🛡️ LLM Translator: Empty content in response');
@@ -176,13 +178,13 @@ export async function translateIntent(text, hints = {}) {
         sanitized.source = 'llm_translator';
 
         const latency = Date.now() - startTime;
-        console.log(`✅ LLM Translator: ${sanitized.intent} (${sanitized.confidence.toFixed(2)}) in ${latency}ms`);
+        console.log(`✅ LLM Translator: ${sanitized.intent} (${sanitized.confidence.toFixed(2)}) in ${latency} ms`);
 
         return sanitized;
 
     } catch (error) {
         if (error.name === 'AbortError') {
-            console.warn(`🛡️ LLM Translator: Timeout after ${TIMEOUT_MS}ms`);
+            console.warn(`🛡️ LLM Translator: Timeout after ${TIMEOUT_MS} ms`);
         } else {
             console.warn('🛡️ LLM Translator: Error:', error.message);
         }
@@ -194,5 +196,5 @@ export async function translateIntent(text, hints = {}) {
  * Check if LLM translation is available
  */
 export function isLLMTranslatorAvailable() {
-    return !!(process.env.OPENAI_API_KEY && process.env.LLM_TRANSLATOR_ENABLED !== 'false');
+    return !!(process.env.GEMINI_API_KEY && process.env.LLM_TRANSLATOR_ENABLED !== 'false');
 }

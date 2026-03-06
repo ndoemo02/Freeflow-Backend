@@ -2,7 +2,7 @@
 
 import { detectIntent } from '../intents/intentRouterGlue.js';
 
-const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
+const TIMEOUT_MS = 15000;
 
 /**
  * Smart Intent Resolution Layer
@@ -78,8 +78,8 @@ export async function smartResolveIntent({ text, session, sessionId, restaurants
         return classicResult;
     }
 
-    // 4. LLM Fallback
-    const USE_LLM = process.env.USE_LLM_INTENT === 'true' || process.env.OPENAI_API_KEY;
+    // 4. LLM Fallback (Gemini)
+    const USE_LLM = process.env.USE_LLM_INTENT === 'true' || process.env.GEMINI_API_KEY;
     if (!USE_LLM) return classicResult;
 
     try {
@@ -102,26 +102,36 @@ Rules:
 Return JSON: { "intent": "string", "confidence": number, "slots": object }
 Context: ${JSON.stringify(contextData)}`;
 
-        const response = await fetch(OPENAI_URL, {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
+
+        const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`;
+
+        const response = await fetch(GEMINI_URL, {
             method: "POST",
             headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`
+                "Content-Type": "application/json"
             },
             body: JSON.stringify({
-                model: "gpt-4o-mini", // Fast model
-                messages: [
-                    { role: "system", content: systemPrompt },
-                    { role: "user", content: `User: "${text}"` }
-                ],
-                temperature: 0.0,
-                response_format: { type: "json_object" }
-            })
+                system_instruction: {
+                    parts: [{ text: systemPrompt }]
+                },
+                contents: [{
+                    parts: [{ text: `User: "${text}"` }]
+                }],
+                generationConfig: {
+                    temperature: 0.1,
+                    responseMimeType: "application/json"
+                }
+            }),
+            signal: controller.signal
         });
+
+        clearTimeout(timeoutId);
 
         if (response.ok) {
             const json = await response.json();
-            const content = json.choices?.[0]?.message?.content;
+            const content = json.candidates?.[0]?.content?.parts?.[0]?.text;
             if (content) {
                 const parsed = JSON.parse(content);
                 // 5. Merge / Refine
@@ -135,9 +145,15 @@ Context: ${JSON.stringify(contextData)}`;
                     };
                 }
             }
+        } else {
+            console.warn(`⚠️ SmartIntent Gemini error: ${response.status}`);
         }
     } catch (err) {
-        console.warn('⚠️ SmartIntent LLM error:', err.message);
+        if (err.name === 'AbortError') {
+            console.warn(`⚠️ SmartIntent timeout after ${TIMEOUT_MS}ms`);
+        } else {
+            console.warn('⚠️ SmartIntent LLM error:', err.message);
+        }
     }
 
     return classicResult;

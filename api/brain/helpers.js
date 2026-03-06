@@ -38,6 +38,7 @@ export function normalizeDish(str) {
     .toLowerCase()
     .replace(/[ąćęłńóśżź]/g, (c) => map[c])
     .replace(/\b(z|na|i|w)\b/g, '')
+    .replace(/\b(wege|vegi)\b/g, 'vege')
     .replace(/\s+/g, ' ')
     .trim();
 }
@@ -126,6 +127,58 @@ export function fuzzyIncludes(name, text) {
   return overlap.length > 0;
 }
 
+export function findBestDishMatch(dishText, catalog) {
+  const inputNorm = normalizeDish(dishText);
+  if (!inputNorm || !catalog || catalog.length === 0) return null;
+
+  const scoreText = (candidate, input) => {
+    const base = normalizeDish(candidate || '');
+    if (!base || !input) return 0;
+
+    let score = 0;
+    if (base === input) score += 1;
+    if (base.includes(input)) score += 0.3;
+    if (base.startsWith(input)) score += 0.15;
+
+    const baseTokens = base.split(' ').filter(Boolean);
+    const inputTokens = input.split(' ').filter(Boolean);
+    const overlap = inputTokens.filter(t => baseTokens.includes(t)).length;
+    if (inputTokens.length > 0) {
+      score += (overlap / inputTokens.length) * 0.6;
+    }
+
+    const nearTokenBoost = inputTokens.reduce((acc, token) => {
+      if (token.length < 3) return acc;
+      const hasNear = baseTokens.some(bt => bt.length >= 3 && levenshtein(bt, token) <= 1);
+      return acc + (hasNear ? 0.25 : 0);
+    }, 0);
+    score += nearTokenBoost;
+
+    if (fuzzyIncludes(base, input)) score += 0.2;
+    return score;
+  };
+
+  const scored = catalog.map((item) => {
+    const baseScore = scoreText(item.base_name || '', inputNorm) + 0.05;
+    const nameScore = scoreText(item.name || '', inputNorm);
+    return {
+      item,
+      score: Math.max(baseScore, nameScore)
+    };
+  }).sort((a, b) => b.score - a.score);
+
+  console.log('[DishMatch]', scored.slice(0, 3).map((s) => ({
+    name: s.item.base_name || s.item.name,
+    score: Number(s.score.toFixed(3))
+  })));
+
+  if (scored.length > 0 && scored[0].score > 0.55) {
+    return scored[0].item;
+  }
+
+  return null;
+}
+
 // ============================================================================
 // QUANTITY & SIZE EXTRACTION
 // ============================================================================
@@ -148,14 +201,22 @@ export function extractQuantity(text) {
   if (!text) return 1;
   const normalized = normalizeTxt(text);
 
-  // Pattern 1: Numbers (2x, 3x, 2 razy)
-  const numPattern = /(\d+)\s*(?:x|razy|sztuk|porcj)/i;
+  // 1. Numbers with markers (2x, 3x, 2 razy, 2 szt)
+  const numPattern = /(\d+)\s*(?:x|razy|sztuk|szt|porcj|portion)/i;
   const numMatch = normalized.match(numPattern);
   if (numMatch) return parseInt(numMatch[1], 10);
 
-  // Pattern 2: Word form
+  const qtyMatch = normalized.match(/\b(\d+)\b/);
+  if (qtyMatch) {
+    return Math.min(parseInt(qtyMatch[1], 10), 30);
+  }
+
+  // 3. Word form (check normalized version of keys)
   for (const [word, qty] of Object.entries(QTY_WORDS)) {
-    if (normalized.includes(word)) return qty;
+    const normWord = stripDiacritics(word.toLowerCase());
+    // Use word boundaries for safety
+    const wordRegex = new RegExp(`\\b${normWord}\\b`, 'i');
+    if (wordRegex.test(normalized)) return qty;
   }
 
   return 1;

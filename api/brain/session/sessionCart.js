@@ -13,6 +13,9 @@ export function sum(items) {
 export function commitPendingOrder(session) {
   if (!session?.pendingOrder?.items?.length) return { committed: false, cart: session?.cart || { items: [], total: 0 } };
   ensureSessionCart(session);
+  // Guarantee the cart level restaurantId is preserved
+  session.cart.restaurantId = session.pendingOrder.restaurant_id;
+
   const toAdd = session.pendingOrder.items.map(it => ({
     id: it.id || crypto.randomUUID?.() || String(Date.now()),
     name: it.name || it.item_name || 'pozycja',

@@ -1,8 +1,10 @@
-// Food Domain: Order Handler
-// Odpowiada za proces składania zamówienia (Parsowanie -> Koszyk -> Potwierdzenie).
+﻿// Food Domain: Order Handler
+// Odpowiada za proces skĹ‚adania zamĂłwienia (Parsowanie -> Koszyk -> Potwierdzenie).
 
-import { extractQuantity, normalizeDish } from '../../helpers.js';
+import { extractQuantity, normalizeDish, findBestDishMatch } from '../../helpers.js';
+import { canonicalizeDish } from '../../nlu/dishCanon.js';
 import { resolveMenuItemConflict, DISAMBIGUATION_RESULT } from '../../services/DisambiguationService.js';
+import { commitPendingOrder } from '../../session/sessionCart.js';
 
 function hasExplicitQuantityInText(text = '') {
     const normalized = normalizeDish(String(text || ''));
@@ -28,16 +30,76 @@ function formatSzt(quantity) {
     return `${q} ${form}`;
 }
 
+function getSessionMenu(session = {}) {
+    const candidates = [
+        session?.last_menu,
+        session?.lastMenu,
+        session?.menu,
+        session?.menuItems,
+        session?.currentRestaurant?.menu,
+        session?.lastRestaurant?.menu
+    ];
+
+    for (const candidate of candidates) {
+        if (Array.isArray(candidate) && candidate.length > 0) {
+            return candidate;
+        }
+
+        if (candidate && Array.isArray(candidate.items) && candidate.items.length > 0) {
+            return candidate.items;
+        }
+
+        if (candidate && Array.isArray(candidate.menu) && candidate.menu.length > 0) {
+            return candidate.menu;
+        }
+    }
+
+    return [];
+}
+
+function findDirectMenuMatch(searchPhrase, menu = []) {
+    if (!searchPhrase || !Array.isArray(menu) || menu.length === 0) {
+        return null;
+    }
+
+    const attempts = [];
+    const rawPhrase = String(searchPhrase || '').trim();
+    const normalizedPhrase = normalizeDish(rawPhrase);
+    const canonicalPhrase = canonicalizeDish(rawPhrase);
+    const normalizedCanonical = normalizeDish(canonicalPhrase);
+
+    if (rawPhrase) attempts.push(rawPhrase);
+    if (normalizedPhrase && !attempts.includes(normalizedPhrase)) attempts.push(normalizedPhrase);
+    if (canonicalPhrase && !attempts.includes(canonicalPhrase)) attempts.push(canonicalPhrase);
+    if (normalizedCanonical && !attempts.includes(normalizedCanonical)) attempts.push(normalizedCanonical);
+
+    for (const attempt of attempts) {
+        const match = findBestDishMatch(attempt, menu);
+        if (match) {
+            return match;
+        }
+    }
+
+    return null;
+}
 export class OrderHandler {
 
     async execute(ctx) {
         const { text, session, entities } = ctx;
-        console.log("🧠 OrderHandler executing with disambiguation...");
+        console.log('[KROK5-DEBUG] order entry', JSON.stringify({
+            text,
+            dish: entities?.dish || null,
+            quantity: entities?.quantity || null,
+            currentRestaurant: session?.currentRestaurant?.name || null,
+            lastRestaurant: session?.lastRestaurant?.name || null,
+            lastMenuCount: Array.isArray(session?.last_menu) ? session.last_menu.length : (Array.isArray(session?.last_menu?.items) ? session.last_menu.items.length : 0)
+        }));
+        console.log("đź§  OrderHandler executing with disambiguation...");
 
         const rawUserText = ctx?.body?.text || text || '';
         const rawExtractedQuantity = extractQuantity(rawUserText);
 
-        // 0. Extract quantity — normalize primitive/object/string forms safely.
+        // 0. Extract quantity â€” normalize primitive/object/string forms safely.
         let quantity = entities?.quantity;
 
         if (typeof quantity === 'object' && quantity !== null) {
@@ -72,6 +134,10 @@ export class OrderHandler {
         if (typeof searchPhrase === "string") {
             // Remove parenthetical canonicalization hints, e.g. "Dish Name (alias)"
             searchPhrase = searchPhrase.replace(/\s*\([^)]*\)/g, "").trim();
+
+            // B-QTY FIX: Strip leading quantities (digits or words) from the search phrase
+            // so that "2 wege burger" becomes "wege burger" for matching.
+            searchPhrase = searchPhrase.replace(/^(?:\d+\s*|jeden|jedna|jedno|dwa|dwie|trzy|cztery|pi[eÄ™][cÄ‡][u]?|sze[sĹ›][cÄ‡][u]?|siedem|osiem|dziewi[eÄ™][cÄ‡][u]?|dziesi[eÄ™][cÄ‡][u]?|kilka|par[Ä™e])\s+/i, '').trim();
         }
 
         // 1. DISAMBIGUATION CHECK
@@ -79,21 +145,19 @@ export class OrderHandler {
         // We pass the current restaurant context if available
         const currentRestaurantId = session?.currentRestaurant?.id || session?.lastRestaurant?.id;
 
-        const menu = Array.isArray(session?.last_menu) ? session.last_menu : [];
+        const menu = getSessionMenu(session);
         const token = normalizeDish(searchPhrase);
 
         let directMatch = null;
         if (token && menu.length > 0) {
-            directMatch = menu.find(i => i.base_name && normalizeDish(i.base_name) === token);
-
-            if (!directMatch) {
-                directMatch = menu.find(i => normalizeDish(i.name || '') === token);
-            }
-
-            if (!directMatch) {
-                directMatch = menu.find(i => normalizeDish(i.name || '').includes(token));
-            }
+            directMatch = findDirectMenuMatch(searchPhrase, menu);
         }
+        console.log('[KROK5-DEBUG] match state', JSON.stringify({
+            searchPhrase,
+            token,
+            menuLength: menu.length,
+            directMatch: directMatch?.name || null
+        }));
 
         const resolution = directMatch
             ? {
@@ -104,17 +168,22 @@ export class OrderHandler {
             : await resolveMenuItemConflict(searchPhrase, {
                 restaurant_id: currentRestaurantId,
                 entities,
-                session
+                session: {
+                    ...session,
+                    last_menu: menu
+                },
+                last_menu: menu
             });
 
-        console.log(`🧠 Disambiguation Result: ${resolution.status} for "${searchPhrase}"`);
+        console.log(`đź§  Disambiguation Result: ${resolution.status} for "${searchPhrase}"`);
 
         // CASE A: Item Not Found
         if (resolution.status === DISAMBIGUATION_RESULT.ITEM_NOT_FOUND) {
+            console.log('[KROK5-DEBUG] fallback triggered - dish not matched', JSON.stringify({ searchPhrase, dish: entities?.dish || null, menuLength: menu.length }));
             const rName = session?.lastRestaurant?.name || "naszej ofercie";
             return {
                 intent: 'clarify_order',
-                reply: `Nie mogę znaleźć tego dania w ${rName}. Spróbuj podać dokładniejszą nazwę.`,
+                reply: `Nie mogÄ™ znaleĹşÄ‡ tego dania w ${rName}. SprĂłbuj podaÄ‡ dokĹ‚adniejszÄ… nazwÄ™.`,
                 contextUpdates: {
                     expectedContext: 'clarify_order'
                 }
@@ -127,7 +196,7 @@ export class OrderHandler {
             const optionNames = options.map(o => o.restaurant.name).join(", ");
 
             return {
-                reply: `To danie jest dostępne w: ${optionNames}. Z której restauracji chcesz zamówić?`,
+                reply: `To danie jest dostÄ™pne w: ${optionNames}. Z ktĂłrej restauracji chcesz zamĂłwiÄ‡?`,
                 contextUpdates: {
                     expectedContext: 'choose_restaurant',
                     pendingDisambiguation: resolution.candidates // Store for next turn
@@ -139,7 +208,7 @@ export class OrderHandler {
         // CASE C: Success (Single Item Resolved)
         if (resolution.status === DISAMBIGUATION_RESULT.ADD_ITEM) {
             const item = resolution.item;
-            const restaurant = resolution.restaurant;
+            const restaurant = resolution.restaurant || session?.currentRestaurant || session?.lastRestaurant;
 
             // Determine if we are switching restaurants
             const isSwitch = currentRestaurantId && currentRestaurantId !== restaurant.id;
@@ -148,65 +217,67 @@ export class OrderHandler {
             const orderItem = {
                 id: item.id,
                 name: item.name,
-                price: parseFloat(item.price_pln),
+                price: parseFloat(item.price_pln ?? item.price ?? 0),
                 quantity: quantity,
                 hasExplicitNumber
             };
             const total = (orderItem.price * quantity).toFixed(2);
 
-            // Construct Reply
-            let reply = "";
-            let contextUpdate = {};
+            // Build pendingOrder and commit immediately to keep backend cart + UI sync consistent.
+            session.pendingOrder = {
+                restaurant_id: restaurant.id,
+                restaurant: restaurant.name,
+                items: [orderItem],
+                total: total,
+                ...(isSwitch ? { warning: 'switch_restaurant' } : {}),
+                createdAt: Date.now()
+            };
 
-            if (isSwitch) {
-                // WARN USER about switch!
-                reply = `Znaleziono "${item.name}" w ${restaurant.name}. `;
-                // Auto-switch logic could be here, but safer to ask?
-                // For now, let's assume aggressive helpfulness -> Auto Switch + Inform
-                reply += `Dodałam do nowego zamówienia. Razem ${total} zł. Potwierdzasz?`;
-
-                // Clear old cart if needed, or strictly overwrite pendingOrder
-                contextUpdate = {
-                    lastRestaurant: restaurant, // UPDATE CONTEXT
-                    currentRestaurant: restaurant, // FIX: Nie resetuj currentRestaurant
-                    pendingOrder: {
-                        restaurant_id: restaurant.id,
-                        restaurant: restaurant.name,
-                        items: [orderItem],
-                        total: total,
-                        warning: 'switch_restaurant',
-                        createdAt: Date.now()
-                    }
-                };
-
-            } else {
-                // Same restaurant or Fresh Start
-                reply = `Dodałam ${formatSzt(quantity)} ${item.name} z ${restaurant.name}. Razem ${total} zł. Potwierdzasz?`;
-
-                // If it's a fresh start, allow context set
-                contextUpdate = {
-                    lastRestaurant: restaurant,
-                    currentRestaurant: restaurant, // FIX: Nie resetuj currentRestaurant
-                    pendingOrder: {
-                        restaurant_id: restaurant.id,
-                        restaurant: restaurant.name,
-                        items: [orderItem],
-                        total: total,
-                        createdAt: Date.now()
+            const commitResult = commitPendingOrder(session);
+            if (!commitResult.committed) {
+                return {
+                    reply: "Wystąpił problem przy dodawaniu do koszyka. Spróbuj ponownie.",
+                    contextUpdates: {
+                        lastRestaurant: restaurant,
+                        currentRestaurant: restaurant,
+                        expectedContext: null,
+                        lastIntent: 'create_order'
                     }
                 };
             }
 
+            const switchPrefix = isSwitch ? `Znaleziono "${item.name}" w ${restaurant.name}. ` : '';
             return {
-                reply,
+                reply: `${switchPrefix}Dodałam ${formatSzt(quantity)} ${item.name} z ${restaurant.name}. Razem ${total} zł.`,
+                actions: [
+                    {
+                        type: 'SHOW_CART',
+                        payload: { mode: 'badge' }
+                    }
+                ],
+                meta: {
+                    source: 'order_handler_autocommit',
+                    addedToCart: true,
+                    cart: session.cart,
+                    restaurant: { id: restaurant.id, name: restaurant.name }
+                },
                 contextUpdates: {
-                    ...contextUpdate,
-                    expectedContext: 'confirm_add_to_cart',
+                    lastRestaurant: restaurant,
+                    currentRestaurant: restaurant,
+                    expectedContext: null,
+                    pendingOrder: null,
+                    conversationPhase: 'ordering',
+                    cart: session.cart,
                     lastIntent: 'create_order'
                 }
             };
         }
 
-        return { reply: "Przepraszam, wystąpił nieoczekiwany błąd przy wyszukiwaniu dania." };
+        return { reply: "Przepraszam, wystÄ…piĹ‚ nieoczekiwany bĹ‚Ä…d przy wyszukiwaniu dania." };
     }
 }
+
+
+
+
+

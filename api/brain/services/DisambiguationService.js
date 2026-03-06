@@ -8,7 +8,7 @@
 
 import { supabase } from '../../_supabase.js'; // Adjust path if needed (depth 2 from domains/food, depth 1 from services)
 // Wait, path from services/DisambiguationService.js (level 3) to api/_supabase.js (level 1) is ../../_supabase.js
-import { fuzzyIncludes, normalize, normalizeDish } from '../helpers.js';
+import { fuzzyIncludes, normalize, normalizeDish, findBestDishMatch } from '../helpers.js';
 
 export const DISAMBIGUATION_RESULT = {
     ITEM_NOT_FOUND: 'ITEM_NOT_FOUND',
@@ -194,8 +194,9 @@ export async function resolveMenuItemConflict(itemName, context = {}) {
     // C) >1 wynik (różne restauracje) - Próba ujednoznacznienia kontekstem
     // Priorytet 1: Obecna restauracja (context.restaurant_id)
     if (restaurantId) {
-        const inContext = candidates.find(c => String(c.restaurant_id) === String(restaurantId));
-        if (inContext) {
+        const candidatesInContext = candidates.filter(c => String(c.restaurant_id) === String(restaurantId));
+        if (candidatesInContext.length > 0) {
+            const inContext = findBestDishMatch(itemName, candidatesInContext) || candidatesInContext[0];
             console.log(`🧠 Context match (PRIORITY): ${inContext.name} in ${inContext.restaurants.name}`);
             return {
                 status: DISAMBIGUATION_RESULT.ADD_ITEM,
