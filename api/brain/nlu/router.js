@@ -1,4 +1,4 @@
-﻿/**
+/**
  * NLU Router - Decyzyjny MĂłzg (V2)
  * Odpowiada za klasyfikacjÄ™ intencji i ekstrakcjÄ™ encji.
  * Wykorzystuje Static Catalog dla wydajnoĹ›ci.
@@ -74,6 +74,24 @@ export class NLURouter {
         // 2. Static Catalog Lookup (Fast Match)
         // Instant 0ms check against known 9 restaurants
         const matchedRestaurant = findRestaurantInText(text);
+        const explicitRestaurantSearch = isExplicitRestaurantSearch(text);
+
+        if (session?.currentRestaurant && explicitRestaurantSearch) {
+            return {
+                intent: 'find_nearby',
+                confidence: 0.9,
+                source: 'restaurant_navigation_override',
+                entities: {
+                    location,
+                    cuisine,
+                    quantity,
+                    restaurant: matchedRestaurant ? matchedRestaurant.name : null,
+                    restaurantId: matchedRestaurant ? matchedRestaurant.id : null,
+                    dish: null,
+                    items: null
+                }
+            };
+        }
 
         // --- RULE 3b: Aliases & Entity Parsing (Dish Detection) ---
         const parsed = parseRestaurantAndDish(text);
@@ -102,7 +120,7 @@ export class NLURouter {
             };
         }
 
-        if (session?.currentRestaurant && isExplicitRestaurantSearch(text)) {
+        if (session?.currentRestaurant && explicitRestaurantSearch) {
             return {
                 intent: 'find_nearby',
                 confidence: 0.9,
@@ -714,7 +732,7 @@ export class NLURouter {
                     : [];
 
             if (!isControlIntent) {
-                if (isExplicitRestaurantSearch(text)) {
+                if (explicitRestaurantSearch) {
                     return {
                         intent: 'find_nearby',
                         confidence: 0.9,

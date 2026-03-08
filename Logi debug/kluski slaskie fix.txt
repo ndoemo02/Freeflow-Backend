@@ -1,0 +1,859 @@
+✅ Match found for alias "restauracja stara kamienica" in "wybieram restauracja stara kamienica"
+đź§  NLURouter Result: {
+  "intent": "select_restaurant",
+  "confidence": 0.95,
+  "entities": {
+    "location": null,
+    "cuisine": null,
+    "quantity": 1,
+    "restaurant": "Restauracja Stara Kamienica",
+    "restaurantId": "1fc1e782-bac6-47b2-978a-f6f2b38000cd",
+    "dish": null,
+    "items": null,
+    "raw": "Wybieram Restauracja Stara Kamienica"
+  },
+  "source": "context_lock",
+  "domain": "food"
+}
+[NLU] Result: {
+  intent: 'select_restaurant',
+  confidence: 0.95,
+  entities: {
+    location: null,
+    cuisine: null,
+    quantity: 1,
+    restaurant: 'Restauracja Stara Kamienica',
+    restaurantId: '1fc1e782-bac6-47b2-978a-f6f2b38000cd',
+    dish: null,
+    items: null,
+    raw: 'Wybieram Restauracja Stara Kamienica'
+  },
+  source: 'context_lock',
+  domain: 'food'
+}
+🧠 SelectRestaurantHandler executing... Pending Dish: "null"
+🟢 SelectHandler: direct entity match → Restauracja Stara Kamienica (id=1fc1e782-bac6-47b2-978a-f6f2b38000cd)
+[DEBUG] _checkCartConflict: hasCartItems=false, cartRestaurantId=undefined, selected.id=1fc1e782-bac6-47b2-978a-f6f2b38000cd
+🧠 MenuHandler executing for session sess_1772921251199_np82p3. Text: "Wybieram Restauracja Stara Kamienica"
+🧠 MenuHandler: session lastRestaurant: Restauracja Stara Kamienica (1fc1e782-bac6-47b2-978a-f6f2b38000cd)
+🧠 MenuHandler: entities: {"location":null,"cuisine":null,"quantity":1,"restaurant":"Restauracja Stara Kamienica","restaurantId":"1fc1e782-bac6-47b2-978a-f6f2b38000cd","dish":null,"items":null,"raw":"Wybieram Restauracja Stara Kamienica"}
+🟢 MenuHandler: matched restaurant from text -> Restauracja Stara Kamienica, resetting conversation phase
+✅ MenuHandler: showing 6/25 items for Restauracja Stara Kamienica
+[PIPELINE] đź“Ť PHASE_TRANSITION: restaurant_selected â†’ restaurant_selected
+đźźŁ PIPELINE FINAL REPLY [select_restaurant]: "Wybrano Restauracja Stara Kamienica. W menu m.in.:\nPierogi (ruskie lub z mięsem) 6 szt. (13.00 zł), Tradycyjny schabow
+stylizeWithGPT4o error: 429 You exceeded your current quota, please check your plan and billing details. For more information on this error, read the docs: https://platform.openai.com/docs/guides/error-codes/api-errors.
+[PIPELINE] âś‚ď¸Ź Smart TTS Menu Summary: "W karcie sÄ… m.in. Dodatek, Danie główne, Naleśnik..."
+[TTS] Generating: W karcie sÄ… m.in. Dodatek, Danie główne, Naleśnik, Deser. Na przykĹ‚ad: Pierogi...
+✅ Google access token obtained successfully
+🔊 Using Vertex: pl-PL-Wavenet-A
+✅ TTS audio generated successfully
+tts_total: 1.377s
+[PIPELINE] đź”Š TTS Generated: "W karcie sÄ… m.in. Dodatek, Da..." (1377ms)
+âŹąď¸Ź  [Pipeline] DONE  sess_177-mmgzlgbx | intent=select_restaurant | source=context_lock | 5942ms
+[BrainV2] Request: sess_1772921251199_np82p3 -> "Pokaż restauracje w Piekarach Śląskich." (Channel: web)
+â–¶ď¸Ź  [Pipeline] START sess_177-mmgzp9ol | session=sess_1772921251199_np82p3 | text="Pokaż restauracje w Piekarach Śląskich." | mode=dev
+[PIPELINE] đź”Š PHONETIC_MATCH: "Pokaż restauracje w Piekarach Śląskich." â†’ "Kluski śląskie 7 szt."
+[NLU] Detecting intent for: Kluski śląskie 7 szt.
+🔍 findRestaurantInText: normalized input="kluski slaskie 7 szt"
+[DishMatch] [
+  { name: 'Pierogi', score: 0.05 },
+  { name: 'Tradycyjny schabowy', score: 0.05 },
+  { name: 'Schab po beskidzku', score: 0.05 }
+]
+[intent-router] ?? detectIntent called with: {
+  text: 'Kluski śląskie 7 szt.',
+  sessionId: 'sess_1772921251199_np82p3'
+}
+[intent-router] ?? Starting early dish detection for text: Kluski śląskie 7 szt.
+[intent-router] ?? Normalized text: kluski śląskie 7 szt.
+[intent-router] ?? Session restaurant: Restauracja Stara Kamienica
+[intent-router] ?? Restaurant indicators in text: false
+[intent-router] ?? Skipping restaurant search - using session restaurant: Restauracja Stara Kamienica
+[loadMenuCatalog] ?? Session: {
+  status: 'active',
+  closedReason: null,
+  closedAt: null,
+  conversationPhase: 'restaurant_selected',
+  expectedContext: 'create_order',
+  lastIntent: 'menu_request',
+  lastRestaurant: {
+    id: '1fc1e782-bac6-47b2-978a-f6f2b38000cd',
+    name: 'Restauracja Stara Kamienica',
+    city: null
+  },
+  lastRestaurantsList: [],
+  lastRestaurants: [
+    {
+      id: '1fc1e782-bac6-47b2-978a-f6f2b38000cd',
+      name: 'Restauracja Stara Kamienica',
+      index: 1,
+      city: 'Piekary Śląskie'
+    },
+    {
+      id: '4d27fbe3-20d0-4eb4-b003-1935be53af25',
+      name: 'Rezydencja Luxury Hotel',
+      index: 2,
+      city: 'Piekary Śląskie'
+    },
+    {
+      id: '569a7d29-57be-4224-bdf3-09c483415cea',
+      name: 'Klaps Burgers',
+      index: 3,
+      city: 'Piekary Śląskie'
+    },
+    {
+      id: '70842598-1632-43f6-8015-706d5adf182f',
+      name: 'Vien-Thien',
+      index: 4,
+      city: 'Piekary Śląskie'
+    },
+    {
+      id: '8b00b05e-72f7-4a5f-b50c-5630a75d6312',
+      name: 'Bar Praha',
+      index: 5,
+      city: 'Piekary Śląskie'
+    },
+    {
+      id: 'bd9f2244-7618-4071-aa96-52616a7b4c70',
+      name: 'Callzone',
+      index: 6,
+      city: 'Piekary Śląskie'
+    },
+    {
+      id: 'af8448ef-974b-46c8-a4ae-b04b8dc7c9f8',
+      name: 'Dwór Hubertus',
+      index: 7,
+      city: 'Piekary Śląskie'
+    },
+    {
+      id: 'fc844513-2869-4f42-b04f-c21e1e4cceb7',
+      name: 'Tasty King Kebab',
+      index: 8,
+      city: 'Piekary Śląskie'
+    },
+    {
+      id: '83566974-1017-4408-90ee-2571ccc06978',
+      name: 'Pizzeria Monte Carlo',
+      index: 9,
+      city: 'Piekary Śląskie'
+    }
+  ],
+  lastRestaurantsTimestamp: null,
+  lastMenu: [],
+  locationOverride: null,
+  history: [],
+  pendingDish: null,
+  awaiting: null,
+  pendingOrder: null,
+  turnBuffer: [
+    {
+      role: 'assistant',
+      text: 'Znalazłam 9 miejsc w Piekary Śląskie:\n' +
+        '1. Restauracja Stara Kamienica (Polska)\n' +
+        '2. Rezydencja Luxury Hotel (Międzynarodowa)\n' +
+        '3. Klaps Burgers (Amerykańska)\n' +
+        '\n' +
+        'Którą wybierasz?',
+      surfaceKey: null,
+      entities: [Object],
+      timestamp: 1772927574172
+    },
+    {
+      role: 'user',
+      text: 'gdzie zjem w piekarach?',
+      entities: [Object],
+      timestamp: 1772928019929
+    },
+    {
+      role: 'assistant',
+      text: 'Znalazłam 9 miejsc w Piekary Śląskie:\n' +
+        '1. Restauracja Stara Kamienica (Polska)\n' +
+        '2. Rezydencja Luxury Hotel (Międzynarodowa)\n' +
+        '3. Klaps Burgers (Amerykańska)\n' +
+        '\n' +
+        'Którą wybierasz?',
+      surfaceKey: null,
+      entities: [Object],
+      timestamp: 1772928020594
+    },
+    {
+      role: 'user',
+      text: 'Wybieram Restauracja Stara Kamienica',
+      entities: [Object],
+      timestamp: 1772928068089
+    },
+    {
+      role: 'assistant',
+      text: 'Wybrano Restauracja Stara Kamienica. W menu m.in.:\n' +
+        'Pierogi (ruskie lub z mięsem) 6 szt. (13.00 zł), Tradycyjny schabowy (16.00 zł), Schab po beskidzku (16.00 zł), Naleśnik z kurczakiem i warzywami (24.00 zł), Naleśnik ze szpinakiem i serem feta (24.00 zł), Lody z gorącymi malinami i bitą śmietaną (18.00 zł)\n' +
+        '\n' +
+        'Co podać?',
+      surfaceKey: null,
+      entities: [Object],
+      timestamp: 1772928073763
+    }
+  ],
+  entityCache: {
+    restaurants: [
+      [Object], [Object],
+      [Object], [Object],
+      [Object], [Object],
+      [Object], [Object],
+      [Object]
+    ],
+    items: [ [Object], [Object], [Object], [Object], [Object], [Object] ],
+    lastListType: 'items'
+  },
+  currentRestaurant: {
+    id: '1fc1e782-bac6-47b2-978a-f6f2b38000cd',
+    name: 'Restauracja Stara Kamienica',
+    city: null
+  },
+  lockedRestaurantId: '1fc1e782-bac6-47b2-978a-f6f2b38000cd',
+  lastUpdated: 1772928068089,
+  last_location: 'Piekary Śląskie',
+  currentLocation: 'piekary',
+  last_restaurants_list: [],
+  context: 'IN_RESTAURANT',
+  last_menu: [
+    {
+      id: '16722ee1-59f8-4b27-95b1-f3bfa013aecc',
+      name: 'Pierogi (ruskie lub z mięsem) 6 szt.',
+      base_name: 'Pierogi',
+      size_or_variant: null,
+      price_pln: 13,
+      description: 'Pierogi ruskie lub z mięsem, okrasa',
+      category: 'Dodatek',
+      available: true
+    },
+    {
+      id: '7beac934-6b7c-49f7-915f-bcc966c2fb59',
+      name: 'Tradycyjny schabowy',
+      base_name: 'Tradycyjny schabowy',
+      size_or_variant: null,
+      price_pln: 16,
+      description: 'Schabowy z ziemniakami i serem/pieczarkami',
+      category: 'Danie główne',
+      available: true
+    },
+    {
+      id: '3868e30f-2e95-4b70-9b81-c2c2266ef836',
+      name: 'Schab po beskidzku',
+      base_name: 'Schab po beskidzku',
+      size_or_variant: null,
+      price_pln: 16,
+      description: 'Schab z pieczarkami i serem, ziemniaki',
+      category: 'Danie główne',
+      available: true
+    },
+    {
+      id: 'b3d168cf-e312-4f77-b81d-6ef118da8cf6',
+      name: 'Naleśnik z kurczakiem i warzywami',
+      base_name: 'Naleśnik z kurczakiem i warzywami',
+      size_or_variant: null,
+      price_pln: 24,
+      description: 'Filet z kurczaka, brokuły, marchew, sałata',
+      category: 'Naleśnik',
+      available: true
+    },
+    {
+      id: '5358eeb0-1b38-477a-bc5a-2f5bea3a3a37',
+      name: 'Naleśnik ze szpinakiem i serem feta',
+      base_name: 'Naleśnik ze szpinakiem i serem feta',
+      size_or_variant: null,
+      price_pln: 24,
+      description: 'Szpinak, ser feta, pomidor, ogórek kiszony, sos czosnkowy',
+      category: 'Naleśnik',
+      available: true
+    },
+    {
+      id: 'b72ffe53-5082-4e3a-8c0d-54bb527662bf',
+      name: 'Lody z gorącymi malinami i bitą śmietaną',
+      base_name: 'Lody z gorącymi malinami i bitą śmietaną',
+      size_or_variant: null,
+      price_pln: 18,
+      description: 'Lody, gorące maliny, bita śmietana',
+      category: 'Deser',
+      available: true
+    },
+    {
+      id: 'e939262c-f11a-4f06-b513-204c82e2bf4c',
+      name: 'Fondant czekoladowy z lodami i bitą śmietaną',
+      base_name: 'Fondant czekoladowy z lodami i bitą śmietaną',
+      size_or_variant: null,
+      price_pln: 22,
+      description: 'Fondant czekoladowy, lody, bita śmietana',
+      category: 'Deser',
+      available: true
+    },
+    {
+      id: '8a6b0046-6c97-4f1f-a520-3d25ab1704c1',
+      name: 'Coca-Cola, Fanta, Sprite, Cappy (200 ml)',
+      base_name: 'Coca-Cola, Fanta, Sprite, Cappy',
+      size_or_variant: '200ml',
+      price_pln: 7,
+      description: 'Napój, 200 ml',
+      category: 'Napój',
+      available: true
+    },
+    {
+      id: '533383c1-f562-4286-a573-b50c7c4b1f44',
+      name: 'Woda mineralna (330 ml)',
+      base_name: 'Woda mineralna',
+      size_or_variant: '330ml',
+      price_pln: 6,
+      description: 'Woda mineralna 330 ml',
+      category: 'Napój',
+      available: true
+    },
+    {
+      id: '739cdfe1-328f-45a7-bad7-a490761bb43c',
+      name: 'Filet z kurczaka tradycyjny (panierowany)',
+      base_name: 'Filet z kurczaka tradycyjny',
+      size_or_variant: null,
+      price_pln: 15,
+      description: 'Filet drobiowy panierowany, ziemniaki, surówka',
+      category: 'Danie główne',
+      available: true
+    },
+    {
+      id: '8ed5ff4a-8f10-4b0b-bc6c-b6c801254f23',
+      name: 'Filet z kurczaka po hawajsku',
+      base_name: 'Filet z kurczaka po hawajsku',
+      size_or_variant: null,
+      price_pln: 19,
+      description: 'Filet, ananas, ser, sos, ziemniaki, surówka',
+      category: 'Danie główne',
+      available: true
+    },
+    {
+      id: '2f1b8974-f6d0-46d8-8387-7679c54e9c28',
+      name: 'Grillowany filet z kurczaka',
+      base_name: 'Grillowany filet z kurczaka',
+      size_or_variant: null,
+      price_pln: 15,
+      description: 'Grillowany filet, ziemniaki, surówka',
+      category: 'Danie główne',
+      available: true
+    },
+    {
+      id: 'd9ea7293-2726-4b20-ae08-deec10f0a30f',
+      name: 'Kroket (z kapustą i grzybami/bądź z mięsem) 1 szt.',
+      base_name: 'Kroket',
+      size_or_variant: null,
+      price_pln: 8,
+      description: 'Kroket domowy, farsz do wyboru',
+      category: 'Dodatek',
+      available: true
+    },
+    {
+      id: '0541008d-da26-4a43-a51f-dc57fe124572',
+      name: 'Placki ziemniaczane 4 szt.',
+      base_name: 'Placki ziemniaczane',
+      size_or_variant: null,
+      price_pln: 13,
+      description: 'Placki z ziemniaków podawane ze śmietaną',
+      category: 'Dodatek',
+      available: true
+    },
+    {
+      id: '1427dbd6-eccd-439e-a9fb-513b9af1124a',
+      name: 'Kluski śląskie 7 szt.',
+      base_name: 'Kluski śląskie',
+      size_or_variant: null,
+      price_pln: 10,
+      description: 'Kluski śląskie',
+      category: 'Dodatek',
+      available: true
+    },
+    {
+      id: 'a031b926-01ef-4c01-bdac-8b89d9d00873',
+      name: 'Rolada wołowa (na zamówienie)',
+      base_name: 'Rolada wołowa',
+      size_or_variant: null,
+      price_pln: 27,
+      description: 'Rolada wołowa z ziemniakami i surówką',
+      category: 'Danie główne',
+      available: true
+    },
+    {
+      id: 'bd8ee105-de1d-444a-bad7-ed77850a21a1',
+      name: 'Pieczeń wieprzowa',
+      base_name: 'Pieczeń wieprzowa',
+      size_or_variant: null,
+      price_pln: 20,
+      description: 'Pieczeń wieprzowa, ziemniaki, surówka',
+      category: 'Danie główne',
+      available: true
+    },
+    {
+      id: '7350cd9f-0d40-46c6-bda2-1bea8e5cb05d',
+      name: 'Wątróbka drobiowa',
+      base_name: 'Wątróbka drobiowa',
+      size_or_variant: null,
+      price_pln: 16,
+      description: 'Wątróbka, cebulka, ziemniaki, surówka',
+      category: 'Danie główne',
+      available: true
+    },
+    {
+      id: '3b95bad4-976f-4d8b-a333-bc912d79886d',
+      name: 'Gulasz wieprzowy po węgiersku',
+      base_name: 'Gulasz wieprzowy po węgiersku',
+      size_or_variant: null,
+      price_pln: 23,
+      description: 'Gulasz, ziemniaki, zestaw surówek',
+      category: 'Danie główne',
+      available: true
+    },
+    {
+      id: '001a11cc-a541-4f59-8a56-c2c4eafe464d',
+      name: 'Jajecznica z 2 szt. jaj',
+      base_name: 'Jajecznica z jaj',
+      size_or_variant: null,
+      price_pln: 11,
+      description: 'Jajecznica, pieczywo',
+      category: 'Śniadanie',
+      available: true
+    },
+    {
+      id: '5e28cdc5-a8c4-43ad-a866-880f3963d862',
+      name: 'Placki po węgiersku z gulaszem wieprzowym',
+      base_name: 'Placki po węgiersku z gulaszem wieprzowym',
+      size_or_variant: null,
+      price_pln: 22,
+      description: 'Placki ziemniaczane, gulasz wieprzowy',
+      category: 'Danie główne',
+      available: true
+    },
+    {
+      id: 'e378615b-c8ac-42d8-8f0b-102f966209db',
+      name: 'Naleśnik z dżemem truskawkowym lub wiśniowym',
+      base_name: 'Naleśnik z dżemem truskawkowym lub wiśniowym',
+      size_or_variant: null,
+      price_pln: 13,
+      description: 'Naleśnik z dżemem',
+      category: 'Naleśnik',
+      available: true
+    },
+    {
+      id: '2f252964-e281-491d-a416-b10c17afbd49',
+      name: 'Naleśnik z nutellą, bananami, bitą śmietaną',
+      base_name: 'Naleśnik z nutellą, bananami, bitą śmietaną',
+      size_or_variant: null,
+      price_pln: 16,
+      description: 'Nutella, banany, bita śmietana',
+      category: 'Naleśnik',
+      available: true
+    },
+    {
+      id: '94a1e6c6-353e-4a2d-83e1-958f15bd5613',
+      name: 'Rosół z makaronem',
+      base_name: 'Rosół z makaronem',
+      size_or_variant: null,
+      price_pln: 10,
+      description: 'Rosół z makaronem',
+      category: 'Zupa',
+      available: true
+    },
+    {
+      id: '8dcb0a80-df84-4c1e-9035-ed3570ce66a8',
+      name: 'Zupa dnia',
+      base_name: 'Zupa dnia',
+      size_or_variant: null,
+      price_pln: 9,
+      description: 'Zupa dnia',
+      category: 'Zupa',
+      available: true
+    }
+  ],
+  last_menu_restaurant_id: '1fc1e782-bac6-47b2-978a-f6f2b38000cd',
+  cart: {
+    items: [],
+    total: 0,
+    restaurantId: '1fc1e782-bac6-47b2-978a-f6f2b38000cd'
+  },
+  id: 'sess_1772921251199_np82p3'
+}
+[loadMenuCatalog] ?? lastRestaurant: {
+  id: '1fc1e782-bac6-47b2-978a-f6f2b38000cd',
+  name: 'Restauracja Stara Kamienica',
+  city: null
+}
+[loadMenuCatalog] ?? lastId: 1fc1e782-bac6-47b2-978a-f6f2b38000cd
+[loadMenuCatalog] ? Loading menu for restaurant: 1fc1e782-bac6-47b2-978a-f6f2b38000cd (Restauracja Stara Kamienica)
+[loadMenuCatalog] ? Loaded 25 menu items from 1 restaurants
+[loadMenuCatalog] ? Sample items: Pierogi (ruskie lub z mięsem) 6 szt., Tradycyjny schabowy, Schab po beskidzku
+[intent-router] Catalog loaded: 25 items
+[intent-router] ?? Calling parseOrderItems...
+[intent-router] ?? Catalog items: Pierogi (ruskie lub z mięsem) 6 szt., Tradycyjny schabowy, Schab po beskidzku, Naleśnik z kurczakiem i warzywami, Naleśnik ze szpinakiem i serem feta, Lody z gorącymi malinami i bitą śmietaną, Fondant czekoladowy z lodami i bitą śmietaną, Coca-Cola, Fanta, Sprite, Cappy (200 ml), Woda mineralna (330 ml), Filet z kurczaka tradycyjny (panierowany), Filet z kurczaka po hawajsku, Grillowany filet z kurczaka, Kroket (z kapustą i grzybami/bądź z mięsem) 1 szt., Placki ziemniaczane 4 szt., Kluski śląskie 7 szt., Rolada wołowa (na zamówienie), Pieczeń wieprzowa, Wątróbka drobiowa, Gulasz wieprzowy po węgiersku, Jajecznica z 2 szt. jaj, Placki po węgiersku z gulaszem wieprzowym, Naleśnik z dżemem truskawkowym lub wiśniowym, Naleśnik z nutellą, bananami, bitą śmietaną, Rosół z makaronem, Zupa dnia
+[parseOrderItems] ?? Summary:
+  - requestedNames: []
+  - availableNames: [pierogi (ruskie lub z mięsem) 6 szt., kroket (z kapustą i grzybami/bądź z mięsem) 1 szt., placki ziemniaczane 4 szt., kluski śląskie 7 szt., jajecznica z 2 szt. jaj]
+  - unavailableNames: []
+  - matched.length: 5
+  - clarifications.length: 0
+[intent-router] ? Parsed result: {
+  "any": true,
+  "groups": [
+    {
+      "restaurant_id": "1fc1e782-bac6-47b2-978a-f6f2b38000cd",
+      "restaurant_name": "Restauracja Stara Kamienica",
+      "items": [
+        {
+          "menuItemId": "16722ee1-59f8-4b27-95b1-f3bfa013aecc",
+          "name": "Pierogi (ruskie lub z mięsem) 6 szt.",
+          "price": 13,
+          "quantity": 7
+        },
+        {
+          "menuItemId": "d9ea7293-2726-4b20-ae08-deec10f0a30f",
+          "name": "Kroket (z kapustą i grzybami/bądź z mięsem) 1 szt.",
+          "price": 8,
+          "quantity": 7
+        },
+        {
+          "menuItemId": "0541008d-da26-4a43-a51f-dc57fe124572",
+          "name": "Placki ziemniaczane 4 szt.",
+          "price": 13,
+          "quantity": 7
+        },
+        {
+          "menuItemId": "1427dbd6-eccd-439e-a9fb-513b9af1124a",
+          "name": "Kluski śląskie 7 szt.",
+          "price": 10,
+          "quantity": 7
+        },
+        {
+          "menuItemId": "001a11cc-a541-4f59-8a56-c2c4eafe464d",
+          "name": "Jajecznica z 2 szt. jaj",
+          "price": 11,
+          "quantity": 7
+        }
+      ]
+    }
+  ],
+  "clarify": [],
+  "available": [
+    {
+      "menuItemId": "16722ee1-59f8-4b27-95b1-f3bfa013aecc",
+      "name": "Pierogi (ruskie lub z mięsem) 6 szt.",
+      "price": 13,
+      "quantity": 7,
+      "restaurant_id": "1fc1e782-bac6-47b2-978a-f6f2b38000cd",
+      "restaurant_name": "Restauracja Stara Kamienica",
+      "matchScore": 1
+    },
+    {
+      "menuItemId": "d9ea7293-2726-4b20-ae08-deec10f0a30f",
+      "name": "Kroket (z kapustą i grzybami/bądź z mięsem) 1 szt.",
+      "price": 8,
+      "quantity": 7,
+      "restaurant_id": "1fc1e782-bac6-47b2-978a-f6f2b38000cd",
+      "restaurant_name": "Restauracja Stara Kamienica",
+      "matchScore": 1
+    },
+    {
+      "menuItemId": "0541008d-da26-4a43-a51f-dc57fe124572",
+      "name": "Placki ziemniaczane 4 szt.",
+      "price": 13,
+      "quantity": 7,
+      "restaurant_id": "1fc1e782-bac6-47b2-978a-f6f2b38000cd",
+      "restaurant_name": "Restauracja Stara Kamienica",
+      "matchScore": 1
+    },
+    {
+      "menuItemId": "1427dbd6-eccd-439e-a9fb-513b9af1124a",
+      "name": "Kluski śląskie 7 szt.",
+      "price": 10,
+      "quantity": 7,
+      "restaurant_id": "1fc1e782-bac6-47b2-978a-f6f2b38000cd",
+      "restaurant_name": "Restauracja Stara Kamienica",
+      "matchScore": 1
+    },
+    {
+      "menuItemId": "001a11cc-a541-4f59-8a56-c2c4eafe464d",
+      "name": "Jajecznica z 2 szt. jaj",
+      "price": 11,
+      "quantity": 7,
+      "restaurant_id": "1fc1e782-bac6-47b2-978a-f6f2b38000cd",
+      "restaurant_name": "Restauracja Stara Kamienica",
+      "matchScore": 1
+    }
+  ],
+  "unavailable": [],
+  "needsClarification": true,
+  "unknownItems": [
+    {
+      "name": "kluski śląskie 7 szt.",
+      "reason": "no_alias_match"
+    }
+  ]
+}
+[intent-router] ?? parsed.any = true
+[intent-router] ?? parsed.groups.length = 1
+??? ? EARLY DISH DETECTION SUCCESS! Dish detected: Pierogi (ruskie lub z mięsem) 6 szt., Kroket (z kapustą i grzybami/bądź z mięsem) 1 szt., Placki ziemniaczane 4 szt., Kluski śląskie 7 szt., Jajecznica z 2 szt. jaj
+??? ? Returning create_order immediately (HIGHEST PRIORITY)
+??? ? parsedOrder: {
+  "any": true,
+  "groups": [
+    {
+      "restaurant_id": "1fc1e782-bac6-47b2-978a-f6f2b38000cd",
+      "restaurant_name": "Restauracja Stara Kamienica",
+      "items": [
+        {
+          "menuItemId": "16722ee1-59f8-4b27-95b1-f3bfa013aecc",
+          "name": "Pierogi (ruskie lub z mięsem) 6 szt.",
+          "price": 13,
+          "quantity": 7
+        },
+        {
+          "menuItemId": "d9ea7293-2726-4b20-ae08-deec10f0a30f",
+          "name": "Kroket (z kapustą i grzybami/bądź z mięsem) 1 szt.",
+          "price": 8,
+          "quantity": 7
+        },
+        {
+          "menuItemId": "0541008d-da26-4a43-a51f-dc57fe124572",
+          "name": "Placki ziemniaczane 4 szt.",
+          "price": 13,
+          "quantity": 7
+        },
+        {
+          "menuItemId": "1427dbd6-eccd-439e-a9fb-513b9af1124a",
+          "name": "Kluski śląskie 7 szt.",
+          "price": 10,
+          "quantity": 7
+        },
+        {
+          "menuItemId": "001a11cc-a541-4f59-8a56-c2c4eafe464d",
+          "name": "Jajecznica z 2 szt. jaj",
+          "price": 11,
+          "quantity": 7
+        }
+      ]
+    }
+  ],
+  "clarify": [],
+  "available": [
+    {
+      "menuItemId": "16722ee1-59f8-4b27-95b1-f3bfa013aecc",
+      "name": "Pierogi (ruskie lub z mięsem) 6 szt.",
+      "price": 13,
+      "quantity": 7,
+      "restaurant_id": "1fc1e782-bac6-47b2-978a-f6f2b38000cd",
+      "restaurant_name": "Restauracja Stara Kamienica",
+      "matchScore": 1
+    },
+    {
+      "menuItemId": "d9ea7293-2726-4b20-ae08-deec10f0a30f",
+      "name": "Kroket (z kapustą i grzybami/bądź z mięsem) 1 szt.",
+      "price": 8,
+      "quantity": 7,
+      "restaurant_id": "1fc1e782-bac6-47b2-978a-f6f2b38000cd",
+      "restaurant_name": "Restauracja Stara Kamienica",
+      "matchScore": 1
+    },
+    {
+      "menuItemId": "0541008d-da26-4a43-a51f-dc57fe124572",
+      "name": "Placki ziemniaczane 4 szt.",
+      "price": 13,
+      "quantity": 7,
+      "restaurant_id": "1fc1e782-bac6-47b2-978a-f6f2b38000cd",
+      "restaurant_name": "Restauracja Stara Kamienica",
+      "matchScore": 1
+    },
+    {
+      "menuItemId": "1427dbd6-eccd-439e-a9fb-513b9af1124a",
+      "name": "Kluski śląskie 7 szt.",
+      "price": 10,
+      "quantity": 7,
+      "restaurant_id": "1fc1e782-bac6-47b2-978a-f6f2b38000cd",
+      "restaurant_name": "Restauracja Stara Kamienica",
+      "matchScore": 1
+    },
+    {
+      "menuItemId": "001a11cc-a541-4f59-8a56-c2c4eafe464d",
+      "name": "Jajecznica z 2 szt. jaj",
+      "price": 11,
+      "quantity": 7,
+      "restaurant_id": "1fc1e782-bac6-47b2-978a-f6f2b38000cd",
+      "restaurant_name": "Restauracja Stara Kamienica",
+      "matchScore": 1
+    }
+  ],
+  "unavailable": [],
+  "needsClarification": true,
+  "unknownItems": [
+    {
+      "name": "kluski śląskie 7 szt.",
+      "reason": "no_alias_match"
+    }
+  ]
+}
+🔍 Debug session updated: {
+  intent: 'create_order',
+  restaurant: 'Restauracja Stara Kamienica',
+  sessionId: 'sess_1772921251199_np82p3',
+  confidence: 0.85
+}
+đź§  NLURouter Result: {
+  "intent": "create_order",
+  "confidence": 0.85,
+  "source": "classic",
+  "entities": {
+    "location": "Kluski",
+    "cuisine": null,
+    "quantity": 7,
+    "restaurant": null,
+    "restaurantId": null,
+    "dish": null,
+    "items": null,
+    "parsedOrder": {
+      "any": true,
+      "groups": [
+        {
+          "restaurant_id": "1fc1e782-bac6-47b2-978a-f6f2b38000cd",
+          "restaurant_name": "Restauracja Stara Kamienica",
+          "items": [
+            {
+              "menuItemId": "16722ee1-59f8-4b27-95b1-f3bfa013aecc",
+              "name": "Pierogi (ruskie lub z mięsem) 6 szt.",
+              "price": 13,
+              "quantity": 7
+            },
+            {
+              "menuItemId": "d9ea7293-2726-4b20-ae08-deec10f0a30f",
+              "name": "Kroket (z kapustą i grzybami/bądź z mięsem) 1 szt.",
+              "price": 8,
+              "quantity": 7
+            },
+            {
+              "menuItemId": "0541008d-da26-4a43-a51f-dc57fe124572",
+              "name": "Placki ziemniaczane 4 szt.",
+              "price": 13,
+              "quantity": 7
+            },
+            {
+              "menuItemId": "1427dbd6-eccd-439e-a9fb-513b9af1124a",
+              "name": "Kluski śląskie 7 szt.",
+              "price": 10,
+              "quantity": 7
+            },
+            {
+              "menuItemId": "001a11cc-a541-4f59-8a56-c2c4eafe464d",
+              "name": "Jajecznica z 2 szt. jaj",
+              "price": 11,
+              "quantity": 7
+            }
+          ]
+        }
+      ],
+      "clarify": [],
+      "available": [
+        {
+          "menuItemId": "16722ee1-59f8-4b27-95b1-f3bfa013aecc",
+          "name": "Pierogi (ruskie lub z mięsem) 6 szt.",
+          "price": 13,
+          "quantity": 7,
+          "restaurant_id": "1fc1e782-bac6-47b2-978a-f6f2b38000cd",
+          "restaurant_name": "Restauracja Stara Kamienica",
+          "matchScore": 1
+        },
+        {
+          "menuItemId": "d9ea7293-2726-4b20-ae08-deec10f0a30f",
+          "name": "Kroket (z kapustą i grzybami/bądź z mięsem) 1 szt.",
+          "price": 8,
+          "quantity": 7,
+          "restaurant_id": "1fc1e782-bac6-47b2-978a-f6f2b38000cd",
+          "restaurant_name": "Restauracja Stara Kamienica",
+          "matchScore": 1
+        },
+        {
+          "menuItemId": "0541008d-da26-4a43-a51f-dc57fe124572",
+          "name": "Placki ziemniaczane 4 szt.",
+          "price": 13,
+          "quantity": 7,
+          "restaurant_id": "1fc1e782-bac6-47b2-978a-f6f2b38000cd",
+          "restaurant_name": "Restauracja Stara Kamienica",
+          "matchScore": 1
+        },
+        {
+          "menuItemId": "1427dbd6-eccd-439e-a9fb-513b9af1124a",
+          "name": "Kluski śląskie 7 szt.",
+          "price": 10,
+          "quantity": 7,
+          "restaurant_id": "1fc1e782-bac6-47b2-978a-f6f2b38000cd",
+          "restaurant_name": "Restauracja Stara Kamienica",
+          "matchScore": 1
+        },
+        {
+          "menuItemId": "001a11cc-a541-4f59-8a56-c2c4eafe464d",
+          "name": "Jajecznica z 2 szt. jaj",
+          "price": 11,
+          "quantity": 7,
+          "restaurant_id": "1fc1e782-bac6-47b2-978a-f6f2b38000cd",
+          "restaurant_name": "Restauracja Stara Kamienica",
+          "matchScore": 1
+        }
+      ],
+      "unavailable": [],
+      "needsClarification": true,
+      "unknownItems": [
+        {
+          "name": "kluski śląskie 7 szt.",
+          "reason": "no_alias_match"
+        }
+      ]
+    }
+  },
+  "domain": "ordering"
+}
+[NLU] Result: {
+  intent: 'create_order',
+  confidence: 0.85,
+  source: 'classic',
+  entities: {
+    location: 'Kluski',
+    cuisine: null,
+    quantity: 7,
+    restaurant: null,
+    restaurantId: null,
+    dish: null,
+    items: null,
+    parsedOrder: {
+      any: true,
+      groups: [Array],
+      clarify: [],
+      available: [Array],
+      unavailable: [],
+      needsClarification: true,
+      unknownItems: [Array]
+    }
+  },
+  domain: 'ordering'
+}
+đźš« CLASSIC_ROUTE_INVARIANT_VIOLATED {
+  source: 'classic',
+  intent: 'create_order',
+  sessionId: 'sess_1772921251199_np82p3'
+}
+CLASSIC ROUTE DETECTED â€” classic
+[KROK5-DEBUG] order entry {"text":"Kluski śląskie 7 szt.","dish":null,"quantity":7,"currentRestaurant":"Restauracja Stara Kamienica","lastRestaurant":"Restauracja Stara Kamienica","lastMenuCount":25}
+đź§  OrderHandler executing with disambiguation...
+[DishMatch] [
+  { name: 'Kluski śląskie', score: 3 },
+  { name: 'Pierogi', score: 0.6 },
+  { name: 'Kroket', score: 0.6 }
+]
+[KROK5-DEBUG] match state {"searchPhrase":"Kluski śląskie 7 szt.","token":"kluski slaskie 7 szt.","menuLength":25,"directMatch":"Kluski śląskie 7 szt."}
+đź§  Disambiguation Result: ADD_ITEM for "Kluski śląskie 7 szt."
+đźźŁ PIPELINE FINAL REPLY [create_order]: "Dodałam 7 sztuk Kluski śląskie 7 szt. z Restauracja Stara Kamienica. Razem 70.00 zł."
+stylizeWithGPT4o error: 429 You exceeded your current quota, please check your plan and billing details. For more information on this error, read the docs: https://platform.openai.com/docs/guides/error-codes/api-errors.
+[TTS] Generating: Dodałam 7 sztuk Kluski śląskie 7 szt. z Restauracja Stara Kamienica. Razem 70,00...
+✅ Google access token obtained successfully
+🔊 Using Vertex: pl-PL-Wavenet-A
+✅ TTS audio generated successfully
+tts_total: 1.025s
+[PIPELINE] đź”Š TTS Generated: "Dodałam 7 sztuk Kluski śląskie..." (1026ms)
+âŹąď¸Ź  [Pipeline] DONE  sess_177-mmgzp9ol | intent=create_order | source=classic | 6558ms
