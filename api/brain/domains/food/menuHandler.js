@@ -40,7 +40,7 @@ export class MenuHandler {
 
         // C) Z sesji (Context)
         if (!restaurant) {
-            restaurant = session?.lastRestaurant;
+            restaurant = session?.currentRestaurant || session?.lastRestaurant;
         }
 
         // 2. Walidacja: Brak restauracji
@@ -79,17 +79,17 @@ export class MenuHandler {
         }
 
         // --- OPTIMIZATION: Task 2 - Menu Cache Shortcut ---
-        const lastRestaurant = session?.lastRestaurant;
+        const sessionRestaurant = session?.currentRestaurant || session?.lastRestaurant;
         const cachedRestaurantId = session?.last_menu_restaurant_id;
         const canUseCache =
-            lastRestaurant &&
-            restaurant.id === lastRestaurant.id &&
+            sessionRestaurant &&
+            restaurant.id === sessionRestaurant.id &&
             cachedRestaurantId === restaurant.id &&
             session?.last_menu &&
             session.last_menu.length > 0;
 
         if (canUseCache) {
-            console.log(`⚡ Cache Hit: Returning cached menu for ${lastRestaurant.name}`);
+            console.log(`⚡ Cache Hit: Returning cached menu for ${sessionRestaurant.name}`);
             console.log(`[MenuCache] HIT restaurant=${restaurant.id} items=${session.last_menu.length}`);
             const items = session.last_menu;
 
@@ -107,7 +107,7 @@ export class MenuHandler {
 
             return {
                 intent: 'menu_request', // Standard V2
-                reply: `Wybrano restaurację ${lastRestaurant.name}. Polecam: ${items.map(m => m.name).join(', ')}. Co podać?`,
+                reply: `Wybrano restaurację ${sessionRestaurant.name}. Polecam: ${items.map(m => m.name).join(', ')}. Co podać?`,
                 menuItems: items,
                 restaurants: [],
                 meta: { source: 'cache', latency_total_ms: 0 },

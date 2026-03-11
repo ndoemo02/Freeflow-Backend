@@ -51,6 +51,7 @@ export function matchDishPhonetic(input, menu) {
 
     const normInput = normalizePhonetic(input);
     if (normInput.length < 3) return null;
+    if (/\d/.test(normInput)) return null;
 
     const inputTokens = normInput.split(' ').filter(t => t.length >= 4);
 
@@ -67,20 +68,20 @@ export function matchDishPhonetic(input, menu) {
             return item.name;
         }
 
-        // Strategia 2: input zawiera dowolny znaczący token dania (≥4 znaki)
-        for (const dishToken of dishTokens) {
-            if (normInput.includes(dishToken)) {
-                return item.name;
-            }
+        // Strategia 2: input pokrywa wszystkie istotne tokeny dania lub odwrotnie.
+        const allDishTokensPresent = dishTokens.every((dishToken) => normInput.includes(dishToken));
+        const allInputTokensPresent = inputTokens.length > 0 && inputTokens.every((inputToken) => normDish.includes(inputToken));
+        if (allDishTokensPresent || allInputTokensPresent) {
+            return item.name;
         }
 
-        // Strategia 3: dowolny token inputu levenshtein ≤1 od dowolnego tokenu dania
-        for (const it of inputTokens) {
-            for (const dt of dishTokens) {
-                if (levenshtein(it, dt) <= 1) {
-                    return item.name;
-                }
-            }
+        // Strategia 3: near-match dopiero gdy wszystkie istotne tokeny są pokryte.
+        const nearMatches = inputTokens.reduce((count, it) => {
+            const hasNear = dishTokens.some((dt) => levenshtein(it, dt) <= 1);
+            return count + (hasNear ? 1 : 0);
+        }, 0);
+        if (nearMatches > 0 && nearMatches === inputTokens.length) {
+            return item.name;
         }
     }
 
