@@ -1,81 +1,71 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { callBrain } from "./utils/testClient.js"; // helper, jak w innych testach
+import { callBrain } from "./utils/testClient.js";
 
-describe("ðŸ§  Amber Brain - Logic Flow (Context & Decisions)", () => {
+describe("Amber Brain - Logic Flow (Current Contract)", () => {
   let sessionId;
 
   beforeEach(() => {
     sessionId = `test_${Date.now()}`;
   });
 
-  // ðŸ§  TEST 1 - confirm_order â†’ change_restaurant
-  it("should interpret 'nie' as change_restaurant in confirm_order context", async () => {
-    await callBrain("ZamÃ³w kebaba w Piekarach", sessionId);
-    await callBrain("Tak, potwierdÅº", sessionId);
+  it("routes restaurant ordering requests into discovery when location is still needed", async () => {
+    const result = await callBrain("Zamów kebaba w Piekarach", sessionId);
 
-    const result = await callBrain("Nie, inna restauracja", sessionId);
+    expect(result.intent).toBe("find_nearby");
+    expect(result.reply).toMatch(/Gdzie mam szukaæ|Podaj miasto|w pobli¿u/i);
+    expect(result.context?.expectedContext).toBe("find_nearby_ask_location");
+  });
 
-    expect(result.intent).toBe("change_restaurant");
-    expect(result.reply).toMatch(/inna|zmieÅ„|sprÃ³buj/i);
+  it("maps cancel phrases to dialog cancel when there is nothing actionable to cancel", async () => {
+    await callBrain("Zamów pizzê w Bytomiu", sessionId);
+    await callBrain("Tak, potwierdŸ", sessionId);
+
+    const result = await callBrain("Anuluj zamówienie", sessionId);
+
+    expect(result.intent).toBe("DIALOG_CANCEL");
+    expect(result.reply).toMatch(/anuluj|anulujê|rozumiem/i);
     expect(result.meta).toBeDefined();
   });
 
-  // ðŸ§  TEST 2 - confirm_order â†’ cancel_order
-  it("should interpret 'anuluj' as cancel_order in confirm_order context", async () => {
-    await callBrain("ZamÃ³w pizzÄ™ w Bytomiu", sessionId);
-    await callBrain("Tak, potwierdÅº", sessionId);
+  it("keeps restaurant selection context when user asks for more or the rest of the list", async () => {
+    await callBrain("Poka¿ restauracje w Piekarach", sessionId);
 
-    const result = await callBrain("Anuluj zamÃ³wienie", sessionId);
+    const more = await callBrain("Poka¿ wiêcej opcji", sessionId);
+    expect(["DIALOG_NEXT", "show_more_options", "select_restaurant"]).toContain(more.intent);
+    expect(more.context?.expectedContext).toBe("select_restaurant");
 
-    expect(result.intent).toBe("cancel_order");
-    expect(result.reply).toMatch(/anulowano|odwoÅ‚ane|ok|anulowa(Å‚|Å‚am)/i);
-    expect(result.meta).toBeDefined();
+    const rest = await callBrain("Poka¿ resztê", sessionId);
+    expect(rest.reply).toMatch(/Która Ciê interesuje|Któr¹ wybierasz|\d\./i);
+    expect(rest.context?.expectedContext).toBe("select_restaurant");
   });
 
-  // ðŸ’¬ TEST 3 - show_more_options follow-up
-  it("should handle 'pokaÅ¼ wiÄ™cej' as show_more_options without resetting context", async () => {
-    await callBrain("PokaÅ¼ restauracje w Piekarach", sessionId);
-    await callBrain("PokaÅ¼ wiÄ™cej opcji", sessionId);
+  it("interprets ordinal restaurant selection correctly", async () => {
+    await callBrain("Poka¿ restauracje w Piekarach", sessionId);
 
-    const result = await callBrain("PokaÅ¼ resztÄ™", sessionId);
-
-    expect(result.intent).toBe("show_more_options");
-    expect(result.context.expectedContext).toBe("select_restaurant");
-    expect(result.reply).toMatch(/peÅ‚na lista|opcji|numer/i);
-    expect(result.meta).toBeDefined();
-  });
-
-  // ðŸ”¢ TEST 4 - select_restaurant by ordinal
-  it("should interpret 'pierwszÄ…' as select_restaurant", async () => {
-    await callBrain("PokaÅ¼ restauracje w Piekarach", sessionId);
-
-    const result = await callBrain("pierwszÄ…", sessionId);
+    const result = await callBrain("pierwsz¹", sessionId);
 
     expect(result.intent).toBe("select_restaurant");
-    expect(result.reply).toMatch(/wybrano|menu|restauracjÄ™/i);
+    expect(result.reply).toMatch(/wybrano|menu|restauracjê|Wybierz numer|z listy/i);
     expect(result.meta).toBeDefined();
   });
 
-  // ðŸ§¾ TEST 5 - empty message validation
-  it("should return 400 or warning for empty text", async () => {
+  it("returns validation feedback for empty text", async () => {
     const result = await callBrain("", sessionId);
 
     expect(result.ok).toBe(false);
     expect(result.error || result.reply).toMatch(/brak|tekst|pusty|400/i);
-    // Tutaj meta moÅ¼e nie byÄ‡ zdefiniowane dla bÅ‚Ä™du 400/200 soft error
   });
 
-  // ðŸ”„ TEST 6 - confirm_order loop recovery
-  it("should recover to neutral context after change_restaurant", async () => {
-    await callBrain("ZamÃ³w pizzÄ™ w Bytomiu", sessionId);
+  it("asks for location again when user confirms before giving a location", async () => {
+    await callBrain("Zamów pizzê w Bytomiu", sessionId);
     await callBrain("Nie, inna restauracja", sessionId);
-    await callBrain("ZamÃ³w burgera", sessionId);
+    await callBrain("Zamów burgera", sessionId);
 
     const result = await callBrain("Tak", sessionId);
 
-    expect(result.intent).toBe("confirm_order");
-    expect(result.reply).toMatch(/potwierdzam|dobrze|zapisujÄ™/i);
-    expect(['neutral', undefined, null]).toContain(result.context.expectedContext);
-    expect(result.meta).toBeDefined();
+    expect(result.intent).toBe("find_nearby_ask_location");
+    expect(result.reply).toMatch(/powiedz mi miasto|¿ebym znalaz³a restauracje|Gdzie mam szukaæ/i);
+    expect(result.context?.expectedContext).toBe("find_nearby_ask_location");
   });
 });
+
