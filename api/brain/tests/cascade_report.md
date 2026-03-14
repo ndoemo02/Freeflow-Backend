@@ -1,5 +1,5 @@
 # Cascade Test Report
-_Generated: 2026-03-06T19:03:54.821Z_
+_Generated: 2026-03-14T12:06:07.348Z_
 
 ## Main Scenarios
 
@@ -26,9 +26,9 @@ _Generated: 2026-03-06T19:03:54.821Z_
 | 19 | Restauracja Stara Kamienica | Rolada śląska z kluskami i modrą kapustą | full | `find_nearby→select_restaurant→menu_request→create_order→create_order` | 1 | - | ✅ PASS | ok |
 | 20 | Restauracja Stara Kamienica | Rolada śląska z kluskami i modrą kapustą | alias | `find_nearby→select_restaurant→menu_request→create_order→create_order` | 1 | - | ✅ PASS | ok |
 | 21 | Restauracja Stara Kamienica | Rolada śląska z kluskami i modrą kapustą | qty_2 | `find_nearby→select_restaurant→menu_request→create_order→create_order` | 1 | - | ✅ PASS | ok |
-| 22 | Restauracja Stara Kamienica | Żurek śląski na maślance | full | `find_nearby→select_restaurant→menu_request→create_order→create_order` | 1 | - | ✅ PASS | ok |
+| 22 | Restauracja Stara Kamienica | Żurek śląski na maślance | full | `find_nearby→select_restaurant→menu_request→clarify_order→create_order` | 0 | - | ❌ FAIL | cart_empty (cartItems=0) |
 | 23 | Restauracja Stara Kamienica | Żurek śląski na maślance | alias | `find_nearby→select_restaurant→menu_request→clarify_order→create_order` | 0 | - | ❌ FAIL | cart_empty (cartItems=0) |
-| 24 | Restauracja Stara Kamienica | Żurek śląski na maślance | qty_2 | `find_nearby→select_restaurant→menu_request→create_order→create_order` | 1 | - | ✅ PASS | ok |
+| 24 | Restauracja Stara Kamienica | Żurek śląski na maślance | qty_2 | `find_nearby→select_restaurant→menu_request→clarify_order→create_order` | 0 | - | ❌ FAIL | cart_empty (cartItems=0) |
 | 25 | Restauracja Stara Kamienica | Kotlet schabowy z ziemniakami i kapustą | full | `find_nearby→select_restaurant→menu_request→create_order→create_order` | 1 | - | ✅ PASS | ok |
 | 26 | Restauracja Stara Kamienica | Kotlet schabowy z ziemniakami i kapustą | alias | `find_nearby→select_restaurant→menu_request→create_order→create_order` | 1 | - | ✅ PASS | ok |
 | 27 | Restauracja Stara Kamienica | Kotlet schabowy z ziemniakami i kapustą | qty_2 | `find_nearby→select_restaurant→menu_request→create_order→create_order` | 1 | - | ✅ PASS | ok |
@@ -87,7 +87,7 @@ _Generated: 2026-03-06T19:03:54.821Z_
 
 ## Summary
 
-- **Main scenarios:** 71/72 PASS
+- **Main scenarios:** 69/72 PASS
 - **Edge tests:** 1/2 PASS
-- **Total:** 72/74 PASS
+- **Total:** 70/74 PASS
 - **State warnings:** 0 scenarios had FSM state issues
