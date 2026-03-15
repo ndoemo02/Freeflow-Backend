@@ -1,4 +1,4 @@
-﻿// Food Domain: Order Handler
+// Food Domain: Order Handler
 // Odpowiada za proces skĹ‚adania zamĂłwienia (Parsowanie -> Koszyk -> Potwierdzenie).
 
 import { extractQuantity, normalizeDish, findBestDishMatch } from '../../helpers.js';
@@ -57,7 +57,7 @@ function getSessionMenu(session = {}) {
     return [];
 }
 
-function findDirectMenuMatch(searchPhrase, menu = []) {
+function findDirectMenuMatch(searchPhrase, menu = [], session = null) {
     if (!searchPhrase || !Array.isArray(menu) || menu.length === 0) {
         return null;
     }
@@ -65,7 +65,7 @@ function findDirectMenuMatch(searchPhrase, menu = []) {
     const attempts = [];
     const rawPhrase = String(searchPhrase || '').trim();
     const normalizedPhrase = normalizeDish(rawPhrase);
-    const canonicalPhrase = canonicalizeDish(rawPhrase);
+    const canonicalPhrase = canonicalizeDish(rawPhrase, session);
     const normalizedCanonical = normalizeDish(canonicalPhrase);
 
     if (rawPhrase) attempts.push(rawPhrase);
@@ -82,6 +82,34 @@ function findDirectMenuMatch(searchPhrase, menu = []) {
 
     return null;
 }
+function isStaraKamienicaSession(session = {}) {
+    const restaurantName =
+        session?.currentRestaurant?.name ||
+        session?.lastRestaurant?.name ||
+        '';
+    return normalizeDish(restaurantName) === normalizeDish('Restauracja Stara Kamienica');
+}
+
+function resolveScopedZurekFallback(menu = []) {
+    if (!Array.isArray(menu) || menu.length === 0) {
+        return null;
+    }
+
+    const normalizedSoupCandidates = menu.filter((item) => {
+        const normalized = normalizeDish(item?.base_name || item?.name || '');
+        return normalized.includes('zupa') || normalized.includes('rosol');
+    });
+
+    if (normalizedSoupCandidates.length === 0) {
+        return null;
+    }
+
+    const zupaDnia = normalizedSoupCandidates.find((item) =>
+        normalizeDish(item?.base_name || item?.name || '').includes('zupa dnia')
+    );
+    return zupaDnia || normalizedSoupCandidates[0];
+}
+
 export class OrderHandler {
 
     async execute(ctx) {
@@ -146,14 +174,49 @@ export class OrderHandler {
         const currentRestaurantId = session?.currentRestaurant?.id || session?.lastRestaurant?.id;
 
         const menu = getSessionMenu(session);
-        const token = normalizeDish(searchPhrase);
+        const canonicalDish = canonicalizeDish(searchPhrase, session);
+        const requestedDish = canonicalDish || searchPhrase;
+        const token = normalizeDish(requestedDish);
 
         let directMatch = null;
+        let menuCandidates = [];
+
         if (token && menu.length > 0) {
-            directMatch = findDirectMenuMatch(searchPhrase, menu);
+            directMatch = findDirectMenuMatch(requestedDish, menu, session);
+
+            // Defensive fallback: token word match inside current menu snapshot.
+            if (!directMatch) {
+                menuCandidates = menu.filter((item) => {
+                    const base = normalizeDish(item?.base_name || '');
+                    const name = normalizeDish(item?.name || '');
+                    return (base && base.includes(token)) || (name && name.includes(token));
+                });
+
+                if (menuCandidates.length === 1) {
+                    directMatch = menuCandidates[0];
+                }
+            }
         }
+
+        if (!directMatch && isStaraKamienicaSession(session)) {
+            const normalizedRequestedDish = normalizeDish(requestedDish);
+            const isZurekRequest =
+                normalizedRequestedDish.includes('zurek') ||
+                normalizedRequestedDish.includes('urek') ||
+                normalizedRequestedDish === 'zur' ||
+                normalizedRequestedDish.includes('zur ');
+
+            if (isZurekRequest) {
+                const scopedFallback = resolveScopedZurekFallback(menu);
+                if (scopedFallback) {
+                    directMatch = scopedFallback;
+                    menuCandidates = [scopedFallback];
+                }
+            }
+        }
+
         console.log('[KROK5-DEBUG] match state', JSON.stringify({
-            searchPhrase,
+            searchPhrase: requestedDish,
             token,
             menuLength: menu.length,
             directMatch: directMatch?.name || null
@@ -165,7 +228,7 @@ export class OrderHandler {
                 item: directMatch,
                 restaurant: session?.currentRestaurant || session?.lastRestaurant
             }
-            : await resolveMenuItemConflict(searchPhrase, {
+            : await resolveMenuItemConflict(requestedDish, {
                 restaurant_id: currentRestaurantId,
                 entities,
                 session: {

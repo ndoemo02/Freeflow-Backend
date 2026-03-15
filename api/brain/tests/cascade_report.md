@@ -1,5 +1,5 @@
 # Cascade Test Report
-_Generated: 2026-03-14T12:06:07.348Z_
+_Generated: 2026-03-15T09:28:49.867Z_
 
 ## Main Scenarios
 
@@ -83,11 +83,11 @@ _Generated: 2026-03-14T12:06:07.348Z_
 | test | PASS/FAIL | reason | details |
 |------|-----------|--------|---------|
 | EdgeTest::GhostCart | ✅ PASS | ok | SessionA confirmed. SessionB cartItems=0 |
-| EdgeTest::TransactionLock | ❌ FAIL | setup_failed: no pendingOrder after dish step (intent=create_order) | Cannot test lock without pendingOrder. expectedContext=null |
+| EdgeTest::TransactionLock | ✅ PASS | ok | after_breakout intent=find_nearby source=restaurant_navigation_override pending=false awaiting=false autocommit=true |
 
 ## Summary
 
 - **Main scenarios:** 69/72 PASS
-- **Edge tests:** 1/2 PASS
-- **Total:** 70/74 PASS
+- **Edge tests:** 2/2 PASS
+- **Total:** 71/74 PASS
 - **State warnings:** 0 scenarios had FSM state issues

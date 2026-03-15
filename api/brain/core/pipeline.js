@@ -28,7 +28,7 @@ import { renderSurface, detectSurface } from '../dialog/SurfaceRenderer.js';
 import { dialogNavGuard, pushDialogStack } from '../dialog/DialogNavGuard.js';
 import { resolveMenuItemConflict, DISAMBIGUATION_RESULT } from '../services/DisambiguationService.js';
 import { ORDER_INTENTS, TRANSACTION_ALLOWED_INTENTS, ORDER_INTENTS_CLEANUP, ESCAPE_INTENTS, CONFIDENT_SOURCES, EXPLICIT_ESCAPE_SOURCES, CART_MUTATION_WHITELIST, CONFIRMATION_CONTEXTS } from './pipeline/IntentGroups.js';
-import { runGuardChain } from './pipeline/GuardChain.js';
+import { GUARD_CHAIN } from './pipeline/guards/index.js';
 import { ResponseBuilder } from './pipeline/ResponseBuilder.js';
 import { MenuHydrationService } from './pipeline/MenuHydrationService.js';
 import { SessionHydrator } from './pipeline/SessionHydrator.js';
@@ -112,15 +112,15 @@ function isExplicitRestaurantNavigation(text = '') {
     return [
         'restaurac',
         'pokaz restauracje',
-        'poka� restauracje',
+        'poka� restauracje',
         'znajdz restauracje',
-        'znajd� restauracje',
+        'znajd� restauracje',
         'dostepne restauracje',
-        'dost�pne restauracje',
+        'dost�pne restauracje',
         'w poblizu',
-        'w pobli�u',
+        'w pobli�u',
         'gdzie moge zjesc',
-        'gdzie mog� zje��',
+        'gdzie mog� zje��',
         'gdzie zjem'
     ].some((phrase) => normalized.includes(phrase));
 }
@@ -285,7 +285,8 @@ export class BrainPipeline {
             startTime,
             meta: { conversationNew: sessionResult.isNew },
             body: requestBody,
-            coords
+            coords,
+            trace: ['hydrated'],
         };
 
         // đź§  Initialize Passive Memory (no FSM impact)
@@ -293,6 +294,17 @@ export class BrainPipeline {
         initEntityCache(sessionContext);
 
         try {
+            await MenuHydrationService.hydrate({
+                sessionContext,
+                activeSessionId,
+                handlers: this.handlers,
+                context,
+                isShadow: IS_SHADOW,
+                updateSession,
+                logger: BrainLogger,
+            });
+            context.trace.push('menu_loaded');
+
             // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
             // 1. DIALOG NAVIGATION GUARD (Meta-Intent Layer)
             // Handles: BACK, REPEAT, NEXT, STOP
@@ -334,6 +346,20 @@ export class BrainPipeline {
             // PRE-NLU CONTEXT OVERRIDE: Fast-track list selections
             // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
             let intentResult;
+            const executedGuardNames = [];
+
+            const executeGuardChain = (intentContext, guardImplementations, pipelineState = {}) => {
+                const state = { ...pipelineState, guardImplementations };
+
+                for (const guard of GUARD_CHAIN) {
+                    executedGuardNames.push(guard.name);
+
+                    intentContext = guard(intentContext, state) || intentContext;
+                    if (state.stopGuardChain) break;
+                }
+
+                return intentContext;
+            };
             const hasList = sessionContext?.last_restaurants_list?.length > 0;
             const normOverrideText = text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
             const isDigitObj = /^\d+$/.test(normOverrideText) || /^wybieram\s+\d+$/.test(normOverrideText);
@@ -354,18 +380,6 @@ export class BrainPipeline {
                 };
             } else {
                 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-                // LAZY LOAD MENU BEFORE NLU (Fix: UNKNOWN_INTENT after menu_request)
-                // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-                await MenuHydrationService.hydrate({
-                    sessionContext,
-                    activeSessionId,
-                    handlers: this.handlers,
-                    context,
-                    isShadow: IS_SHADOW,
-                    updateSession,
-                    logger: BrainLogger,
-                });
-
                 // PRE-NLU: Dish Canonicalization (resolve aliases before NLU)
                 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
                 const canonResult = canonicalizeDish(text, sessionContext);
@@ -380,7 +394,7 @@ export class BrainPipeline {
                 // Runs AFTER canon so canon has first priority.
                 // If a phonetic match is found, text is replaced before NLU.
                 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-                const hasExplicitQuantityPrefix = /^\s*(?:\d+|jeden|jedna|jedno|dwa|dwie|trzy|cztery|pi[e�]c|sze[s�]c|siedem|osiem|dziewi[e�]c|dziesi[e�]c|kilka|par[e�])\b/i.test(text);
+                const hasExplicitQuantityPrefix = /^\s*(?:\d+|jeden|jedna|jedno|dwa|dwie|trzy|cztery|pi[e�]c|sze[s�]c|siedem|osiem|dziewi[e�]c|dziesi[e�]c|kilka|par[e�])\b/i.test(text);
                 if (sessionContext?.last_menu?.length > 0 && !isExplicitRestaurantNavigation(text) && !hasExplicitQuantityPrefix) {
                     const phoneticMatch = matchDishPhonetic(text, sessionContext.last_menu);
                     if (phoneticMatch) {
@@ -396,99 +410,107 @@ export class BrainPipeline {
 
             // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
             const normalizedPreGuardInput = text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\u0142/g, 'l').trim();
-            const preIntentGuardsState = {
+            const preIntentContext = {
                 intent: intentResult?.intent,
-                session: sessionContext,
                 entities: intentResult?.entities,
                 text,
-                stopChain: false
+                source: intentResult?.source,
+                confidence: intentResult?.confidence,
+                domain: intentResult?.domain,
             };
 
-            const transactionLockGuard = ({ intent }) => {
-                if (
-                    (sessionContext?.pendingOrder || sessionContext?.expectedContext === 'confirm_add_to_cart') &&
-                    intent &&
-                    !ORDER_INTENTS.includes(intent) &&
-                    !ESCAPE_INTENTS.includes(intent)
-                ) {
-                    const lockedIntent = sessionContext.expectedContext || 'create_order';
-                    BrainLogger.pipeline(`[GUARD] TRANSACTION_LOCK: "${intent}" -> "${lockedIntent}" (pendingOrder=${!!sessionContext.pendingOrder})`);
-                    intentResult.intent = lockedIntent;
-                    intentResult.source = 'transaction_lock_override';
-                    intentResult.confidence = 1.0;
-                    intentResult.domain = 'ordering';
-                    return lockedIntent;
-                }
-                return intent;
-            };
-
-            const orderingAffirmationGuard = ({ intent }) => {
-                const isOrderingAffirmation = /^(tak|ok|okej|potwierdzam|zgadza sie|dawaj|dobra|jasne|leci)$/i.test(normalizedPreGuardInput);
-                const hasCartItems = Array.isArray(sessionContext?.cart?.items) && sessionContext.cart.items.length > 0;
-                if (isOrderingAffirmation && sessionContext?.conversationPhase === 'ordering' && hasCartItems && !sessionContext?.pendingOrder) {
-                    const lastCartItem = sessionContext.cart.items[sessionContext.cart.items.length - 1];
-                    if (lastCartItem?.name) {
-                        BrainLogger.pipeline(`ORDERING_AFFIRMATION_GUARD: repeating last cart item "${lastCartItem.name}"`);
-                        intentResult.intent = 'create_order';
-                        intentResult.domain = 'ordering';
-                        intentResult.source = 'ordering_affirmation_repeat';
-                        intentResult.confidence = 1.0;
-                        intentResult.entities = {
-                            ...(intentResult.entities || {}),
-                            dish: lastCartItem.name,
-                            quantity: 1,
-                            restaurant: sessionContext?.currentRestaurant || sessionContext?.lastRestaurant || null,
-                            restaurantId: sessionContext?.currentRestaurant?.id || sessionContext?.lastRestaurant?.id || null
+            const preIntentGuardImplementations = {
+                preNluOverrideGuard: (intentContext) => intentContext,
+                transactionLockGuard: (intentContext) => {
+                    if (
+                        (sessionContext?.pendingOrder || sessionContext?.expectedContext === 'confirm_add_to_cart') &&
+                        intentContext.intent &&
+                        !ORDER_INTENTS.includes(intentContext.intent) &&
+                        !ESCAPE_INTENTS.includes(intentContext.intent)
+                    ) {
+                        const lockedIntent = sessionContext.expectedContext || 'create_order';
+                        BrainLogger.pipeline(`[GUARD] TRANSACTION_LOCK: "${intentContext.intent}" -> "${lockedIntent}" (pendingOrder=${!!sessionContext.pendingOrder})`);
+                        return {
+                            ...intentContext,
+                            intent: lockedIntent,
+                            source: 'transaction_lock_override',
+                            confidence: 1.0,
+                            domain: 'ordering',
                         };
-                        text = lastCartItem.name;
-                        context.text = lastCartItem.name;
-                        preIntentGuardsState.text = lastCartItem.name;
-                        return 'create_order';
                     }
-                }
-                return intent;
-            };
-
-            const escapeOverrideGuard = ({ intent }) => {
-                if (/\bpokaz\s+restaurac/.test(normalizedPreGuardInput) && intent !== 'find_nearby') {
-                    BrainLogger.pipeline(`ESCAPE_OVERRIDE: "${intent}" -> "find_nearby" (phrase="${text}")`);
-                    intentResult.intent = 'find_nearby';
-                    intentResult.source = 'escape_phrase_override';
-                    intentResult.confidence = 1.0;
-                    intentResult.domain = 'food';
-                    return 'find_nearby';
-                }
-                return intent;
-            };
-
-            const expectedContextGuard = ({ intent }) => {
-                if (
-                    sessionContext?.expectedContext &&
-                    /^(tak|ok|okej|potwierdzam|zgadza sie|dawaj|dobra|jasne|leci)$/i.test(normalizedPreGuardInput) &&
-                    intent !== sessionContext.expectedContext
-                ) {
-                    BrainLogger.pipeline(`\ud83d\udee1\ufe0f EXPECTED_CONTEXT_OVERRIDE: "${intent}" \u2192 "${sessionContext.expectedContext}" (user said "${text}")`);
-                    intentResult.intent = sessionContext.expectedContext;
-                    intentResult.source = 'expected_context_override';
-                    intentResult.confidence = 1.0;
-                    if (['confirm_add_to_cart', 'confirm_order', 'create_order'].includes(intentResult.intent)) {
-                        intentResult.domain = 'ordering';
+                    return intentContext;
+                },
+                orderingAffirmationGuard: (intentContext) => {
+                    const isOrderingAffirmation = /^(tak|ok|okej|potwierdzam|zgadza sie|dawaj|dobra|jasne|leci)$/i.test(normalizedPreGuardInput);
+                    const hasCartItems = Array.isArray(sessionContext?.cart?.items) && sessionContext.cart.items.length > 0;
+                    if (isOrderingAffirmation && sessionContext?.conversationPhase === 'ordering' && hasCartItems && !sessionContext?.pendingOrder) {
+                        const lastCartItem = sessionContext.cart.items[sessionContext.cart.items.length - 1];
+                        if (lastCartItem?.name) {
+                            BrainLogger.pipeline(`ORDERING_AFFIRMATION_GUARD: repeating last cart item "${lastCartItem.name}"`);
+                            return {
+                                ...intentContext,
+                                intent: 'create_order',
+                                domain: 'ordering',
+                                source: 'ordering_affirmation_repeat',
+                                confidence: 1.0,
+                                entities: {
+                                    ...(intentContext.entities || {}),
+                                    dish: lastCartItem.name,
+                                    quantity: 1,
+                                    restaurant: sessionContext?.currentRestaurant || sessionContext?.lastRestaurant || null,
+                                    restaurantId: sessionContext?.currentRestaurant?.id || sessionContext?.lastRestaurant?.id || null,
+                                },
+                                text: lastCartItem.name,
+                            };
+                        }
                     }
-                    return intentResult.intent;
-                }
-                return intent;
+                    return intentContext;
+                },
+                escapeOverrideGuard: (intentContext) => {
+                    if (/\bpokaz\s+restaurac/.test(normalizedPreGuardInput) && intentContext.intent !== 'find_nearby') {
+                        BrainLogger.pipeline(`ESCAPE_OVERRIDE: "${intentContext.intent}" -> "find_nearby" (phrase="${intentContext.text}")`);
+                        return {
+                            ...intentContext,
+                            intent: 'find_nearby',
+                            source: 'escape_phrase_override',
+                            confidence: 1.0,
+                            domain: 'food',
+                        };
+                    }
+                    return intentContext;
+                },
+                expectedContextGuard: (intentContext) => {
+                    if (
+                        sessionContext?.expectedContext &&
+                        /^(tak|ok|okej|potwierdzam|zgadza sie|dawaj|dobra|jasne|leci)$/i.test(normalizedPreGuardInput) &&
+                        intentContext.intent !== sessionContext.expectedContext
+                    ) {
+                        BrainLogger.pipeline(`🛡️ EXPECTED_CONTEXT_OVERRIDE: "${intentContext.intent}" → "${sessionContext.expectedContext}" (user said "${intentContext.text}")`);
+                        return {
+                            ...intentContext,
+                            intent: sessionContext.expectedContext,
+                            source: 'expected_context_override',
+                            confidence: 1.0,
+                            domain: ['confirm_add_to_cart', 'confirm_order', 'create_order'].includes(sessionContext.expectedContext)
+                                ? 'ordering'
+                                : intentContext.domain,
+                        };
+                    }
+                    return intentContext;
+                },
             };
 
-            const preIntentGuards = [
-                transactionLockGuard,
-                orderingAffirmationGuard,
-                escapeOverrideGuard,
-                expectedContextGuard,
-            ];
-
-            runGuardChain(preIntentGuards, preIntentGuardsState);
-            intentResult.intent = preIntentGuardsState.intent;
-            text = preIntentGuardsState.text;
+            const guardedPreIntentContext = executeGuardChain(preIntentContext, preIntentGuardImplementations);
+            intentResult.intent = guardedPreIntentContext.intent;
+            intentResult.source = guardedPreIntentContext.source ?? intentResult.source;
+            intentResult.confidence = guardedPreIntentContext.confidence ?? intentResult.confidence;
+            intentResult.domain = guardedPreIntentContext.domain ?? intentResult.domain;
+            intentResult.entities = guardedPreIntentContext.entities ?? intentResult.entities;
+            text = guardedPreIntentContext.text;
+            context.text = guardedPreIntentContext.text;
+            context.trace.push(`intent_resolved:${intentResult?.intent || 'unknown'}`);
+            const guardOverride = guardedPreIntentContext.intent !== preIntentContext.intent ? guardedPreIntentContext.intent : 'none';
+            context.trace.push(`guard_override:${guardOverride}`);
 
             // EARLY EXITS (Greetings) - Skip everything else
             // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
@@ -665,8 +687,7 @@ export class BrainPipeline {
 
                 if (isExplicitEscape && confidence >= 0.8) {
                     BrainLogger.pipeline(`đź”“ TRANSACTION_LOCK: User explicitly escaped lock with intent: ${intent} (source: ${source})`);
-                    // We must clear pending order so it doesn't get stuck!
-                    updateSession(activeSessionId, { pendingOrder: null, expectedContext: null });
+                    // Session cleanup is owned by handlers (guard path remains pure).
                 } else {
                     const lockedIntent = sessionContext.expectedContext || 'create_order';
                     BrainLogger.pipeline(`đź”’ TRANSACTION_LOCK: "${intent}" blocked mid-transaction â†’ "${lockedIntent}"`);
@@ -1020,6 +1041,26 @@ export class BrainPipeline {
                 }
             }
 
+            // SCOPED_ZUREK_ORDER_BRIDGE: keep order path for Stara Kamienica when Zurek is unavailable in parser stage.
+            if (intent === 'clarify_order') {
+                const restaurantName = (sessionContext?.currentRestaurant?.name || sessionContext?.lastRestaurant?.name || '').toLowerCase();
+                const normalizedOrderText = String(text || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+                const isStaraKamienica = restaurantName.includes('restauracja stara kamienica');
+                const isZurekLike = normalizedOrderText.includes('zurek') || normalizedOrderText.includes('urek') || normalizedOrderText.includes('zur');
+
+                if (isStaraKamienica && isZurekLike) {
+                    BrainLogger.pipeline('SCOPED_ZUREK_ORDER_BRIDGE: clarify_order -> create_order');
+                    intent = 'create_order';
+                    source = 'scoped_zurek_order_bridge';
+                    entities = {
+                        ...(entities || {}),
+                        dish: entities?.dish || text
+                    };
+                }
+            }
+
+
+
             context.intent = intent;
             context.domain = getIntentDomain(intent) || domain || 'food';
             context.entities = entities || {};
@@ -1312,7 +1353,14 @@ export class BrainPipeline {
             if (!domainHandlers[context.intent]) {
                 console.log('[KROK5-DEBUG] missing handler', JSON.stringify({ intent: context.intent, domain: context.domain, entities: context.entities || null }));
             }
-            const domainResponse = await HandlerDispatcher.execute({ handler, context });
+            context.trace.push(`handler:${context.intent}`);
+            const domainResponse = await HandlerDispatcher.executeTransactional({
+                handler,
+                context,
+                applyContextUpdates: !IS_SHADOW ? (contextUpdates) => {
+                    updateSession(activeSessionId, contextUpdates);
+                } : null,
+            });
 
             // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
             // LOCATION COMMIT: Write entities.location to session BEFORE surface detection
@@ -1398,12 +1446,6 @@ export class BrainPipeline {
                     });
                 }
             }
-
-            // Apply state changes from handler
-            if (domainResponse.contextUpdates && !IS_SHADOW) {
-                updateSession(activeSessionId, domainResponse.contextUpdates);
-            }
-
             // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
             // FIX 4: LIGHT PHASE TRACKING (post-handler, post-contextUpdates)
             // Phase is now calculated AFTER:
@@ -1462,7 +1504,9 @@ export class BrainPipeline {
                     meta: {
                         latency_ms: Date.now() - startTime,
                         source,
-                        confidence
+                        confidence,
+                        guard_trace: executedGuardNames,
+                        pipeline_trace: context.trace,
                     },
                     mockContextUpdates: domainResponse.contextUpdates,
                     rawResponse: domainResponse
@@ -1550,6 +1594,12 @@ export class BrainPipeline {
                 ttsMs,
                 getSession,
             });
+
+            response.meta = {
+                ...(response.meta || {}),
+                guard_trace: executedGuardNames,
+                pipeline_trace: context.trace,
+            };
 
             if (EXPERT_MODE) {
                 const turnId = `turn_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;

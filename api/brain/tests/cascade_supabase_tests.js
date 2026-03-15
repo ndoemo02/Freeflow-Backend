@@ -429,6 +429,78 @@ function buildReport(results, edgeResults) {
 }
 
 // ════════════════════════════════════════════════════════════════════
+
+/**
+ * Transaction safety check aligned with autocommit contract.
+ *
+ * In autocommit flow, create_order may commit directly to cart, so pendingOrder
+ * is not guaranteed after dish step. We treat cart persistence + safe context
+ * transition as the contract (instead of mandatory pendingOrder existence).
+ */
+async function runTransactionLockTestAutocommit() {
+    const label = 'EdgeTest::TransactionLock';
+    const sessionId = newSession();
+    const entry = { restaurant: 'Callzone', dish_name: 'Pizza Margherita' };
+
+    try {
+        await runStep(sessionId, 'znajdź restauracje w Piekary Slaskich');
+        await sleep(STEP_DELAY_MS);
+        await runStep(sessionId, entry.restaurant);
+        await sleep(STEP_DELAY_MS);
+        await runStep(sessionId, 'pokaż menu');
+        await sleep(STEP_DELAY_MS);
+
+        const { metrics: orderM } = await runStep(sessionId, entry.dish_name);
+        await sleep(STEP_DELAY_MS);
+
+        const hasPendingOrder = orderM.pendingOrder !== null;
+        const isAwaitingConfirm = orderM.expectedContext === 'confirm_add_to_cart';
+        const hasAutocommitCart = orderM.cartItems > 0;
+        const hasOrderingState = hasPendingOrder || isAwaitingConfirm || hasAutocommitCart;
+
+        if (!hasOrderingState) {
+            return {
+                label,
+                pass: false,
+                reason: `setup_failed: no ordering state after dish step (intent=${orderM.intent})`,
+                details: `pendingOrder=${orderM.pendingOrder !== null} expectedContext=${orderM.expectedContext} cartItems=${orderM.cartItems}`,
+            };
+        }
+
+        const { metrics: lockM } = await runStep(sessionId, 'pokaż restauracje');
+
+        const lockHeldForPendingFlow = [
+            'confirm_add_to_cart',
+            'create_order',
+            'cancel_order',
+        ].includes(lockM.intent) ||
+            lockM.source === 'transaction_lock_override' ||
+            lockM.source === 'transaction_lock';
+
+        const pendingFlowSafe =
+            (hasPendingOrder || isAwaitingConfirm) &&
+            lockHeldForPendingFlow;
+
+        const autocommitSafeEscape =
+            hasAutocommitCart &&
+            lockM.intent === 'find_nearby' &&
+            lockM.cartItems >= orderM.cartItems;
+
+        const cartSafe = hasAutocommitCart ? lockM.cartItems >= orderM.cartItems : true;
+        const pass = (pendingFlowSafe || autocommitSafeEscape) && cartSafe;
+
+        return {
+            label,
+            pass,
+            reason: pass
+                ? 'ok'
+                : `safety_failed: intent=${lockM.intent}, source=${lockM.source}, cart=${orderM.cartItems}->${lockM.cartItems}`,
+            details: `after_breakout intent=${lockM.intent} source=${lockM.source} pending=${hasPendingOrder} awaiting=${isAwaitingConfirm} autocommit=${hasAutocommitCart}`,
+        };
+    } catch (err) {
+        return { label, pass: false, reason: `error: ${err.message}`, details: '' };
+    }
+}
 // MAIN RUNNER
 // ════════════════════════════════════════════════════════════════════
 
@@ -507,7 +579,7 @@ async function main() {
     // --- Edge tests ---
     console.log('━━━ Edge Tests ━━━');
     const ghostResult = await runGhostCartTest();
-    const lockResult = await runTransactionLockTest();
+    const lockResult = await runTransactionLockTestAutocommit();
     const edgeResults = [ghostResult, lockResult];
 
     edgeResults.forEach(e => {

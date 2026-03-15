@@ -324,9 +324,40 @@ export const aliasToDb = Object.fromEntries(
  * @param {string} text - raw user input
  * @returns {string} - canonical DB name or original text
  */
-export function canonicalizeDish(text) {
+const ZUREK_SCOPED_RESTAURANT = 'Restauracja Stara Kamienica';
+const ZUREK_SCOPED_CANONICAL = '\u017burek \u015bl\u0105ski na ma\u015blance';
+
+function normalizeScoped(value = '') {
+    return String(value || '')
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .trim();
+}
+
+export function canonicalizeDish(text, sessionContext = null) {
     if (!text) return text;
     const normalized = text.toLowerCase().trim();
+    const normalizedScoped = normalizeScoped(normalized);
+
+    const restaurantName =
+        sessionContext?.currentRestaurant?.name ||
+        sessionContext?.lastRestaurant?.name ||
+        '';
+
+    const isStaraKamienica =
+        normalizeScoped(restaurantName) === normalizeScoped(ZUREK_SCOPED_RESTAURANT);
+
+    if (isStaraKamienica) {
+        if (
+            normalizedScoped.includes('zurek') ||
+            normalizedScoped.includes('urek') ||
+            normalizedScoped === 'zur' ||
+            normalizedScoped.includes(' zur')
+        ) {
+            return ZUREK_SCOPED_CANONICAL;
+        }
+    }
 
     for (const [dbName, alias] of Object.entries(dishCanon)) {
         if (normalized.includes(alias)) {
