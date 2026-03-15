@@ -28,6 +28,7 @@ import { renderSurface, detectSurface } from '../dialog/SurfaceRenderer.js';
 import { dialogNavGuard, pushDialogStack } from '../dialog/DialogNavGuard.js';
 import { resolveMenuItemConflict, DISAMBIGUATION_RESULT } from '../services/DisambiguationService.js';
 import { ORDER_INTENTS, TRANSACTION_ALLOWED_INTENTS, ORDER_INTENTS_CLEANUP, ESCAPE_INTENTS, CONFIDENT_SOURCES, EXPLICIT_ESCAPE_SOURCES, CART_MUTATION_WHITELIST, CONFIRMATION_CONTEXTS } from './pipeline/IntentGroups.js';
+import { runGuardChain } from './pipeline/GuardChain.js';
 
 // đź§  Passive Memory Layer (read-only context, no FSM impact)
 import { initTurnBuffer, pushUserTurn, pushAssistantTurn } from '../memory/TurnBuffer.js';
@@ -446,77 +447,101 @@ export class BrainPipeline {
             }
 
             // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-            // TRANSACTION LOCK: Block intent changes mid-order
-            // If the user has a pending order or awaits cart confirmation,
-            // navigation/discovery intents CANNOT break the ordering flow.
-            // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+            const normalizedPreGuardInput = text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\u0142/g, 'l').trim();
+            const preIntentGuardsState = {
+                intent: intentResult?.intent,
+                session: sessionContext,
+                entities: intentResult?.entities,
+                text,
+                stopChain: false
+            };
 
-            if (
-                (sessionContext?.pendingOrder || sessionContext?.expectedContext === 'confirm_add_to_cart') &&
-                intentResult?.intent &&
-                !ORDER_INTENTS.includes(intentResult.intent) &&
-                !ESCAPE_INTENTS.includes(intentResult.intent)
-            ) {
-                const lockedIntent = sessionContext.expectedContext || 'create_order';
-                BrainLogger.pipeline(
-                    `đź”’ TRANSACTION_LOCK: "${intentResult.intent}" â†’ "${lockedIntent}" (pendingOrder=${!!sessionContext.pendingOrder})`
-                );
-                intentResult.intent = lockedIntent;
-                intentResult.source = 'transaction_lock_override';
-                intentResult.confidence = 1.0;
-                intentResult.domain = 'ordering';
-            }
-
-            // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-            // HARD GUARD: Respect expectedContext before generic confirm/fallbacks
-            // Standard voice FSM pattern â€” confirmation words map to pending context
-            // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-            const normalized = text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\u0142/g, 'l').trim();
-            const isOrderingAffirmation = /^(tak|ok|okej|potwierdzam|zgadza sie|dawaj|dobra|jasne|leci)$/i.test(normalized);
-            const hasCartItems = Array.isArray(sessionContext?.cart?.items) && sessionContext.cart.items.length > 0;
-            if (isOrderingAffirmation && sessionContext?.conversationPhase === 'ordering' && hasCartItems && !sessionContext?.pendingOrder) {
-                const lastCartItem = sessionContext.cart.items[sessionContext.cart.items.length - 1];
-                if (lastCartItem?.name) {
-                    BrainLogger.pipeline(`ORDERING_AFFIRMATION_GUARD: repeating last cart item "${lastCartItem.name}"`);
-                    intentResult.intent = 'create_order';
-                    intentResult.domain = 'ordering';
-                    intentResult.source = 'ordering_affirmation_repeat';
+            const transactionLockGuard = ({ intent }) => {
+                if (
+                    (sessionContext?.pendingOrder || sessionContext?.expectedContext === 'confirm_add_to_cart') &&
+                    intent &&
+                    !ORDER_INTENTS.includes(intent) &&
+                    !ESCAPE_INTENTS.includes(intent)
+                ) {
+                    const lockedIntent = sessionContext.expectedContext || 'create_order';
+                    BrainLogger.pipeline(`[GUARD] TRANSACTION_LOCK: "${intent}" -> "${lockedIntent}" (pendingOrder=${!!sessionContext.pendingOrder})`);
+                    intentResult.intent = lockedIntent;
+                    intentResult.source = 'transaction_lock_override';
                     intentResult.confidence = 1.0;
-                    intentResult.entities = {
-                        ...(intentResult.entities || {}),
-                        dish: lastCartItem.name,
-                        quantity: 1,
-                        restaurant: sessionContext?.currentRestaurant || sessionContext?.lastRestaurant || null,
-                        restaurantId: sessionContext?.currentRestaurant?.id || sessionContext?.lastRestaurant?.id || null
-                    };
-                    text = lastCartItem.name;
-                    context.text = lastCartItem.name;
-                }
-            }
-            // Escape phrase override: explicit "pokaz restauracje" should always navigate to discovery.
-            if (/\bpokaz\s+restaurac/.test(normalized) && intentResult?.intent !== 'find_nearby') {
-                BrainLogger.pipeline(`ESCAPE_OVERRIDE: "${intentResult?.intent}" -> "find_nearby" (phrase="${text}")`);
-                intentResult.intent = 'find_nearby';
-                intentResult.source = 'escape_phrase_override';
-                intentResult.confidence = 1.0;
-                intentResult.domain = 'food';
-            }
-            if (
-                sessionContext?.expectedContext &&
-                /^(tak|ok|okej|potwierdzam|zgadza sie|dawaj|dobra|jasne|leci)$/i.test(normalized) &&
-                intentResult?.intent !== sessionContext.expectedContext
-            ) {
-                BrainLogger.pipeline(`\ud83d\udee1\ufe0f EXPECTED_CONTEXT_OVERRIDE: "${intentResult?.intent}" \u2192 "${sessionContext.expectedContext}" (user said "${text}")`);
-                intentResult.intent = sessionContext.expectedContext;
-                intentResult.source = 'expected_context_override';
-                intentResult.confidence = 1.0;
-                // Re-map domain for the overridden intent
-                if (['confirm_add_to_cart', 'confirm_order', 'create_order'].includes(intentResult.intent)) {
                     intentResult.domain = 'ordering';
+                    return lockedIntent;
                 }
-            }
+                return intent;
+            };
 
-            // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+            const orderingAffirmationGuard = ({ intent }) => {
+                const isOrderingAffirmation = /^(tak|ok|okej|potwierdzam|zgadza sie|dawaj|dobra|jasne|leci)$/i.test(normalizedPreGuardInput);
+                const hasCartItems = Array.isArray(sessionContext?.cart?.items) && sessionContext.cart.items.length > 0;
+                if (isOrderingAffirmation && sessionContext?.conversationPhase === 'ordering' && hasCartItems && !sessionContext?.pendingOrder) {
+                    const lastCartItem = sessionContext.cart.items[sessionContext.cart.items.length - 1];
+                    if (lastCartItem?.name) {
+                        BrainLogger.pipeline(`ORDERING_AFFIRMATION_GUARD: repeating last cart item "${lastCartItem.name}"`);
+                        intentResult.intent = 'create_order';
+                        intentResult.domain = 'ordering';
+                        intentResult.source = 'ordering_affirmation_repeat';
+                        intentResult.confidence = 1.0;
+                        intentResult.entities = {
+                            ...(intentResult.entities || {}),
+                            dish: lastCartItem.name,
+                            quantity: 1,
+                            restaurant: sessionContext?.currentRestaurant || sessionContext?.lastRestaurant || null,
+                            restaurantId: sessionContext?.currentRestaurant?.id || sessionContext?.lastRestaurant?.id || null
+                        };
+                        text = lastCartItem.name;
+                        context.text = lastCartItem.name;
+                        preIntentGuardsState.text = lastCartItem.name;
+                        return 'create_order';
+                    }
+                }
+                return intent;
+            };
+
+            const escapeOverrideGuard = ({ intent }) => {
+                if (/\bpokaz\s+restaurac/.test(normalizedPreGuardInput) && intent !== 'find_nearby') {
+                    BrainLogger.pipeline(`ESCAPE_OVERRIDE: "${intent}" -> "find_nearby" (phrase="${text}")`);
+                    intentResult.intent = 'find_nearby';
+                    intentResult.source = 'escape_phrase_override';
+                    intentResult.confidence = 1.0;
+                    intentResult.domain = 'food';
+                    return 'find_nearby';
+                }
+                return intent;
+            };
+
+            const expectedContextGuard = ({ intent }) => {
+                if (
+                    sessionContext?.expectedContext &&
+                    /^(tak|ok|okej|potwierdzam|zgadza sie|dawaj|dobra|jasne|leci)$/i.test(normalizedPreGuardInput) &&
+                    intent !== sessionContext.expectedContext
+                ) {
+                    BrainLogger.pipeline(`\ud83d\udee1\ufe0f EXPECTED_CONTEXT_OVERRIDE: "${intent}" \u2192 "${sessionContext.expectedContext}" (user said "${text}")`);
+                    intentResult.intent = sessionContext.expectedContext;
+                    intentResult.source = 'expected_context_override';
+                    intentResult.confidence = 1.0;
+                    if (['confirm_add_to_cart', 'confirm_order', 'create_order'].includes(intentResult.intent)) {
+                        intentResult.domain = 'ordering';
+                    }
+                    return intentResult.intent;
+                }
+                return intent;
+            };
+
+            const preIntentGuards = [
+                transactionLockGuard,
+                orderingAffirmationGuard,
+                escapeOverrideGuard,
+                expectedContextGuard,
+            ];
+
+            runGuardChain(preIntentGuards, preIntentGuardsState);
+            intentResult.intent = preIntentGuardsState.intent;
+            text = preIntentGuardsState.text;
+
             // EARLY EXITS (Greetings) - Skip everything else
             // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
             if (intentResult?.intent === 'greeting') {
