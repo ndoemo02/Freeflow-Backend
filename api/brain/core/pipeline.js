@@ -250,6 +250,7 @@ export class BrainPipeline {
     async process(sessionId, text, options = {}) {
         const startTime = Date.now();
         const IS_SHADOW = options.shadow === true;
+        let activeSessionId = sessionId;
 
         // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
         // SINGLE-ROUTING INVARIANT: In-flight deduplication guard
@@ -260,7 +261,7 @@ export class BrainPipeline {
                 console.warn(`đźš« [Pipeline] DUPLICATE_REQUEST blocked: ${sessionId} â†’ "${text.trim().substring(0, 40)}". Single-routing invariant enforced.`);
                 return {
                     ok: false,
-                    session_id: sessionId,
+                    session_id: activeSessionId,
                     intent: 'duplicate_request',
                     reply: null,
                     should_reply: false,
@@ -294,7 +295,7 @@ export class BrainPipeline {
         // CONVERSATION ISOLATION: Auto-create new session if previous was closed
         // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
         const sessionResult = getOrCreateActiveSession(sessionId);
-        let activeSessionId = sessionResult.sessionId;
+        activeSessionId = sessionResult.sessionId;
         const session = sessionResult.session;
 
         if (sessionResult.isNew && sessionId !== activeSessionId) {
@@ -833,14 +834,14 @@ export class BrainPipeline {
 
                     return {
                         ok: true,
-                        session_id: sessionId,
+                        session_id: activeSessionId,
                         intent: 'menu_request', // Keep original intent for tracking
                         reply: surfaceResult.reply,
                         uiHints: surfaceResult.uiHints,
                         restaurants: sessionContext.last_restaurants_list.slice(0, 5),
                         should_reply: true,
                         meta: { source: 'soft_dialog_bridge', originalIntent: 'menu_request' },
-                        context: getSession(sessionId) || sessionContext
+                        context: getSession(activeSessionId) || sessionContext
                     };
                 }
 
@@ -867,14 +868,14 @@ export class BrainPipeline {
 
                     return {
                         ok: true,
-                        session_id: sessionId,
+                        session_id: activeSessionId,
                         intent: 'create_order', // Keep original intent for tracking
                         reply: surfaceResult.reply,
                         uiHints: surfaceResult.uiHints,
                         restaurants: sessionContext.last_restaurants_list.slice(0, 5),
                         should_reply: true,
                         meta: { source: 'soft_dialog_bridge', originalIntent: 'create_order' },
-                        context: getSession(sessionId) || sessionContext
+                        context: getSession(activeSessionId) || sessionContext
                     };
                 }
 
@@ -1041,14 +1042,14 @@ export class BrainPipeline {
 
                 return {
                     ok: true,
-                    session_id: sessionId,
+                    session_id: activeSessionId,
                     intent: 'choose_restaurant',
                     reply: surfaceResult.reply,
                     uiHints: surfaceResult.uiHints,
                     restaurants: restaurants,
                     should_reply: true,
                     meta: { source: 'choose_restaurant_dialog', ambiguous: true },
-                    context: getSession(sessionId) || sessionContext
+                    context: getSession(activeSessionId) || sessionContext
                 };
             }
             // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
@@ -1123,7 +1124,7 @@ export class BrainPipeline {
                 if (isSimilar && currentName !== mentionedName) {
                     BrainLogger.pipeline(`âś¨ UX Guard 2: Fuzzy match detected. Asking confirmation for ${session.currentRestaurant.name}`);
                     return {
-                        session_id: sessionId,
+                        session_id: activeSessionId,
                         reply: `Czy chodziĹ‚o Ci o ${session.currentRestaurant.name}?`,
                         should_reply: true,
                         intent: 'confirm_restaurant',
@@ -1132,7 +1133,7 @@ export class BrainPipeline {
                             pendingRestaurantConfirm: session.currentRestaurant
                         },
                         meta: { source: 'ux_guard_fuzzy_confirm' },
-                        context: getSession(sessionId) || sessionContext
+                        context: getSession(activeSessionId) || sessionContext
                     };
                 }
             }
@@ -1244,7 +1245,7 @@ export class BrainPipeline {
                     BrainLogger.pipeline('đź›ˇď¸Ź Guard: Context is confirm_restaurant_switch and negation word detected. Cancelling switch.');
                     return {
                         ok: true,
-                        session_id: sessionId,
+                        session_id: activeSessionId,
                         reply: "Dobrze, zostajemy przy obecnym zamĂłwieniu. Co jeszcze chcesz dodaÄ‡?",
                         should_reply: true,
                         intent: 'cancel_switch',
@@ -1253,7 +1254,7 @@ export class BrainPipeline {
                             pendingRestaurantSwitch: null
                         },
                         meta: { source: 'switch_cancelled' },
-                        context: getSession(sessionId) || sessionContext
+                        context: getSession(activeSessionId) || sessionContext
                     };
                 }
             }
@@ -1284,12 +1285,12 @@ export class BrainPipeline {
                         context.intent = 'menu_request';
                     } else {
                         return {
-                            session_id: sessionId,
+                            session_id: activeSessionId,
                             reply: "Co chciaĹ‚byĹ› zamĂłwiÄ‡?",
                             should_reply: true,
                             intent: 'create_order',
                             meta: { source: 'guard_rule_2_explicit_prompt' },
-                            context: getSession(sessionId) || sessionContext
+                            context: getSession(activeSessionId) || sessionContext
                         };
                     }
                 }
@@ -1311,12 +1312,12 @@ export class BrainPipeline {
                         } else {
                             BrainLogger.pipeline('đź›ˇď¸Ź Guard Rule 6: Order intent with no explicit dish. Asking for details.');
                             return {
-                                session_id: sessionId,
+                                session_id: activeSessionId,
                                 reply: "Co dokĹ‚adnie chciaĹ‚byĹ› zamĂłwiÄ‡?",
                                 should_reply: true,
                                 intent: 'create_order',
                                 meta: { source: 'guard_rule_6_no_dish' },
-                                context: getSession(sessionId) || sessionContext
+                                context: getSession(activeSessionId) || sessionContext
                             };
                         }
                     }
@@ -1331,7 +1332,7 @@ export class BrainPipeline {
                         intent: 'session_locked',
                         reply: "Twoje zamĂłwienie zostaĹ‚o juĹĽ zakoĹ„czone. Powiedz 'nowe zamĂłwienie', aby zaczÄ…Ä‡ od poczÄ…tku.",
                         meta: { source: 'guard_lock' },
-                        context: getSession(sessionId) || sessionContext
+                        context: getSession(activeSessionId) || sessionContext
                     };
                 }
                 // Reset session if intent is allowed
@@ -1626,7 +1627,7 @@ export class BrainPipeline {
                     },
                     ...(domainMeta || {})
                 },
-                context: getSession(sessionId),
+                context: getSession(activeSessionId),
                 locationRestaurants: restaurants, // Legacy Alias
                 timestamp: new Date().toISOString()
             };
