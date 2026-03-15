@@ -51,13 +51,9 @@
                 ...(domainMeta || {}),
             },
             context: getSession(activeSessionId),
-            locationRestaurants: restaurants,
+            locationRestaurants: restaurants.length > 0 ? restaurantsWithDisplayName : restaurants,
             timestamp: new Date().toISOString(),
         };
-
-        if (restaurants.length > 0) {
-            response.locationRestaurants = restaurantsWithDisplayName;
-        }
 
         return {
             response,

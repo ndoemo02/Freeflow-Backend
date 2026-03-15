@@ -30,6 +30,9 @@ import { resolveMenuItemConflict, DISAMBIGUATION_RESULT } from '../services/Disa
 import { ORDER_INTENTS, TRANSACTION_ALLOWED_INTENTS, ORDER_INTENTS_CLEANUP, ESCAPE_INTENTS, CONFIDENT_SOURCES, EXPLICIT_ESCAPE_SOURCES, CART_MUTATION_WHITELIST, CONFIRMATION_CONTEXTS } from './pipeline/IntentGroups.js';
 import { runGuardChain } from './pipeline/GuardChain.js';
 import { ResponseBuilder } from './pipeline/ResponseBuilder.js';
+import { MenuHydrationService } from './pipeline/MenuHydrationService.js';
+import { SessionHydrator } from './pipeline/SessionHydrator.js';
+import { HandlerDispatcher } from './pipeline/HandlerDispatcher.js';
 
 // đź§  Passive Memory Layer (read-only context, no FSM impact)
 import { initTurnBuffer, pushUserTurn, pushAssistantTurn } from '../memory/TurnBuffer.js';
@@ -125,52 +128,6 @@ function isExplicitRestaurantNavigation(text = '') {
 // Kluczem jest "domain", a wewnÄ…trz "intent"
 
 // Default Handlers Map
-const defaultHandlers = {
-    food: {
-        find_nearby: new FindRestaurantHandler(),
-        menu_request: new MenuHandler(), // Correct NLU mapping
-        show_menu: new MenuHandler(),    // Alias
-        create_order: new OrderHandler(),
-        choose_restaurant: new OrderHandler(), // Handle ambiguous restaurant choice in OrderHandler
-        confirm_order: new ConfirmOrderHandler(),
-        confirm_add_to_cart: new ConfirmAddToCartHandler(), // NEW
-        select_restaurant: new SelectRestaurantHandler(),
-        show_more_options: new OptionHandler(),
-        find_nearby_confirmation: new FindRestaurantHandler(),
-        recommend: {
-            execute: async (ctx) => ({
-                reply: 'Co polecam? W okolicy masz Ĺ›wietne opcje! Powiedz gdzie szukaÄ‡.',
-                intent: 'recommend',
-                contextUpdates: { expectedContext: 'find_nearby' }
-            })
-        },
-        cancel_order: {
-            execute: async (ctx) => ({
-                reply: 'Anulowalam zamawianie. Wracam do ekranu glownego.',
-                intent: 'cancel_order',
-                contextUpdates: { pendingOrder: null, expectedContext: null, conversationPhase: 'idle', currentRestaurant: null, lastRestaurant: null, pendingDish: null }
-            })
-        },
-        confirm: new FindRestaurantHandler(),
-    },
-    ordering: {
-        create_order: new OrderHandler(),
-        confirm_order: new ConfirmOrderHandler(),
-        confirm_add_to_cart: new ConfirmAddToCartHandler(),
-        clarify_order: {
-            execute: async (ctx) => ({
-                reply: 'Nie mam pewnoĹ›ci, o ktĂłre danie chodzi. Co dokĹ‚adnie chciaĹ‚byĹ› zamĂłwiÄ‡?',
-                intent: 'clarify_order',
-                contextUpdates: { expectedContext: 'create_order' }
-            })
-        }
-    },
-    system: {
-        health_check: { execute: async () => ({ reply: 'System dziaĹ‚a', meta: {} }) },
-        fallback: { execute: async () => ({ reply: 'Nie rozumiem tego polecenia.', fallback: true }) }
-    },
-};
-
 import { SupabaseRestaurantRepository } from './repository.js';
 
 export class BrainPipeline {
@@ -295,16 +252,18 @@ export class BrainPipeline {
         // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
         // CONVERSATION ISOLATION: Auto-create new session if previous was closed
         // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-        const sessionResult = getOrCreateActiveSession(sessionId);
-        activeSessionId = sessionResult.sessionId;
-        const session = sessionResult.session;
+        const hydratedSession = SessionHydrator.hydrate({
+            sessionId,
+            activeSessionId,
+            isShadow: IS_SHADOW,
+            getOrCreateActiveSession,
+            logger: BrainLogger,
+        });
 
-        if (sessionResult.isNew && sessionId !== activeSessionId) {
-            BrainLogger.pipeline(`đź”„ NEW CONVERSATION: ${sessionId} was closed, using ${activeSessionId}`);
-        }
-
-        // Deep copy session for shadow mode simulation
-        const sessionContext = IS_SHADOW ? JSON.parse(JSON.stringify(session || {})) : session;
+        const sessionResult = hydratedSession.sessionResult;
+        activeSessionId = hydratedSession.activeSessionId;
+        const session = hydratedSession.session;
+        const sessionContext = hydratedSession.sessionContext;
 
         const requestBody = options?.requestBody || {};
         const parsedLat = requestBody?.lat != null ? parseFloat(requestBody.lat) : null;
@@ -397,29 +356,16 @@ export class BrainPipeline {
                 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
                 // LAZY LOAD MENU BEFORE NLU (Fix: UNKNOWN_INTENT after menu_request)
                 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-                if (sessionContext?.currentRestaurant && (!sessionContext?.last_menu || sessionContext.last_menu.length === 0)) {
-                    BrainLogger.pipeline('đź”„ PRE-NLU LAZY LOAD: last_menu is empty. Running MenuHandler to hydrate sessionContext.');
-                    const menuHandler = this.handlers['food']['menu_request'];
-                    if (menuHandler) {
-                        try {
-                            if (!sessionContext.lastRestaurant) {
-                                sessionContext.lastRestaurant = sessionContext.currentRestaurant;
-                            }
-                            const handlerResult = await menuHandler.execute(context);
-                            if (handlerResult?.contextUpdates) {
-                                Object.assign(sessionContext, handlerResult.contextUpdates);
-                                if (!IS_SHADOW) {
-                                    updateSession(activeSessionId, handlerResult.contextUpdates);
-                                }
-                                BrainLogger.pipeline(`âś… PRE-NLU LAZY LOAD: Menu hydrated successfully (${sessionContext.last_menu.length} items).`);
-                            }
-                        } catch (err) {
-                            BrainLogger.pipeline(`âťŚ PRE-NLU LAZY LOAD failed: ${err.message}`);
-                        }
-                    }
-                }
+                await MenuHydrationService.hydrate({
+                    sessionContext,
+                    activeSessionId,
+                    handlers: this.handlers,
+                    context,
+                    isShadow: IS_SHADOW,
+                    updateSession,
+                    logger: BrainLogger,
+                });
 
-                // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
                 // PRE-NLU: Dish Canonicalization (resolve aliases before NLU)
                 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
                 const canonResult = canonicalizeDish(text, sessionContext);
@@ -1359,12 +1305,14 @@ export class BrainPipeline {
                 }
             }
 
-            const domainHandlers = this.handlers[context.domain] || {};
-            const handler = domainHandlers[context.intent] || this.handlers.system.fallback;
+            const { domainHandlers, handler } = HandlerDispatcher.resolve({
+                handlers: this.handlers,
+                context,
+            });
             if (!domainHandlers[context.intent]) {
                 console.log('[KROK5-DEBUG] missing handler', JSON.stringify({ intent: context.intent, domain: context.domain, entities: context.entities || null }));
             }
-            const domainResponse = await handler.execute(context);
+            const domainResponse = await HandlerDispatcher.execute({ handler, context });
 
             // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
             // LOCATION COMMIT: Write entities.location to session BEFORE surface detection
