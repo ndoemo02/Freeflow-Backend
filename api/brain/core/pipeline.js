@@ -27,6 +27,7 @@ import {
 import { renderSurface, detectSurface } from '../dialog/SurfaceRenderer.js';
 import { dialogNavGuard, pushDialogStack } from '../dialog/DialogNavGuard.js';
 import { resolveMenuItemConflict, DISAMBIGUATION_RESULT } from '../services/DisambiguationService.js';
+import { ORDER_INTENTS, TRANSACTION_ALLOWED_INTENTS, ORDER_INTENTS_CLEANUP, ESCAPE_INTENTS, CONFIDENT_SOURCES, EXPLICIT_ESCAPE_SOURCES, CART_MUTATION_WHITELIST, CONFIRMATION_CONTEXTS } from './pipeline/IntentGroups.js';
 
 // đź§  Passive Memory Layer (read-only context, no FSM impact)
 import { initTurnBuffer, pushUserTurn, pushAssistantTurn } from '../memory/TurnBuffer.js';
@@ -449,11 +450,6 @@ export class BrainPipeline {
             // If the user has a pending order or awaits cart confirmation,
             // navigation/discovery intents CANNOT break the ordering flow.
             // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-            const ORDER_INTENTS = [
-                'create_order', 'confirm_add_to_cart', 'remove_from_cart',
-                'confirm_order', 'cancel_order'
-            ];
-            const ESCAPE_INTENTS = ['select_restaurant', 'find_nearby', 'show_menu', 'cancel_order', 'cancel'];
 
             if (
                 (sessionContext?.pendingOrder || sessionContext?.expectedContext === 'confirm_add_to_cart') &&
@@ -651,8 +647,6 @@ export class BrainPipeline {
             // Instead of guessing wrong, ask the user what they meant
             // Skip for rule-based sources (guards, overrides) which are always confident
             // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-            const CONFIDENT_SOURCES = ['dish_guard', 'rule_guard', 'context_override', 'expected_context_override',
-                'transaction_lock_override', 'discovery_guard_block', 'catalog_match_explicit', 'explicit_menu_override'];
             if (
                 confidence < 0.5 &&
                 domain === 'food' &&
@@ -687,20 +681,12 @@ export class BrainPipeline {
             // If user is mid-transaction (pendingOrder or awaiting confirmation),
             // only ordering-related intents are allowed through.
             // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-            const TRANSACTION_ALLOWED_INTENTS = [
-                'create_order',
-                'confirm_add_to_cart',
-                'remove_from_cart',
-                'confirm_order',
-                'cancel_order'
-            ];
 
             if (
                 (sessionContext?.pendingOrder || sessionContext?.expectedContext === 'confirm_add_to_cart') &&
                 !TRANSACTION_ALLOWED_INTENTS.includes(intent)
             ) {
                 // If the user explicitly asks to find a restaurant or esc lock, allow it and clear pending
-                const EXPLICIT_ESCAPE_SOURCES = ['discovery_override', 'lock_escape', 'explicit_more_options', 'regex_v2', 'catalog_match_explicit'];
                 const isExplicitEscape = EXPLICIT_ESCAPE_SOURCES.includes(source) ||
                     ['find_nearby', 'select_restaurant', 'show_menu', 'cancel_order', 'cancel'].includes(intent);
 
@@ -887,7 +873,6 @@ export class BrainPipeline {
             // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
             // CART MUTATION GUARD: Only whitelisted intents can mutate cart
             // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-            const CART_MUTATION_WHITELIST = ['confirm_order', 'confirm_add_to_cart', 'remove_from_cart'];
             if (mutatesCart(intent) && !CART_MUTATION_WHITELIST.includes(intent)) {
                 BrainLogger.pipeline(`đź›ˇď¸Ź CART GUARD: ${intent} tried to mutate cart - BLOCKED`);
                 intent = 'find_nearby';
@@ -953,7 +938,6 @@ export class BrainPipeline {
             // If intent diverged from ordering, wipe ghost pendingOrder
             // Prevents old "tak" from adding stale items to cart
             // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-            const ORDER_INTENTS_CLEANUP = ['create_order', 'confirm_add_to_cart', 'remove_from_cart', 'confirm_order', 'cancel_order'];
             if (sessionContext?.pendingOrder && !ORDER_INTENTS_CLEANUP.includes(intent)) {
                 BrainLogger.pipeline(`đź§ą FLOATING_ORDER_CLEANUP: Cleared stale pendingOrder (intent=${intent})`);
                 if (!IS_SHADOW) {
@@ -1192,8 +1176,7 @@ export class BrainPipeline {
 
             // Rule: Confirm Guard
             // Rule: Confirm Guard (General confirmation words handler)
-            const confirmationContexts = ['confirm_order', 'confirm_add_to_cart'];
-            if (confirmationContexts.includes(session?.expectedContext)) {
+            if (CONFIRMATION_CONTEXTS.includes(session?.expectedContext)) {
                 const normalized = (text || "").toLowerCase();
                 const confirmWords = /\b(tak|potwierdzam|ok|dobra|moĹĽe byÄ‡|dawaj|pewnie|jasne|super|Ĺ›wietnie)\b/i;
                 if (confirmWords.test(normalized)) {
