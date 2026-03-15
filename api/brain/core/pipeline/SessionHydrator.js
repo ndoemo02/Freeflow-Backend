@@ -1,12 +1,12 @@
 ﻿export class SessionHydrator {
-    static hydrate({
+    static async hydrate({
         sessionId,
         activeSessionId,
         isShadow,
-        getOrCreateActiveSession,
+        getOrCreateActiveSessionAsync,
         logger,
     }) {
-        const sessionResult = getOrCreateActiveSession(sessionId);
+        const sessionResult = await getOrCreateActiveSessionAsync(sessionId);
         const nextActiveSessionId = sessionResult.sessionId;
         const session = sessionResult.session;
 

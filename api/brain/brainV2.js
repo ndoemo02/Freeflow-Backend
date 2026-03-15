@@ -1,10 +1,11 @@
-/**
+﻿/**
  * Brain V2 - Modular Pipeline Entry Point
  * Zastępuje monolityczny brainRouter.js
  */
 
 import { BrainPipeline } from './core/pipeline.js';
 import { NLURouter } from './nlu/router.js';
+
 // Singleton Initialization (Warm Start)
 const nlu = new NLURouter();
 export const pipeline = new BrainPipeline({ nlu });
@@ -21,7 +22,11 @@ export default async function handler(req, res) {
         const { session_id, input, meta = {} } = body;
 
         const text = input || body.text;
-        const sessionId = session_id || body.sessionId || 'default';
+        const sessionId = session_id || body.sessionId;
+
+        if (!sessionId || typeof sessionId !== 'string' || !sessionId.trim()) {
+            return res.status(400).json({ ok: false, error: 'missing_session_id' });
+        }
 
         if (!text && !body.text) {
             return res.status(400).json({ ok: false, error: 'missing_input' });
@@ -29,20 +34,23 @@ export default async function handler(req, res) {
 
         console.log(`[BrainV2] Request: ${sessionId} -> "${text}" (Channel: ${meta.channel || 'unknown'})`);
 
-        // Options from request, will be guarded by EXPERT_MODE in pipeline
         const options = {
             includeTTS: body.includeTTS || false,
             stylize: body.stylize || false,
             ttsOptions: body.ttsOptions || {},
-            requestBody: body
+            requestBody: body,
         };
 
-        const result = await pipeline.process(sessionId, text, options);
+        const result = await pipeline.process(sessionId.trim(), text, options);
 
-        // ETAP 4 Response contract: result already contains session_id, reply, should_reply, actions
         return res.status(200).json(result);
-
     } catch (error) {
+        const statusCode = error?.statusCode || error?.status || 500;
+
+        if (statusCode === 400) {
+            return res.status(400).json({ ok: false, error: error.message || 'bad_request' });
+        }
+
         console.error('[BrainV2] Generic Error:', error);
         return res.status(500).json({ ok: false, error: 'internal_server_error' });
     }

@@ -1,7 +1,7 @@
-/**
- * NLU Router - Decyzyjny MĂłzg (V2)
- * Odpowiada za klasyfikacjÄ™ intencji i ekstrakcjÄ™ encji.
- * Wykorzystuje Static Catalog dla wydajnoĹ›ci.
+﻿/**
+ * NLU Router - Decyzyjny MÄ‚Ĺ‚zg (V2)
+ * Odpowiada za klasyfikacjĂ„â„˘ intencji i ekstrakcjĂ„â„˘ encji.
+ * Wykorzystuje Static Catalog dla wydajnoÄąâ€şci.
  */
 
 import { normalizeTxt } from '../intents/intentRouterGlue.js';
@@ -16,15 +16,15 @@ function isExplicitRestaurantSearch(text = '') {
     const t = String(text || '').toLowerCase();
     return [
         'restaurac',
-        'pokaĹĽ restauracje',
+        'pokaÄąÄ˝ restauracje',
         'pokaz restauracje',
-        'znajdĹş restauracje',
+        'znajdÄąĹź restauracje',
         'znajdz restauracje',
-        'dostÄ™pne restauracje',
+        'dostĂ„â„˘pne restauracje',
         'dostepne restauracje',
-        'w pobliĹĽu',
+        'w pobliÄąÄ˝u',
         'w poblizu',
-        'gdzie mogÄ™ zjeĹ›Ä‡',
+        'gdzie mogĂ„â„˘ zjeÄąâ€şĂ„â€ˇ',
         'gdzie moge zjesc'
     ].some(k => t.includes(k));
 }
@@ -45,7 +45,7 @@ export class NLURouter {
     }
 
     /**
-     * Wykrywa intencjÄ™ z tekstu i kontekstu
+     * Wykrywa intencjĂ„â„˘ z tekstu i kontekstu
      * @param {Object} ctx - Pipeline context (text, session, etc.)
      * @returns {Promise<{intent: string, confidence: number, entities: Object, source: string, domain: string}>}
      */
@@ -54,7 +54,7 @@ export class NLURouter {
         // Enrich with domain
         result.domain = this._mapDomain(result.intent);
 
-        console.log('đź§  NLURouter Result:', JSON.stringify(result, null, 2));
+        console.log('Ä‘ĹşÂ§Â  NLURouter Result:', JSON.stringify(result, null, 2));
         BrainLogger.nlu('Result:', result);
         return result;
     }
@@ -107,9 +107,9 @@ export class NLURouter {
         };
 
         // --- PRIORITY: Explicit Intent Commands Override Awaiting State ---
-        // If user says "PokaĹĽ menu", that's menu_request even if system was awaiting location
-        const isExplicitMenuRequest = /^(poka[zĹĽ]\s+)?(menu|karta|karte|kartÄ™|oferta|oferte|ofertÄ™|list[ae])(\s+da[Ĺ„n])?$/i.test(normalized) ||
-            /\b(poka[zĹĽ]|zobacz|sprawdz|sprawdĹş|co)\b.*\b(menu|karta|karte|kartÄ™|oferta|oferte|ofertÄ™|list[ae]|cennik|macie)\b/i.test(normalized);
+        // If user says "PokaÄąÄ˝ menu", that's menu_request even if system was awaiting location
+        const isExplicitMenuRequest = /^(poka[zÄąÄ˝]\s+)?(menu|karta|karte|kartĂ„â„˘|oferta|oferte|ofertĂ„â„˘|list[ae])(\s+da[Äąâ€žn])?$/i.test(normalized) ||
+            /\b(poka[zÄąÄ˝]|zobacz|sprawdz|sprawdÄąĹź|co)\b.*\b(menu|karta|karte|kartĂ„â„˘|oferta|oferte|ofertĂ„â„˘|list[ae]|cennik|macie)\b/i.test(normalized);
 
         if (isExplicitMenuRequest && session?.currentRestaurant) {
             return {
@@ -151,7 +151,7 @@ export class NLURouter {
             if (/\b(nie|nie\s+chce|anuluj|stop)\b/i.test(normalized)) {
                 return { intent: 'cancel_order', confidence: 1.0, source: 'rule_guard', entities };
             }
-            if (/\b(tak|potwierdzam|potwierdza|ok|dobra|zamawiam|dodaj|prosze|proszÄ™)\b/i.test(normalized)) {
+            if (/\b(tak|potwierdzam|potwierdza|ok|dobra|zamawiam|dodaj|prosze|proszĂ„â„˘)\b/i.test(normalized)) {
                 return { intent: 'confirm_order', confidence: 1.0, source: 'rule_guard', entities };
             }
         }
@@ -161,17 +161,17 @@ export class NLURouter {
             if (/\b(tak|potwierdzam|ok|dodaj|dawaj)\b/i.test(normalized)) {
                 return { intent: 'confirm_add_to_cart', confidence: 1.0, source: 'rule_guard', entities };
             }
-            if (/\b(nie|anuluj|stop|rezygnujÄ™)\b/i.test(normalized)) {
+            if (/\b(nie|anuluj|stop|rezygnujĂ„â„˘)\b/i.test(normalized)) {
                 return { intent: 'cancel_order', confidence: 1.0, source: 'rule_guard', entities };
             }
         }
 
-        if (session?.conversationPhase === 'ordering' && /\b(anuluj|stop|rezygnuj[eę]|niewazne|nieważne)\b/i.test(normalized)) {
+        if (session?.conversationPhase === 'ordering' && /\b(anuluj|stop|rezygnuj[eÄ™]|niewazne|niewaĹĽne)\b/i.test(normalized)) {
             return { intent: 'cancel_order', confidence: 1.0, source: 'ordering_escape_guard', entities };
         }
         // Guard for confirm_restaurant context (fuzzy confirmation)
         if (session?.expectedContext === 'confirm_restaurant') {
-            if (/\b(tak|potwierdzam|ok|ta|tÄ…|tÄ™|tÄ™)\b/i.test(normalized)) {
+            if (/\b(tak|potwierdzam|ok|ta|tĂ„â€¦|tĂ„â„˘|tĂ„â„˘)\b/i.test(normalized)) {
                 // User confirmed - use pending restaurant
                 return {
                     intent: 'select_restaurant',
@@ -180,19 +180,19 @@ export class NLURouter {
                     entities: { ...entities, confirmedRestaurant: session.pendingRestaurantConfirm }
                 };
             }
-            if (/\b(nie|inna|innÄ…|zmieĹ„|zmien)\b/i.test(normalized)) {
+            if (/\b(nie|inna|innĂ„â€¦|zmieÄąâ€ž|zmien)\b/i.test(normalized)) {
                 // User wants different restaurant
                 return { intent: 'find_nearby', confidence: 1.0, source: 'rule_guard', entities };
             }
         }
 
         if (session?.expectedContext === 'select_restaurant' || session?.expectedContext === 'show_more_options') {
-            const isIntentLike = /(menu|zamawiam|zamĂłw|poproszÄ™|poprosze|wezmÄ™|wezme|chcÄ™|chce|pokaĹĽ|pokaz|znajdĹş|znajdz|gdzie|health)/i.test(normalized);
+            const isIntentLike = /(menu|zamawiam|zamÄ‚Ĺ‚w|poproszĂ„â„˘|poprosze|wezmĂ„â„˘|wezme|chcĂ„â„˘|chce|pokaÄąÄ˝|pokaz|znajdÄąĹź|znajdz|gdzie|health)/i.test(normalized);
             const isManualSelection = /\b(numer|nr|opcja|opcje)\s+\d+\b/i.test(normalized);
             // If it's just a number or simple phrase, it's selection
             if (!isIntentLike || /^[0-9]\b/.test(normalized.trim()) || isManualSelection) {
                 // If it contains "inne" or "wiecej", it might be show_more_options
-                if (/\b(wiecej|wiÄ™cej|inne|lista)\b/i.test(normalized) && !isManualSelection) {
+                if (/\b(wiecej|wiĂ„â„˘cej|inne|lista)\b/i.test(normalized) && !isManualSelection) {
                     // fall through to more options block
                 } else {
                     return {
@@ -206,7 +206,7 @@ export class NLURouter {
         }
 
         // --- OPTIMIZATION (PRIORITY HIGH): More Options ---
-        if (/\b(wiecej|wiÄ™cej|inne|opcje|lista)\b/i.test(normalized)) {
+        if (/\b(wiecej|wiĂ„â„˘cej|inne|opcje|lista)\b/i.test(normalized)) {
             // Only if we were just looking for restaurants
             if (session?.lastIntent === 'find_nearby' || session?.expectedContext === 'select_restaurant' || session?.expectedContext === 'show_more_options') {
                 return {
@@ -220,7 +220,7 @@ export class NLURouter {
 
         // --- NEW: Ordinal Item Selection (np. "pierwszy", "ten drugi", "ostatni") ---
         if (session?.conversationPhase === 'restaurant_selected' || session?.conversationPhase === 'ordering') {
-            const ordinalRegex = /^(?:poprosz[Ä™e]\s+|wezm[Ä™e]\s+|chc[Ä™e]\s+|zamawiam\s+|daj\s+|wybieram\s+|biore\s+|bior[Ä™e]\s+)?(?:ten\s+|t[aÄ…Ä™]\s+|to\s+)?(pierwsz[yae]|drug[iae]|trzec[iae]|czwart[yae]|pi[aÄ…]t[yae]|ostatni[a|e]?)\s*$/i;
+            const ordinalRegex = /^(?:poprosz[Ă„â„˘e]\s+|wezm[Ă„â„˘e]\s+|chc[Ă„â„˘e]\s+|zamawiam\s+|daj\s+|wybieram\s+|biore\s+|bior[Ă„â„˘e]\s+)?(?:ten\s+|t[aĂ„â€¦Ă„â„˘]\s+|to\s+)?(pierwsz[yae]|drug[iae]|trzec[iae]|czwart[yae]|pi[aĂ„â€¦]t[yae]|ostatni[a|e]?)\s*$/i;
             const match = normalized.trim().match(ordinalRegex);
 
             if (match) {
@@ -231,7 +231,7 @@ export class NLURouter {
                 else if (word.startsWith('drug')) idx = 1;
                 else if (word.startsWith('trzec')) idx = 2;
                 else if (word.startsWith('czwart')) idx = 3;
-                else if (word.startsWith('piat') || word.startsWith('piÄ…t')) idx = 4;
+                else if (word.startsWith('piat') || word.startsWith('piĂ„â€¦t')) idx = 4;
                 else if (word.startsWith('ostat')) idx = -1;
 
                 const referenceList = session?.last_menu;
@@ -254,7 +254,7 @@ export class NLURouter {
                     }
                 }
 
-                // Brak listy referencyjnej, lub index poza tablicÄ… -> prosimy o doprecyzowanie
+                // Brak listy referencyjnej, lub index poza tablicĂ„â€¦ -> prosimy o doprecyzowanie
                 return {
                     intent: 'clarify_order',
                     confidence: 1.0,
@@ -267,15 +267,15 @@ export class NLURouter {
         // --- GUARD: Dish Selection Inside Restaurant (Menu Match + Alias Layer) ---
         // If user is in a restaurant and their text matches a dish from last_menu,
         // force create_order. Supports: exact, fuzzy, and alias matching.
-        // NOTE: This guard runs BEFORE isNumericDiscovery so "dwa Pizza" â†’
+        // NOTE: This guard runs BEFORE isNumericDiscovery so "dwa Pizza" Ă˘â€ â€™
         //       create_order+qty=2 instead of find_nearby.
         if (session?.currentRestaurant && session?.last_menu?.length > 0) {
             const menu = session.last_menu;
             const rawDishText = ctx?.body?.text || text;
             const qty = extractQuantity(rawDishText) || 1;
 
-            // Strip leading quantity word so "dwa Pizza Margherita" â†’ "Pizza Margherita"
-            const QTY_STRIP = /^(?:\\d+\\s*|jeden|jedna|jedno|dwa|dwie|trzy|cztery|pi[eÄ™][cÄ‡][u]?|sze[sĹ›][cÄ‡][u]?|siedem|osiem|dziewi[eÄ™][cÄ‡][u]?|dziesi[eÄ™][cÄ‡][u]?|kilka|par[Ä™e])\\s+/i;
+            // Strip leading quantity word so "dwa Pizza Margherita" Ă˘â€ â€™ "Pizza Margherita"
+            const QTY_STRIP = /^(?:\\d+\\s*|jeden|jedna|jedno|dwa|dwie|trzy|cztery|pi[eĂ„â„˘][cĂ„â€ˇ][u]?|sze[sÄąâ€ş][cĂ„â€ˇ][u]?|siedem|osiem|dziewi[eĂ„â„˘][cĂ„â€ˇ][u]?|dziesi[eĂ„â„˘][cĂ„â€ˇ][u]?|kilka|par[Ă„â„˘e])\\s+/i;
             const textForDish = rawDishText.replace(QTY_STRIP, '').trim();
             const normalizedForDish = normalizeDish(textForDish);
 
@@ -353,14 +353,14 @@ export class NLURouter {
 
                     if (matchedWord) {
                         dishMatch = item;
-                        BrainLogger.nlu(`đź”¤ DISH_ALIAS: "${matchedWord}" â†’ "${item.name}"`);
+                        BrainLogger.nlu(`Ä‘Ĺşâ€ťÂ¤ DISH_ALIAS: "${matchedWord}" Ă˘â€ â€™ "${item.name}"`);
                         break;
                     }
                 }
             }
 
             if (dishMatch) {
-                BrainLogger.nlu(`đźŤ˝ď¸Ź DISH_GUARD: Matched "${dishMatch.name}" from menu in restaurant ${session.currentRestaurant.name}`);
+                BrainLogger.nlu(`Ä‘ĹşĹ¤ËťÄŹÂ¸Ĺą DISH_GUARD: Matched "${dishMatch.name}" from menu in restaurant ${session.currentRestaurant.name}`);
                 const amountMatches = text.match(/\d+/g);
                 const hasExplicitNumber = Boolean(amountMatches);
 
@@ -383,7 +383,7 @@ export class NLURouter {
         // --- Patch 3: Quantity + Dish merge (simplified, entities-level) ---
         // If NLU extracted quantity + dish, and we have any ordering context, force create_order.
         if (entities.quantity && entities.quantity > 1 && entities.dish) {
-            BrainLogger.nlu(`đź”˘ QTY_DISH_MERGE: qty=${entities.quantity} dish="${entities.dish}"`);
+            BrainLogger.nlu(`Ä‘Ĺşâ€ťË QTY_DISH_MERGE: qty=${entities.quantity} dish="${entities.dish}"`);
             return {
                 intent: 'create_order',
                 domain: 'ordering',
@@ -393,45 +393,22 @@ export class NLURouter {
             };
         }
 
-        // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-        // TRANSACTION LOCK â€” in-router guard (Patch 2)
-        // Fires BEFORE discovery rules so discovery_guard_block cannot leak.
-        // If the user has a pending order or awaits cart confirmation,
-        // any non-ordering intent is blocked here.
-        // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-        const ORDER_INTENTS_LOCK = [
-            'create_order', 'confirm_add_to_cart', 'remove_from_cart',
-            'confirm_order', 'cancel_order'
-        ];
-        if (session?.pendingOrder || session?.expectedContext === 'confirm_add_to_cart') {
-            // Use expectedContext so FSM stays in the right state
-            const lockedIntent = session.expectedContext || 'create_order';
-            // Only lock if detected intent would escape the ordering flow
-            // We check "preemptively" here before running discovery â€” no detected intent yet
-            // so we just short-circuit the rest of the router.
-            BrainLogger.nlu(`đź”’ ROUTER_TRANSACTION_LOCK: forcing "${lockedIntent}" (pendingOrder=${!!session.pendingOrder})`);
-            return {
-                intent: lockedIntent,
-                confidence: 1.0,
-                source: 'transaction_lock',
-                entities
-            };
-        }
-
+        // Ă˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘Â
+        // Ă˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘Â
         // --- RULE 0 & 5: Discovery & Numerals (Blocking Rules) ---
 
         // 0. Explicit Discovery Keywords (includes location-relative phrases)
         // NOTE: Include both Polish and ASCII versions since normalizeTxt strips diacritics
-        const DISCOVERY_KEYWORDS = ['miejsca', 'restauracje', 'lokale', 'pizzerie', 'gdzie', 'szukam', 'znajdz', 'znajdĹş',
-            'kolo mnie', 'koĹ‚o mnie', 'w poblizu', 'w pobliĹĽu', 'blisko', 'niedaleko', 'w okolicy'];
+        const DISCOVERY_KEYWORDS = ['miejsca', 'restauracje', 'lokale', 'pizzerie', 'gdzie', 'szukam', 'znajdz', 'znajdÄąĹź',
+            'kolo mnie', 'koÄąâ€šo mnie', 'w poblizu', 'w pobliÄąÄ˝u', 'blisko', 'niedaleko', 'w okolicy'];
         // 0.25 Uncertainty markers (e.g., "kfc chyba" = user is exploring, not ordering)
-        const UNCERTAINTY_KEYWORDS = ['chyba', 'moĹĽe', 'jakiĹ›', 'jakieĹ›', 'coĹ›'];
+        const UNCERTAINTY_KEYWORDS = ['chyba', 'moÄąÄ˝e', 'jakiÄąâ€ş', 'jakieÄąâ€ş', 'coÄąâ€ş'];
         // 0.5 Explicit Recommend Keywords
         const RECOMMEND_KEYWORDS = ['polecisz', 'polec'];
         // 5. Numeric Discovery (e.g. "dwa kebaby", "trzy lokale") - if no ordering verb, it's discovery
-        const NUMERALS = /\b(dwa|dwie|dwoje|trzy|troje|cztery|piÄ™Ä‡|szeĹ›Ä‡|siedem|osiem|dziewiÄ™Ä‡|dziesiÄ™Ä‡|kilka|parÄ™)\b/i;
-        // UPDATED: Added natural forms: "biorÄ™", "wezmÄ™", "poproszÄ™", "chciaĹ‚bym", "chciaĹ‚abym"
-        const ORDER_VERBS = /\b(menu|karta|oferta|zamawiam|wezm[Ä™e]|dodaj|poprosz[Ä™e]|chc[Ä™e]|bior[Ä™e]|chciaĹ‚(bym|abym)|skusz[Ä™e]|spr[oĂł]buj[Ä™e]|zdecyduj[Ä™e]|lec[Ä™e]\s+na|bior[Ä™e]\s+to)\b/i;
+        const NUMERALS = /\b(dwa|dwie|dwoje|trzy|troje|cztery|piĂ„â„˘Ă„â€ˇ|szeÄąâ€şĂ„â€ˇ|siedem|osiem|dziewiĂ„â„˘Ă„â€ˇ|dziesiĂ„â„˘Ă„â€ˇ|kilka|parĂ„â„˘)\b/i;
+        // UPDATED: Added natural forms: "biorĂ„â„˘", "wezmĂ„â„˘", "poproszĂ„â„˘", "chciaÄąâ€šbym", "chciaÄąâ€šabym"
+        const ORDER_VERBS = /\b(menu|karta|oferta|zamawiam|wezm[Ă„â„˘e]|dodaj|poprosz[Ă„â„˘e]|chc[Ă„â„˘e]|bior[Ă„â„˘e]|chciaÄąâ€š(bym|abym)|skusz[Ă„â„˘e]|spr[oÄ‚Ĺ‚]buj[Ă„â„˘e]|zdecyduj[Ă„â„˘e]|lec[Ă„â„˘e]\s+na|bior[Ă„â„˘e]\s+to)\b/i;
 
         const isRecommend = RECOMMEND_KEYWORDS.some(k => normalized.includes(k));
         const isDiscovery = DISCOVERY_KEYWORDS.some(k => normalized.includes(k));
@@ -440,9 +417,9 @@ export class NLURouter {
 
         if (isRecommend) {
             if (session?.currentRestaurant) {
-                BrainLogger.nlu('đź›ˇď¸Ź IN_RESTAURANT_GUARD: blocked recommend/find_nearby inside restaurant context');
+                BrainLogger.nlu('Ä‘Ĺşâ€şË‡ÄŹÂ¸Ĺą IN_RESTAURANT_GUARD: blocked recommend/find_nearby inside restaurant context');
             } else {
-            // If recommend + location â†’ treat as find_nearby (implicit discovery)
+            // If recommend + location Ă˘â€ â€™ treat as find_nearby (implicit discovery)
                 if (location) {
                     return {
                         intent: 'find_nearby',
@@ -451,7 +428,7 @@ export class NLURouter {
                         entities
                     };
                 }
-                // No location â†’ ask where to search
+                // No location Ă˘â€ â€™ ask where to search
                 return {
                     intent: 'recommend',
                     confidence: 0.99,
@@ -472,7 +449,6 @@ export class NLURouter {
                 return {
                     intent: 'find_nearby',
                     confidence: 0.99,
-                    source: isNumericDiscovery ? 'rule_5_numeric' : (isUncertain ? 'uncertainty_block' : 'discovery_guard_block'),
                     entities
                 };
             }
@@ -483,8 +459,8 @@ export class NLURouter {
         if (matchedRestaurant) {
             // Check for ordering context FIRST
             // Fix: "Zamawiam z Bar Praha" should be create_order, not select_restaurant
-            // UPDATED: Included "chciaĹ‚bym/chciaĹ‚abym"
-            const isOrderContext = /\b(zamawiam|zamow|zamĂłw|poprosze|poprosz[Ä™e]|wezme|wezm[Ä™e]|biore|bior[Ä™e]|chce|chc[Ä™e]|dla mnie|poprosic|chciaĹ‚(bym|abym)|skusz[Ä™e]|spr[oĂł]buj[Ä™e]|zdecyduj[Ä™e]|lec[Ä™e]\s+na|bior[Ä™e]\s+to)\b/i.test(normalized);
+            // UPDATED: Included "chciaÄąâ€šbym/chciaÄąâ€šabym"
+            const isOrderContext = /\b(zamawiam|zamow|zamÄ‚Ĺ‚w|poprosze|poprosz[Ă„â„˘e]|wezme|wezm[Ă„â„˘e]|biore|bior[Ă„â„˘e]|chce|chc[Ă„â„˘e]|dla mnie|poprosic|chciaÄąâ€š(bym|abym)|skusz[Ă„â„˘e]|spr[oÄ‚Ĺ‚]buj[Ă„â„˘e]|zdecyduj[Ă„â„˘e]|lec[Ă„â„˘e]\s+na|bior[Ă„â„˘e]\s+to)\b/i.test(normalized);
 
             if (isOrderContext) {
                 return {
@@ -495,8 +471,8 @@ export class NLURouter {
                 };
             }
 
-            // Check context: "pokaĹĽ menu w Hubertusie" vs "idziemy do Hubertusa"
-            if (/\b(menu|karta|oferta|cennik|co\s+ma|co\s+maja|zje[sĹ›][Ä‡c])\b/i.test(normalized)) {
+            // Check context: "pokaÄąÄ˝ menu w Hubertusie" vs "idziemy do Hubertusa"
+            if (/\b(menu|karta|oferta|cennik|co\s+ma|co\s+maja|zje[sÄąâ€ş][Ă„â€ˇc])\b/i.test(normalized)) {
                 return {
                     intent: 'menu_request', // Or show_menu alias
                     confidence: 1.0,
@@ -519,7 +495,7 @@ export class NLURouter {
         // (Previously parsed above for entities object)
 
         // --- RULE 1: Show + Restaurant (UX Guard) ---
-        if (parsed.restaurant && /\b(pokaz|pokaĹĽ|co|jakie|zobacz)\b/i.test(normalized)) {
+        if (parsed.restaurant && /\b(pokaz|pokaÄąÄ˝|co|jakie|zobacz)\b/i.test(normalized)) {
             if (!isDiscovery) {
                 return {
                     intent: 'menu_request',
@@ -532,16 +508,16 @@ export class NLURouter {
 
         // --- OPTIMIZATION: Task 1 - Restaurant Lock ---
         if (session?.context === 'IN_RESTAURANT' && session?.lockedRestaurantId) {
-            if (/(zmieĹ„|wrĂłÄ‡|inn[ea]|powrĂłt)/i.test(normalized)) {
+            if (/(zmieÄąâ€ž|wrÄ‚Ĺ‚Ă„â€ˇ|inn[ea]|powrÄ‚Ĺ‚t)/i.test(normalized)) {
                 return { intent: 'find_nearby', confidence: 0.9, source: 'lock_escape', entities: {} };
             }
         }
 
         // --- OPTIMIZATION: Task 3 - Lexical Override (Priority high) ---
         // UPDATED: Syncing verbs
-        const isOrderingVerb = /(wybieram|poprosze|poprosz[Ä™e]|wezme|wezm[Ä™e]|dodaj|zamawiam|zamow|zamĂłw|chce|chc[Ä™e]|zamowie|zamĂłwiÄ™|biore|bior[Ä™e]|chciaĹ‚(bym|abym)|skusz[Ä™e]|spr[oĂł]buj[Ä™e]|zdecyduj[Ä™e]|lec[Ä™e]\s+na|bior[Ä™e]\s+to)/i.test(normalized);
-        const wantsMenuFirst = /\b(menu|karta|karte|kartÄ™|oferta|ofertÄ™|oferte|cennik|co\s+macie|lista|pokaz|pokaĹĽ|zobacz)\b/i.test(normalized);
-        const isChceDiscovery = /chc[Ä™e]\s+(co|gdzie|zje|jedzenie|kuchni|kuchnia|dania|danie|azjatyckie|wloskie|wĹ‚oskie|chinskie|chiĹ„skie|orientalne|restauracj)/i.test(normalized);
+        const isOrderingVerb = /(wybieram|poprosze|poprosz[Ă„â„˘e]|wezme|wezm[Ă„â„˘e]|dodaj|zamawiam|zamow|zamÄ‚Ĺ‚w|chce|chc[Ă„â„˘e]|zamowie|zamÄ‚Ĺ‚wiĂ„â„˘|biore|bior[Ă„â„˘e]|chciaÄąâ€š(bym|abym)|skusz[Ă„â„˘e]|spr[oÄ‚Ĺ‚]buj[Ă„â„˘e]|zdecyduj[Ă„â„˘e]|lec[Ă„â„˘e]\s+na|bior[Ă„â„˘e]\s+to)/i.test(normalized);
+        const wantsMenuFirst = /\b(menu|karta|karte|kartĂ„â„˘|oferta|ofertĂ„â„˘|oferte|cennik|co\s+macie|lista|pokaz|pokaÄąÄ˝|zobacz)\b/i.test(normalized);
+        const isChceDiscovery = /chc[Ă„â„˘e]\s+(co|gdzie|zje|jedzenie|kuchni|kuchnia|dania|danie|azjatyckie|wloskie|wÄąâ€šoskie|chinskie|chiÄąâ€žskie|orientalne|restauracj)/i.test(normalized);
 
         if (!wantsMenuFirst && isOrderingVerb && !isChceDiscovery) {
             // SAFETY CHECK: Ambiguous Item Order (Disambiguation Guard)
@@ -552,11 +528,11 @@ export class NLURouter {
             // FIX: If we found a known dish (parsed.dish), that counts as context!
             // REVERTED: Including parsed.dish breaks Disambiguation Safeguard (generic items like "frytki" become orders).
             // We must rely on legacy/smart layer for specific items, or require restaurant context.
-            // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+            // Ă˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘Â
             // COLLOQUIAL ORDERING in restaurant context: fire immediately,
             // never fall through to legacy (legacy would set choose_restaurant)
-            // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-            // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+            // Ă˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘Â
+            // Ă˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘Â
             const hasRestCtx = session?.lastRestaurant || session?.currentRestaurant ||
                 session?.context === 'IN_RESTAURANT' ||
                 entities.restaurant || matchedRestaurant || parsed.restaurant;
@@ -582,10 +558,10 @@ export class NLURouter {
 
         // 1.5 Explicit Regex NLU (Standardized)
 
-        // A. Menu Request (Simple only OR complex with "pokaĹĽ menu")
-        // Relaxed: if "pokaĹĽ/zobacz" + "menu/karta/oferta" anywhere in text OR "co macie"
-        if (/^(poka[zĹĽ]\s+)?(menu|karta|karte|kartÄ™|oferta|oferte|ofertÄ™|list[ae])(\s+da[Ĺ„n])?$/i.test(normalized) ||
-            /\b(poka[zĹĽ]|zobacz|sprawdz|sprawdĹş|co)\b.*\b(menu|karta|karte|kartÄ™|oferta|oferte|ofertÄ™|list[ae]|cennik|macie|oferte|ofertÄ™)\b/i.test(normalized)) {
+        // A. Menu Request (Simple only OR complex with "pokaÄąÄ˝ menu")
+        // Relaxed: if "pokaÄąÄ˝/zobacz" + "menu/karta/oferta" anywhere in text OR "co macie"
+        if (/^(poka[zÄąÄ˝]\s+)?(menu|karta|karte|kartĂ„â„˘|oferta|oferte|ofertĂ„â„˘|list[ae])(\s+da[Äąâ€žn])?$/i.test(normalized) ||
+            /\b(poka[zÄąÄ˝]|zobacz|sprawdz|sprawdÄąĹź|co)\b.*\b(menu|karta|karte|kartĂ„â„˘|oferta|oferte|ofertĂ„â„˘|list[ae]|cennik|macie|oferte|ofertĂ„â„˘)\b/i.test(normalized)) {
             return {
                 intent: 'menu_request',
                 confidence: 0.95,
@@ -598,11 +574,11 @@ export class NLURouter {
         // NOTE: Also triggers for standalone food words when no order context (exploration mode)
         // B. Find Nearby / Discovery (Fallback Regex)
         // NOTE: Also triggers for standalone food words when no order context (exploration mode)
-        const findRegex = /(co|gdzie).*(zje[sĹ›][Ä‡c]|poleca|poleci|masz|macie|jedzenia|jedzenie)|(szukam|znajd[Ĺşz]).*|(chc[Ä™e]|gĹ‚odny|glodny|ochote|ochotÄ™|co[Ĺ›s]).*(co[Ĺ›s]|zje[sĹ›][Ä‡c]|jedzenie|kuchni)|(lokale|restauracje|knajpy|pizzeri[ae]|kebaby|kebab|bary|pizza|burger|jedzenie|gĹ‚odny|glodny)/i;
+        const findRegex = /(co|gdzie).*(zje[sÄąâ€ş][Ă„â€ˇc]|poleca|poleci|masz|macie|jedzenia|jedzenie)|(szukam|znajd[ÄąĹźz]).*|(chc[Ă„â„˘e]|gÄąâ€šodny|glodny|ochote|ochotĂ„â„˘|co[Äąâ€şs]).*(co[Äąâ€şs]|zje[sÄąâ€ş][Ă„â€ˇc]|jedzenie|kuchni)|(lokale|restauracje|knajpy|pizzeri[ae]|kebaby|kebab|bary|pizza|burger|jedzenie|gÄąâ€šodny|glodny)/i;
 
-        // Guard: don't trigger findRegex if we have strong ordering verbs like "poproszÄ™" or "zamawiam"
+        // Guard: don't trigger findRegex if we have strong ordering verbs like "poproszĂ„â„˘" or "zamawiam"
         // UPDATED: Syncing verbs
-        const hasOrderVerbStrict = /\b(poprosze|poprosz[Ä™e]|zamawiam|zamow|wezme|wezm[Ä™e]|biore|bior[Ä™e]|dodaj|chciaĹ‚(bym|abym)|skusz[Ä™e]|spr[oĂł]buj[Ä™e]|zdecyduj[Ä™e]|lec[Ä™e]\s+na|bior[Ä™e]\s+to)\b/i.test(normalized);
+        const hasOrderVerbStrict = /\b(poprosze|poprosz[Ă„â„˘e]|zamawiam|zamow|wezme|wezm[Ă„â„˘e]|biore|bior[Ă„â„˘e]|dodaj|chciaÄąâ€š(bym|abym)|skusz[Ă„â„˘e]|spr[oÄ‚Ĺ‚]buj[Ă„â„˘e]|zdecyduj[Ă„â„˘e]|lec[Ă„â„˘e]\s+na|bior[Ă„â„˘e]\s+to)\b/i.test(normalized);
 
         if (findRegex.test(normalized) && !hasOrderVerbStrict && !session?.currentRestaurant) {
             return {
@@ -614,19 +590,19 @@ export class NLURouter {
         }
 
         // 2. Smart Intent Layer (Hybrid: LLM Fallback)
-        // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+        // Ă˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘Â
         // SINGLE-ROUTING INVARIANT: Classic/legacy router disabled in V2 mode.
-        // When EXPERT_MODE=true  â†’ smartResolveIntent (Gemini) is the fallback.
-        // When EXPERT_MODE=false â†’ V2 rule layers above are the sole source of truth.
+        // When EXPERT_MODE=true  Ă˘â€ â€™ smartResolveIntent (Gemini) is the fallback.
+        // When EXPERT_MODE=false Ă˘â€ â€™ V2 rule layers above are the sole source of truth.
         //   The legacy intentRouterGlue is DISABLED to prevent:
         //   (a) double intent resolution (rule_guard fires, then classic fires again)
         //   (b) source label confusion ('classic_legacy' mixed with 'rule_guard')
         //   (c) hard-blocked ordering intents leaking through as 'find_nearby'
         // To re-enable legacy: set LEGACY_CLASSIC_ENABLED=true in .env (emergency)
-        // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+        // Ă˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘Â
         try {
             const EXPERT_MODE = process.env.EXPERT_MODE === 'true';
-            // LEGACY_CLASSIC_ENABLED removed â€” classic routing disabled permanently
+            // LEGACY_CLASSIC_ENABLED removed Ă˘â‚¬â€ť classic routing disabled permanently
 
             if (EXPERT_MODE) {
                 const smartResult = await smartResolveIntent({
@@ -638,7 +614,7 @@ export class NLURouter {
 
                 if (smartResult && smartResult.intent && smartResult.intent !== 'unknown') {
                     if (session?.currentRestaurant && ['find_nearby', 'choose_restaurant', 'select_restaurant'].includes(smartResult.intent) && !isExplicitRestaurantSearch(text)) {
-                        BrainLogger.nlu(`đź›ˇď¸Ź SMART_DISCOVERY_GUARD: blocked "${smartResult.intent}" while in restaurant context`);
+                        BrainLogger.nlu(`Ä‘Ĺşâ€şË‡ÄŹÂ¸Ĺą SMART_DISCOVERY_GUARD: blocked "${smartResult.intent}" while in restaurant context`);
                     } else {
                     return {
                         intent: smartResult.intent,
@@ -649,7 +625,7 @@ export class NLURouter {
                     }
                 }
             } else {
-                // V2 mode with classic disabled â€” expected path
+                // V2 mode with classic disabled Ă˘â‚¬â€ť expected path
                 BrainLogger.nlu('NLU: Classic disabled (V2 mode). Falling through to food_word_fallback.');
             }
         } catch (e) {
@@ -657,7 +633,7 @@ export class NLURouter {
         }
 
         // 3. Food-word Fallback: if unknown but contains food words, assume exploration
-        const FOOD_WORDS = /\b(pizza|pizz[aeÄ™yÄ™]|kebab|kebaba|burger|burgera|burgery|sushi|ramen|pad\s*thai|pho|pierogi|pierog|zupy?|zup[Ä™ka]|schabowy?|kotlet|frytki|frytek|king|kfc|mcdonald|mac|jedzenie|cos|coĹ›|zjeĹ›Ä‡|zjesz|dania|baner|dobry|cola|colÄ™|cole|coca|fanta|sprite|woda|wode|wodÄ™|napĂłj|napoje)\b/i;
+        const FOOD_WORDS = /\b(pizza|pizz[aeĂ„â„˘yĂ„â„˘]|kebab|kebaba|burger|burgera|burgery|sushi|ramen|pad\s*thai|pho|pierogi|pierog|zupy?|zup[Ă„â„˘ka]|schabowy?|kotlet|frytki|frytek|king|kfc|mcdonald|mac|jedzenie|cos|coÄąâ€ş|zjeÄąâ€şĂ„â€ˇ|zjesz|dania|baner|dobry|cola|colĂ„â„˘|cole|coca|fanta|sprite|woda|wode|wodĂ„â„˘|napÄ‚Ĺ‚j|napoje)\b/i;
         if (FOOD_WORDS.test(normalized) && !session?.currentRestaurant) {
             return {
                 intent: 'find_nearby',
@@ -667,10 +643,10 @@ export class NLURouter {
             };
         }
 
-        // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+        // Ă˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘Â
         // 4. LLM INTENT TRANSLATOR (LAST FALLBACK)
         // Only runs if all other methods failed
-        // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+        // Ă˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘Â
         const LLM_TRANSLATOR_ENABLED = process.env.LLM_TRANSLATOR_ENABLED === 'true';
 
         if (LLM_TRANSLATOR_ENABLED) {
@@ -686,13 +662,13 @@ export class NLURouter {
 
                 if (llmResult && llmResult.intent !== 'unknown' && llmResult.source === 'llm_translator') {
                     if (session?.currentRestaurant && ['find_nearby', 'choose_restaurant', 'select_restaurant'].includes(llmResult.intent) && !isExplicitRestaurantSearch(text)) {
-                        BrainLogger.nlu(`đź›ˇď¸Ź LLM_DISCOVERY_GUARD: blocked "${llmResult.intent}" while in restaurant context`);
+                        BrainLogger.nlu(`Ä‘Ĺşâ€şË‡ÄŹÂ¸Ĺą LLM_DISCOVERY_GUARD: blocked "${llmResult.intent}" while in restaurant context`);
                     } else {
-                    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+                    // Ă˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘Â
                     // HARD BLOCK: LLM cannot execute ordering intents
-                    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+                    // Ă˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘Â
                     if (llmResult.intent === 'create_order' || llmResult.intent === 'confirm_order') {
-                        console.warn('đź›ˇď¸Ź LLM tried ordering intent - blocked, downgrading to find_nearby');
+                        console.warn('Ä‘Ĺşâ€şË‡ÄŹÂ¸Ĺą LLM tried ordering intent - blocked, downgrading to find_nearby');
                         return {
                             intent: 'find_nearby',
                             confidence: 0.7,
@@ -717,14 +693,14 @@ export class NLURouter {
                     }
                 }
             } catch (e) {
-                console.warn('đź›ˇď¸Ź LLM Translator failed:', e.message);
+                console.warn('Ä‘Ĺşâ€şË‡ÄŹÂ¸Ĺą LLM Translator failed:', e.message);
                 // Continue to final fallback
             }
         }
 
         // 5. Default order fallback inside restaurant context
         if (session?.currentRestaurant && session?.last_menu) {
-            const isControlIntent = /\b(status|zam[oĂł]wienie|koszyk|p[lĹ‚]ac[Ä™e]|checkout|help|pomoc|co\s+robi[Ä‡c]|menu|karta)\b/i.test(normalized);
+            const isControlIntent = /\b(status|zam[oÄ‚Ĺ‚]wienie|koszyk|p[lÄąâ€š]ac[Ă„â„˘e]|checkout|help|pomoc|co\s+robi[Ă„â€ˇc]|menu|karta)\b/i.test(normalized);
             const menuItems = Array.isArray(session.last_menu)
                 ? session.last_menu
                 : Array.isArray(session.last_menu?.items)
@@ -742,7 +718,7 @@ export class NLURouter {
                 }
 
                 const qty = extractQuantity(text) || 1;
-                const textForDish = text.replace(/^(?:\\d+\\s*|jeden|jedna|jedno|dwa|dwie|trzy|cztery|pi[eÄ™][cÄ‡][u]?|sze[sĹ›][cÄ‡][u]?|siedem|osiem|dziewi[eÄ™][cÄ‡][u]?|dziesi[eÄ™][cÄ‡][u]?|kilka|par[Ä™e])\\s+/i, '').trim();
+                const textForDish = text.replace(/^(?:\\d+\\s*|jeden|jedna|jedno|dwa|dwie|trzy|cztery|pi[eĂ„â„˘][cĂ„â€ˇ][u]?|sze[sÄąâ€ş][cĂ„â€ˇ][u]?|siedem|osiem|dziewi[eĂ„â„˘][cĂ„â€ˇ][u]?|dziesi[eĂ„â„˘][cĂ„â€ˇ][u]?|kilka|par[Ă„â„˘e])\\s+/i, '').trim();
                 const dishMatch = menuItems.find(item =>
                     fuzzyIncludes(item.base_name || item.name, textForDish)
                 );
@@ -807,5 +783,7 @@ export class NLURouter {
         };
     }
 }
+
+
 
 

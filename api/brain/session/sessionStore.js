@@ -1,10 +1,245 @@
-import { getDefault, update } from "../ai/contextState.js";
+﻿import { getDefault, update } from "../ai/contextState.js";
+import supabase from "../supabaseClient.js";
+
+const SESSION_TTL_MS = 2 * 60 * 60 * 1000; // 2h
+const CACHE_SWEEP_INTERVAL_MS = 5 * 60 * 1000;
 
 const sessions = new Map();
+const pendingReads = new Map();
+const pendingWrites = new Map();
 
-// ═══════════════════════════════════════════════════════════════════════════
-// SESSION LIFECYCLE HELPERS (Conversation Isolation)
-// ═══════════════════════════════════════════════════════════════════════════
+function nowIso() {
+    return new Date().toISOString();
+}
+
+function ensureSessionId(sessionId) {
+    if (typeof sessionId !== 'string' || !sessionId.trim()) {
+        const err = new Error('missing_session_id');
+        err.statusCode = 400;
+        throw err;
+    }
+
+    return sessionId.trim();
+}
+
+function parseTimestamp(value) {
+    const parsed = Date.parse(value || '');
+    return Number.isFinite(parsed) ? parsed : Date.now();
+}
+
+function isExpiredByTimestamp(updatedAtMs) {
+    return Date.now() - updatedAtMs > SESSION_TTL_MS;
+}
+
+function setCache(sessionId, data, updatedAt = nowIso()) {
+    sessions.set(sessionId, {
+        data,
+        updatedAtMs: parseTimestamp(updatedAt),
+    });
+
+    return data;
+}
+
+function getCache(sessionId) {
+    const entry = sessions.get(sessionId);
+    if (!entry) return null;
+
+    if (isExpiredByTimestamp(entry.updatedAtMs)) {
+        sessions.delete(sessionId);
+        return null;
+    }
+
+    return entry.data;
+}
+
+function queueWrite(sessionId, writer) {
+    const previous = pendingWrites.get(sessionId) || Promise.resolve();
+
+    const current = previous
+        .catch(() => undefined)
+        .then(writer)
+        .finally(() => {
+            if (pendingWrites.get(sessionId) === current) {
+                pendingWrites.delete(sessionId);
+            }
+        });
+
+    pendingWrites.set(sessionId, current);
+    return current;
+}
+
+async function readSessionFromDb(sessionId) {
+    const { data, error } = await supabase
+        .from('brain_sessions')
+        .select('data, updated_at')
+        .eq('id', sessionId)
+        .maybeSingle();
+
+    if (error) {
+        throw error;
+    }
+
+    return data || null;
+}
+
+async function upsertSessionInDb(sessionId, data) {
+    const updatedAt = nowIso();
+    const payload = {
+        id: sessionId,
+        data,
+        updated_at: updatedAt,
+    };
+
+    const { error } = await supabase
+        .from('brain_sessions')
+        .upsert(payload, { onConflict: 'id' });
+
+    if (error) {
+        throw error;
+    }
+
+    return updatedAt;
+}
+
+async function deleteSessionInDb(sessionId) {
+    const { error } = await supabase
+        .from('brain_sessions')
+        .delete()
+        .eq('id', sessionId);
+
+    if (error) {
+        throw error;
+    }
+}
+
+async function loadSessionToCache(sessionId, { createIfMissing = true } = {}) {
+    const cached = getCache(sessionId);
+    if (cached) {
+        return cached;
+    }
+
+    const inflight = pendingReads.get(sessionId);
+    if (inflight) {
+        return inflight;
+    }
+
+    const reader = (async () => {
+        try {
+            const row = await readSessionFromDb(sessionId);
+
+            if (row?.updated_at && isExpiredByTimestamp(parseTimestamp(row.updated_at))) {
+                sessions.delete(sessionId);
+                try {
+                    await deleteSessionInDb(sessionId);
+                } catch (err) {
+                    console.warn(`[SessionStore] TTL cleanup failed for ${sessionId}: ${err.message}`);
+                }
+
+                if (!createIfMissing) {
+                    return null;
+                }
+            } else if (row?.data) {
+                return setCache(sessionId, row.data, row.updated_at);
+            }
+
+            if (!createIfMissing) {
+                return null;
+            }
+
+            const fresh = getDefault();
+            setCache(sessionId, fresh);
+
+            try {
+                const updatedAt = await upsertSessionInDb(sessionId, fresh);
+                setCache(sessionId, fresh, updatedAt);
+            } catch (err) {
+                console.warn(`[SessionStore] create upsert failed for ${sessionId}: ${err.message}`);
+            }
+
+            return fresh;
+        } catch (err) {
+            console.warn(`[SessionStore] read failed for ${sessionId}: ${err.message}`);
+
+            if (!createIfMissing) {
+                return null;
+            }
+
+            const fallback = getDefault();
+            setCache(sessionId, fallback);
+            return fallback;
+        } finally {
+            pendingReads.delete(sessionId);
+        }
+    })();
+
+    pendingReads.set(sessionId, reader);
+    return reader;
+}
+
+function sweepExpiredCache() {
+    for (const [sessionId, entry] of sessions.entries()) {
+        if (isExpiredByTimestamp(entry.updatedAtMs)) {
+            sessions.delete(sessionId);
+        }
+    }
+}
+
+if (!globalThis.__brainSessionStoreSweeper) {
+    globalThis.__brainSessionStoreSweeper = setInterval(sweepExpiredCache, CACHE_SWEEP_INTERVAL_MS);
+    if (typeof globalThis.__brainSessionStoreSweeper.unref === 'function') {
+        globalThis.__brainSessionStoreSweeper.unref();
+    }
+}
+
+// ============================================================================
+// ASYNC PERSISTENT INTERFACE (source of truth)
+// ============================================================================
+
+export async function getSessionAsync(sessionId, opts = {}) {
+    const normalizedSessionId = ensureSessionId(sessionId);
+    return loadSessionToCache(normalizedSessionId, opts);
+}
+
+export async function setSession(sessionId, data) {
+    const normalizedSessionId = ensureSessionId(sessionId);
+    const payload = (data && typeof data === 'object') ? data : getDefault();
+
+    setCache(normalizedSessionId, payload);
+
+    const updatedAt = await queueWrite(normalizedSessionId, async () => {
+        try {
+            return await upsertSessionInDb(normalizedSessionId, payload);
+        } catch (err) {
+            console.warn(`[SessionStore] upsert failed for ${normalizedSessionId}: ${err.message}`);
+            return nowIso();
+        }
+    });
+
+    setCache(normalizedSessionId, payload, updatedAt);
+    return payload;
+}
+
+export async function closeSession(sessionId, reason) {
+    const normalizedSessionId = ensureSessionId(sessionId);
+    const session = await getSessionAsync(normalizedSessionId, { createIfMissing: true });
+
+    update(session, {
+        status: 'closed',
+        closedReason: reason,
+        closedAt: nowIso(),
+        pendingDish: null,
+        awaiting: null,
+        expectedContext: null,
+        pendingOrder: null,
+    });
+
+    await setSession(normalizedSessionId, session);
+    return session;
+}
+
+// ============================================================================
+// SYNC COMPATIBILITY LAYER (legacy call-sites)
+// ============================================================================
 
 /**
  * Generate a new unique session ID for a fresh conversation.
@@ -17,81 +252,77 @@ export function generateNewSessionId() {
 }
 
 /**
- * Check if a session is closed (conversation ended).
+ * Sync getter for legacy code paths. Returns cached session and starts
+ * background hydration if session was not loaded yet.
  */
+export function getSession(sessionId) {
+    const normalizedSessionId = ensureSessionId(sessionId);
+
+    const cached = getCache(normalizedSessionId);
+    if (cached) {
+        return cached;
+    }
+
+    const optimistic = getDefault();
+    setCache(normalizedSessionId, optimistic);
+
+    void loadSessionToCache(normalizedSessionId, { createIfMissing: true });
+
+    return optimistic;
+}
+
 export function isSessionClosed(sessionId) {
-    const session = sessions.get(sessionId);
+    const session = getSession(sessionId);
     return session?.status === 'closed';
 }
 
 /**
- * Close a conversation. After this:
- * - pendingDish, awaiting, expectedContext are cleared
- * - session.status = 'closed'
- * - session cannot be reused for new inputs
- * 
- * @param {string} sessionId - Current session ID
- * @param {'CART_ITEM_ADDED' | 'ORDER_CONFIRMED'} reason - Why conversation ended
- * @returns {{ closedSessionId: string, newSessionId: string }}
+ * Close a conversation and return new session id for client.
  */
 export function closeConversation(sessionId, reason) {
-    const session = getSession(sessionId);
+    const normalizedSessionId = ensureSessionId(sessionId);
+    const session = getSession(normalizedSessionId);
 
-    // Mark session as closed
     update(session, {
         status: 'closed',
         closedReason: reason,
-        closedAt: new Date().toISOString(),
-        // Clear transient state
+        closedAt: nowIso(),
         pendingDish: null,
         awaiting: null,
         expectedContext: null,
-        pendingOrder: null
+        pendingOrder: null,
     });
 
-    console.log(`🔒 CONVERSATION CLOSED: ${sessionId} (reason: ${reason})`);
+    void setSession(normalizedSessionId, session);
 
-    // Generate new session ID for next conversation
+    console.log(`🔒 CONVERSATION CLOSED: ${normalizedSessionId} (reason: ${reason})`);
+
     const newSessionId = generateNewSessionId();
 
     return {
-        closedSessionId: sessionId,
-        newSessionId
+        closedSessionId: normalizedSessionId,
+        newSessionId,
     };
 }
 
 /**
- * Get or create a session. If session is closed, returns null.
- * Use getOrCreateActiveSession() for auto-creating new session on closed.
- */
-export function getSession(sessionId) {
-    if (!sessions.has(sessionId)) {
-        sessions.set(sessionId, getDefault());
-    }
-    return sessions.get(sessionId);
-}
-
-/**
- * Get active session or create new one if current is closed.
- * Returns { session, sessionId, isNew }
+ * Legacy sync API.
  */
 export function getOrCreateActiveSession(sessionId) {
-    const existing = sessions.get(sessionId);
+    const normalizedSessionId = ensureSessionId(sessionId);
+    const existing = getSession(normalizedSessionId);
 
-    // If no session exists, create new
     if (!existing) {
         const newSession = getDefault();
-        sessions.set(sessionId, newSession);
-        return { session: newSession, sessionId, isNew: true };
+        setCache(normalizedSessionId, newSession);
+        void setSession(normalizedSessionId, newSession);
+        return { session: newSession, sessionId: normalizedSessionId, isNew: true };
     }
 
-    // If session is closed, generate new ID and session
     if (existing.status === 'closed') {
         const newId = generateNewSessionId();
         const newSession = getDefault();
 
-        // 🛡️ PRZENIESIENIE KONTEKSTU (Fix "Nie wolno: zerować currentRestaurant przy add_to_cart")
-        // Jeśli zamykamy sesję, zaczynamy od nowa, ale zachowujemy w pamięci gdzie jesteśmy
         if (existing.currentRestaurant) {
             newSession.currentRestaurant = existing.currentRestaurant;
         }
@@ -102,19 +333,55 @@ export function getOrCreateActiveSession(sessionId) {
             newSession.cart = existing.cart;
         }
 
-        sessions.set(newId, newSession);
-        console.log(`🔄 AUTO-NEW SESSION: ${sessionId} was closed, created ${newId}. Context carried over.`);
+        setCache(newId, newSession);
+        void setSession(newId, newSession);
+
+        console.log(`🔄 AUTO-NEW SESSION: ${normalizedSessionId} was closed, created ${newId}. Context carried over.`);
+
         return { session: newSession, sessionId: newId, isNew: true };
     }
 
-    // Active session exists
-    return { session: existing, sessionId, isNew: false };
+    return { session: existing, sessionId: normalizedSessionId, isNew: false };
+}
+
+/**
+ * Async variant used by V2 pipeline hydration.
+ */
+export async function getOrCreateActiveSessionAsync(sessionId) {
+    const normalizedSessionId = ensureSessionId(sessionId);
+    const existing = await getSessionAsync(normalizedSessionId, { createIfMissing: true });
+
+    if (existing.status === 'closed') {
+        const newId = generateNewSessionId();
+        const newSession = getDefault();
+
+        if (existing.currentRestaurant) {
+            newSession.currentRestaurant = existing.currentRestaurant;
+        }
+        if (existing.lastRestaurant) {
+            newSession.lastRestaurant = existing.lastRestaurant;
+        }
+        if (existing.cart && existing.closedReason !== 'ORDER_CONFIRMED') {
+            newSession.cart = existing.cart;
+        }
+
+        await setSession(newId, newSession);
+
+        console.log(`🔄 AUTO-NEW SESSION: ${normalizedSessionId} was closed, created ${newId}. Context carried over.`);
+
+        return { session: newSession, sessionId: newId, isNew: true };
+    }
+
+    return { session: existing, sessionId: normalizedSessionId, isNew: false };
 }
 
 export function updateSession(sessionId, patch) {
-    const sess = getSession(sessionId);
-    return update(sess, patch);
+    const normalizedSessionId = ensureSessionId(sessionId);
+    const sess = getSession(normalizedSessionId);
+    update(sess, patch);
+    void setSession(normalizedSessionId, sess);
+    return sess;
 }
 
-// Alias dla kompatybilności z poleceniem użytkownika "saveSession"
+// Alias dla kompatybilności
 export const saveSession = updateSession;
