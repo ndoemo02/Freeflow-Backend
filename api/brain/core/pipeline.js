@@ -34,6 +34,10 @@ import { MenuHydrationService } from './pipeline/MenuHydrationService.js';
 import { SessionHydrator } from './pipeline/SessionHydrator.js';
 import { HandlerDispatcher } from './pipeline/HandlerDispatcher.js';
 
+// Reco V1 — rule-based recommendation layer (no extra DB calls)
+import { getRecommendations } from '../recommendations/recoEngine.js';
+import { recoTelemetry } from '../recommendations/recoTelemetry.js';
+
 // Ä‘ĹşÂ§Â  Passive Memory Layer (read-only context, no FSM impact)
 import { initTurnBuffer, pushUserTurn, pushAssistantTurn } from '../memory/TurnBuffer.js';
 import { initEntityCache, cacheRestaurants, cacheItems } from '../memory/EntityCache.js';
@@ -1625,6 +1629,30 @@ export class BrainPipeline {
                 guard_trace: executedGuardNames,
                 pipeline_trace: context.trace,
             };
+
+            // ── Reco V1 ──────────────────────────────────────────────────────
+            // Graceful: any error keeps existing behavior (recommendations=[])
+            response.recommendations = [];
+            if (process.env.RECO_V1_ENABLED === 'true' && menuItems?.length) {
+                try {
+                    const targetItems = context?.nluResult?.slots?.items
+                        || context?.nluResult?.targetItems
+                        || [];
+                    response.recommendations = getRecommendations(menuItems, {
+                        intent,
+                        targetItems,
+                        topN: 5,
+                    });
+                    if (response.recommendations.length > 0) {
+                        recoTelemetry.logShown(activeSessionId, response.recommendations).catch(() => {});
+                    }
+                } catch (e) {
+                    if (process.env.RECO_V1_DEBUG === 'true') {
+                        console.warn('[RECO_V1] scoring error:', e.message);
+                    }
+                }
+            }
+            // ─────────────────────────────────────────────────────────────────
 
             if (EXPERT_MODE) {
                 const turnId = `turn_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
