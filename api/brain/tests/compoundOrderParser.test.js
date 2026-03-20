@@ -116,6 +116,24 @@ describe('compoundOrderParser', () => {
         expect(result.items[0]?.quantity).toBe(2);
     });
 
+    it('preserves addon modifier metadata for "2 razy ostry sos"', () => {
+        const result = parseCompoundOrder('2 razy ostry sos', MENU);
+
+        expect(result.items.length).toBe(1);
+        expect(result.items[0]?.dish.toLowerCase()).toContain('sos');
+        expect(result.items[0]?.meta?.modifier).toContain('ostry');
+        expect(result.items[0]?.quantity).toBe(2);
+    });
+
+    it('parses "podwójny sos ostry" as qty=2 with modifier', () => {
+        const result = parseCompoundOrder('podwójny sos ostry', MENU);
+
+        expect(result.items.length).toBe(1);
+        expect(result.items[0]?.dish.toLowerCase()).toContain('sos');
+        expect(result.items[0]?.meta?.modifier).toContain('ostry');
+        expect(result.items[0]?.quantity).toBe(2);
+    });
+
     it('parses heuristic compound without conjunction: "zamawiam Pepsi 3 czarne kawy"', () => {
         const result = parseCompoundOrder('zamawiam Pepsi 3 czarne kawy', MENU);
 

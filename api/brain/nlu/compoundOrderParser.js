@@ -26,6 +26,8 @@ const QTY_WORDS = new Map([
     ['dziewiec', 9], ['dziewieciu', 9],
     ['dziesiec', 10], ['dziesieciu', 10],
     ['kilka', 2], ['kilku', 2], ['pare', 2],
+    ['podwojny', 2], ['podwojna', 2], ['podwojne', 2], ['podwojnie', 2],
+    ['podwójny', 2], ['podwójna', 2], ['podwójne', 2], ['podwójnie', 2],
 ]);
 const QTY_WORD_KEYS = [...QTY_WORDS.keys()].join('|');
 const LEADING_WORD_QTY_REGEX = new RegExp(`^\\s*(${QTY_WORD_KEYS})\\s*(?:x|razy)?\\b\\s*`, 'i');
@@ -338,6 +340,11 @@ function extractModifier(rawDish = '', resolvedDish = '') {
 
     if (MODIFIER_BASE_TOKENS.has(rawTokens[0])) {
         return rawTokens.slice(1).join(' ').trim() || null;
+    }
+
+    // Handle adjective-first phrases like: "ostry sos" -> modifier: "ostry"
+    if (rawTokens.length >= 2 && MODIFIER_BASE_TOKENS.has(rawTokens[rawTokens.length - 1])) {
+        return rawTokens.slice(0, -1).join(' ').trim() || null;
     }
 
     const resolvedTokens = normalizeText(resolvedDish).split(' ').filter(Boolean);

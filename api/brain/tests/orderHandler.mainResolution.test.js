@@ -279,7 +279,7 @@ describe('OrderHandler main-item resolution', () => {
         expect(response.contextUpdates?.cart?.items?.[0]?.qty).toBe(2);
     });
 
-    it('maps "ostry sos" modifier to pikantny variant and avoids tzatziki fallback', async () => {
+    it('maps "2 razy ostry sos" modifier to pikantny variant and avoids tzatziki fallback', async () => {
         canonicalizeDishMock.mockImplementation((text) => text);
 
         const session = {
@@ -307,7 +307,51 @@ describe('OrderHandler main-item resolution', () => {
         };
 
         const response = await handler.execute({
-            text: '2 x sos ostry',
+            text: '2 razy ostry sos',
+            entities: {
+                dish: 'Sos',
+                items: [{ dish: 'Sos', quantity: 2, meta: { rawLabel: 'ostry sos', modifier: 'ostry' } }],
+                compoundSource: 'compound_parser',
+            },
+            session,
+        });
+
+        expect(response.intent).not.toBe('clarify_order');
+        expect(response.meta?.addedToCart).toBe(true);
+        expect(response.contextUpdates?.cart?.items?.[0]?.id).toBe('addon-sos-pikantny');
+        expect(response.contextUpdates?.cart?.items?.[0]?.id).not.toBe('addon-sos-tzatziki');
+        expect(response.contextUpdates?.cart?.items?.[0]?.qty).toBe(2);
+    });
+
+    it('maps "podwojny sos ostry" modifier to pikantny variant', async () => {
+        canonicalizeDishMock.mockImplementation((text) => text);
+
+        const session = {
+            currentRestaurant: { id: 'R_ADDON', name: 'Addon Test' },
+            lastRestaurant: { id: 'R_ADDON', name: 'Addon Test' },
+            last_menu: [
+                {
+                    id: 'addon-sos-tzatziki',
+                    name: 'Sos Tzatziki',
+                    base_name: 'Sos Tzatziki',
+                    category: 'Dodatki',
+                    type: 'ADDON',
+                    price_pln: 3,
+                },
+                {
+                    id: 'addon-sos-pikantny',
+                    name: 'Sos Pikantny',
+                    base_name: 'Sos Pikantny',
+                    category: 'Dodatki',
+                    type: 'ADDON',
+                    price_pln: 3,
+                },
+            ],
+            cart: { items: [], total: 0 },
+        };
+
+        const response = await handler.execute({
+            text: 'podwojny sos ostry',
             entities: {
                 dish: 'Sos',
                 items: [{ dish: 'Sos', quantity: 2, meta: { rawLabel: 'sos ostry', modifier: 'ostry' } }],
@@ -319,7 +363,6 @@ describe('OrderHandler main-item resolution', () => {
         expect(response.intent).not.toBe('clarify_order');
         expect(response.meta?.addedToCart).toBe(true);
         expect(response.contextUpdates?.cart?.items?.[0]?.id).toBe('addon-sos-pikantny');
-        expect(response.contextUpdates?.cart?.items?.[0]?.id).not.toBe('addon-sos-tzatziki');
         expect(response.contextUpdates?.cart?.items?.[0]?.qty).toBe(2);
     });
 
@@ -394,6 +437,45 @@ describe('OrderHandler main-item resolution', () => {
                 dish: 'Sos',
                 items: [{ dish: 'Sos', quantity: 2 }],
             },
+            session,
+        });
+
+        expect(response.intent).toBe('clarify_order');
+        expect(response.meta?.clarify?.requestedCategory).toBe('ADDON');
+        expect(response.contextUpdates?.expectedContext).toBe('clarify_order');
+        expect(session.cart.items.length).toBe(0);
+    });
+
+    it('returns ADDON clarify for plain "sos" without modifier', async () => {
+        canonicalizeDishMock.mockImplementation((text) => text);
+
+        const session = {
+            currentRestaurant: { id: 'R_ADDON', name: 'Addon Test' },
+            lastRestaurant: { id: 'R_ADDON', name: 'Addon Test' },
+            last_menu: [
+                {
+                    id: 'addon-sos-tzatziki',
+                    name: 'Sos Tzatziki',
+                    base_name: 'Sos Tzatziki',
+                    category: 'Dodatki',
+                    type: 'ADDON',
+                    price_pln: 3,
+                },
+                {
+                    id: 'addon-sos-pikantny',
+                    name: 'Sos Pikantny',
+                    base_name: 'Sos Pikantny',
+                    category: 'Dodatki',
+                    type: 'ADDON',
+                    price_pln: 3,
+                },
+            ],
+            cart: { items: [], total: 0 },
+        };
+
+        const response = await handler.execute({
+            text: 'sos',
+            entities: { dish: 'sos' },
             session,
         });
 

@@ -1,7 +1,7 @@
 // Food Domain: Order Handler
 // Odpowiada za proces skĹ‚adania zamĂłwienia (Parsowanie -> Koszyk -> Potwierdzenie).
 
-import { extractQuantity, normalizeDish, findBestDishMatch } from '../../helpers.js';
+import { extractQuantity, normalizeDish, findBestDishMatch, levenshtein } from '../../helpers.js';
 import { canonicalizeDish } from '../../nlu/dishCanon.js';
 import { resolveMenuItemConflict, DISAMBIGUATION_RESULT } from '../../services/DisambiguationService.js';
 import { commitPendingOrder } from '../../session/sessionCart.js';
@@ -13,8 +13,8 @@ function hasExplicitQuantityInText(text = '') {
 
     // Only treat quantity as explicit when it is part of order syntax.
     // This avoids false positives from dish names like "6 szt.".
-    const prefixPattern = /^\s*(?:\d+|jeden|jedna|jedno|dwa|dwie|trzy|cztery|piec|szesc|siedem|osiem|dziewiec|dziesiec|kilka|pare)\b(?:\s*(?:x|razy|szt|szt\.|sztuk|porcj))?/i;
-    const verbPattern = /\b(dodaj|zamawiam|wezme|chce|poprosze|poprosz)\b\s+(?:mi\s+)?(?:\d+|jeden|jedna|jedno|dwa|dwie|trzy|cztery|piec|szesc|siedem|osiem|dziewiec|dziesiec|kilka|pare)\b/i;
+    const prefixPattern = /^\s*(?:\d+|jeden|jedna|jedno|dwa|dwie|trzy|cztery|piec|szesc|siedem|osiem|dziewiec|dziesiec|kilka|pare|podwojny|podwojna|podwojne|podwojnie)\b(?:\s*(?:x|razy|szt|szt\.|sztuk|porcj))?/i;
+    const verbPattern = /\b(dodaj|zamawiam|wezme|chce|poprosze|poprosz)\b\s+(?:mi\s+)?(?:\d+|jeden|jedna|jedno|dwa|dwie|trzy|cztery|piec|szesc|siedem|osiem|dziewiec|dziesiec|kilka|pare|podwojny|podwojna|podwojne|podwojnie)\b/i;
     return prefixPattern.test(normalized) || verbPattern.test(normalized);
 }
 
@@ -120,7 +120,8 @@ const GENERIC_DISH_TOKENS = new Set([
 
 const MODIFIER_SYNONYM_GROUPS = [
     ['pikantny', 'pikantna', 'pikantne', 'ostry', 'ostra', 'ostre', 'spicy', 'chili', 'chilli'],
-    ['lagodny', 'lagodna', 'lagodne', 'mild'],
+    ['lagodny', 'lagodna', 'lagodne', 'mild', 'jogurtowy', 'jogurtowa', 'jogurtowe'],
+    ['czosnkowy', 'czosnkowa', 'czosnkowe', 'garlic'],
 ];
 
 function stripQuantityOperators(phrase = '') {
@@ -369,22 +370,125 @@ function buildModifierVariants(modifier = '') {
     return [...variants].filter(Boolean);
 }
 
-function itemMatchesModifier(item = {}, modifier = '') {
-    const modifierVariants = buildModifierVariants(modifier);
-    if (modifierVariants.length === 0) return false;
+function computeModifierMatchQuality(item = {}, modifierVariants = []) {
+    if (!Array.isArray(modifierVariants) || modifierVariants.length === 0) {
+        return { score: 0, mode: 'none' };
+    }
 
     const normalizedName = normalizeDish(item?.name || '');
     const normalizedBase = normalizeDish(item?.base_name || '');
-    return modifierVariants.some((variant) =>
-        normalizedName.includes(variant) || normalizedBase.includes(variant)
-    );
+    const haystack = `${normalizedName} ${normalizedBase}`.trim();
+    if (!haystack) return { score: 0, mode: 'none' };
+
+    let bestExact = 0;
+    let bestFuzzy = 0;
+    const hayTokens = haystack.split(' ').filter(Boolean);
+
+    for (const variant of modifierVariants) {
+        const normalizedVariant = normalizeDish(variant || '');
+        if (!normalizedVariant) continue;
+
+        if (
+            normalizedName.includes(normalizedVariant)
+            || normalizedBase.includes(normalizedVariant)
+            || ` ${haystack} `.includes(` ${normalizedVariant} `)
+        ) {
+            bestExact = Math.max(bestExact, 1);
+            continue;
+        }
+
+        const variantTokens = normalizedVariant.split(' ').filter(Boolean);
+        if (variantTokens.length === 0) continue;
+
+        let fuzzyScore = 0;
+        for (const vt of variantTokens) {
+            let bestToken = 0;
+            for (const ht of hayTokens) {
+                if (!ht || !vt) continue;
+                if (ht === vt) {
+                    bestToken = 1;
+                    break;
+                }
+                const distance = levenshtein(ht, vt);
+                if (distance <= 1) {
+                    bestToken = Math.max(bestToken, 0.85);
+                } else if (distance <= 2 && Math.min(ht.length, vt.length) >= 5) {
+                    bestToken = Math.max(bestToken, 0.65);
+                }
+            }
+            fuzzyScore += bestToken;
+        }
+
+        bestFuzzy = Math.max(bestFuzzy, fuzzyScore / variantTokens.length);
+    }
+
+    if (bestExact > 0) return { score: 220, mode: 'exact_modifier' };
+    if (bestFuzzy >= 0.7) return { score: 160 * bestFuzzy, mode: 'fuzzy_modifier' };
+    return { score: 0, mode: 'none' };
 }
 
-function filterCandidatesByModifier(candidates = [], modifier = '') {
-    if (!Array.isArray(candidates) || candidates.length === 0) return [];
-    const normalizedModifier = normalizeDish(modifier || '');
-    if (!normalizedModifier) return candidates;
-    return candidates.filter((candidate) => itemMatchesModifier(candidate, normalizedModifier));
+function resolveAddonWithModifierPriority({
+    menu = [],
+    requestedDish = '',
+    rawModifier = '',
+    allowGenericFallback = false,
+}) {
+    if (!Array.isArray(menu) || menu.length === 0) return null;
+
+    const addonPool = menu.filter((item) => resolveItemType(item) === 'ADDON');
+    const candidatePool = addonPool.length > 0 ? addonPool : menu;
+    const modifierVariants = buildModifierVariants(rawModifier);
+    const normalizedRequestedDish = normalizeDish(requestedDish || '');
+    const genericRequestedToken = normalizeDish(stripQuantityOperators(requestedDish || ''));
+
+    let bestMatch = null;
+    let bestScore = -1;
+    let bestMode = 'none';
+
+    for (const item of candidatePool) {
+        const modifierQuality = computeModifierMatchQuality(item, modifierVariants);
+        let score = modifierQuality.score;
+        let mode = modifierQuality.mode;
+
+        const normalizedName = normalizeDish(item?.name || '');
+        const normalizedBase = normalizeDish(item?.base_name || '');
+
+        if (score === 0 && allowGenericFallback && genericRequestedToken) {
+            if (
+                normalizedName.includes(genericRequestedToken)
+                || normalizedBase.includes(genericRequestedToken)
+            ) {
+                score = 40;
+                mode = 'generic_fallback';
+            }
+        }
+
+        if (score === 0 && allowGenericFallback && normalizedRequestedDish) {
+            if (
+                normalizedName.includes(normalizedRequestedDish)
+                || normalizedBase.includes(normalizedRequestedDish)
+            ) {
+                score = 30;
+                mode = 'generic_fallback';
+            }
+        }
+
+        if (score > bestScore) {
+            bestScore = score;
+            bestMatch = item;
+            bestMode = mode;
+        }
+    }
+
+    if (!bestMatch || bestScore <= 0) {
+        return null;
+    }
+
+    return {
+        item: bestMatch,
+        scoreBoost: Number(bestScore.toFixed(2)),
+        mode: bestMode,
+    };
 }
 
 function resolveMainItemStrict({ menu = [], rawRequestedDish = '', requestedDish = '', canonicalDish = '', session = null }) {
@@ -566,15 +670,20 @@ async function resolveOrderCandidate({
     }
 
     if (modifierHint && menu.length > 0) {
-        const modifierCandidates = filterCandidatesByModifier(menu, modifierHint);
-        console.log('[MODIFIER_PRESERVED_TRACE]', JSON.stringify({
-            requestedDish,
-            rawLabel: resolverRawLabel || null,
-            modifier: modifierHint,
-            candidates: modifierCandidates.length,
+        const prioritizedAddon = resolveAddonWithModifierPriority({
+            menu,
+            requestedDish: resolverRawLabel || requestedDish,
+            rawModifier: modifierHint,
+            allowGenericFallback: false,
+        });
+
+        console.log('[ADDON_MODIFIER_TRACE]', JSON.stringify({
+            rawModifier: modifierHint,
+            resolvedItemName: prioritizedAddon?.item?.name || null,
+            scoreBoost: prioritizedAddon?.scoreBoost || 0,
         }));
 
-        if (modifierCandidates.length === 0) {
+        if (!prioritizedAddon?.item) {
             const requestedCategory = inferRequestedCategory({
                 requestedDish,
                 rawUserText,
@@ -598,22 +707,8 @@ async function resolveOrderCandidate({
             };
         }
 
-        if (directMatch && !itemMatchesModifier(directMatch, modifierHint)) {
-            directMatch = null;
-        }
-
-        if (!directMatch) {
-            const modifierPool = modifierCandidates.length > 0 ? modifierCandidates : menu;
-            const modifierMatch =
-                findDirectMenuMatch(resolverRawLabel || requestedDish, modifierPool, session)
-                || findDirectMenuMatch(requestedDish, modifierPool, session)
-                || (modifierPool.length === 1 ? modifierPool[0] : null);
-
-            if (modifierMatch) {
-                directMatch = modifierMatch;
-                fallbackUsed = true;
-            }
-        }
+        directMatch = prioritizedAddon.item;
+        fallbackUsed = fallbackUsed || prioritizedAddon.mode !== 'exact_modifier';
     }
 
     if (!directMatch && explicitAddonRequest && isStaraKamienicaSession(session)) {
@@ -1062,15 +1157,20 @@ export class OrderHandler {
         }
 
         if (modifierHint && menu.length > 0) {
-            const modifierCandidates = filterCandidatesByModifier(menu, modifierHint);
-            console.log('[MODIFIER_PRESERVED_TRACE]', JSON.stringify({
-                requestedDish,
-                rawLabel: singleCandidateMeta?.rawLabel || rawRequestedDish || null,
-                modifier: modifierHint,
-                candidates: modifierCandidates.length,
+            const prioritizedAddon = resolveAddonWithModifierPriority({
+                menu,
+                requestedDish: singleCandidateMeta?.rawLabel || requestedDish,
+                rawModifier: modifierHint,
+                allowGenericFallback: false,
+            });
+
+            console.log('[ADDON_MODIFIER_TRACE]', JSON.stringify({
+                rawModifier: modifierHint,
+                resolvedItemName: prioritizedAddon?.item?.name || null,
+                scoreBoost: prioritizedAddon?.scoreBoost || 0,
             }));
 
-            if (modifierCandidates.length === 0) {
+            if (!prioritizedAddon?.item) {
                 const sessionRestaurant = session?.currentRestaurant?.name || session?.lastRestaurant?.name || null;
                 const requestedCategory = inferRequestedCategory({
                     requestedDish,
@@ -1090,18 +1190,8 @@ export class OrderHandler {
                 });
             }
 
-            if (directMatch && !itemMatchesModifier(directMatch, modifierHint)) {
-                directMatch = null;
-            }
-
-            if (!directMatch) {
-                const modifierPool = modifierCandidates.length > 0 ? modifierCandidates : menu;
-                directMatch =
-                    findDirectMenuMatch(singleCandidateMeta?.rawLabel || requestedDish, modifierPool, session)
-                    || findDirectMenuMatch(requestedDish, modifierPool, session)
-                    || (modifierPool.length === 1 ? modifierPool[0] : null);
-                if (directMatch) fallbackUsed = true;
-            }
+            directMatch = prioritizedAddon.item;
+            fallbackUsed = fallbackUsed || prioritizedAddon.mode !== 'exact_modifier';
         }
 
         if (!directMatch && explicitAddonRequest && isStaraKamienicaSession(session)) {

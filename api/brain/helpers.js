@@ -197,6 +197,13 @@ const QTY_WORDS = {
   'kilka': 2, 'kilku': 2, 'parę': 2
 };
 
+Object.assign(QTY_WORDS, {
+  podwojny: 2,
+  podwojna: 2,
+  podwojne: 2,
+  podwojnie: 2,
+});
+
 export function extractQuantity(text) {
   if (!text) return 1;
   const normalized = normalizeTxt(text);
