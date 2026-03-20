@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Core Pipeline Orchestrator (V2)
  * Odpowiada za przepÄąâ€šyw danych: Request -> Hydration -> NLU -> Domain -> Response
  */
@@ -1564,6 +1564,12 @@ export class BrainPipeline {
             }
             context.trace.push(`handler:${context.intent}`);
             context.stateMutationCompleted = false;
+
+            // ── Cart snapshot BEFORE handler (for semantic cartMutated detection) ──
+            const preHandlerSession = getSession(activeSessionId) || {};
+            const preCartItemCount = (preHandlerSession.cart?.items || []).length;
+            const preCartTotal = preHandlerSession.cart?.total || 0;
+
             const domainResponse = await HandlerDispatcher.executeTransactional({
                 handler,
                 context,
@@ -1811,6 +1817,101 @@ export class BrainPipeline {
                 guard_trace: executedGuardNames,
                 pipeline_trace: context.trace,
             };
+
+            // ── Cart Sync Event ─────────────────────────────────────────────
+            // After every COMMITTED cart mutation, emit EVENT_CART_UPDATED.
+            // Uses SEMANTIC detection: compare cart before/after handler execution.
+            // Whitelist kept as secondary signal for handlers that mutate in-place.
+            // Guards:
+            //   - stateMutationCompleted === true
+            //   - cart actually changed (semantic) OR intent in CART_MUTATION_WHITELIST
+            const postCartSession = getSession(activeSessionId) || {};
+            const postCartItemCount = (postCartSession.cart?.items || []).length;
+            const postCartTotal = postCartSession.cart?.total || 0;
+            const cartActuallyChanged = postCartItemCount !== preCartItemCount
+                || postCartTotal !== preCartTotal;
+
+            context.cartMutated = cartActuallyChanged;
+
+            if (
+                context.stateMutationCompleted === true &&
+                (context.cartMutated || CART_MUTATION_WHITELIST.includes(intent))
+            ) {
+                const cartSnap = postCartSession.cart || { items: [], total: 0 };
+                const cartItems = cartSnap.items || [];
+
+                // cartVersion: monotonic counter for optimistic UI / out-of-order rejection
+                if (typeof postCartSession.cartVersion !== 'number') {
+                    postCartSession.cartVersion = 0;
+                }
+                postCartSession.cartVersion++;
+                const cartVersion = postCartSession.cartVersion;
+
+                const totalItems = cartItems.reduce((s, i) => s + (i.qty || i.quantity || 1), 0);
+                const totalPrice = cartSnap.total || 0;
+
+                // lastAdded: ONLY from handler-set session.meta.lastCartMutation
+                // No items[last] fallback — too fragile for batch/merge/reorder
+                const lastMutation = postCartSession.meta?.lastCartMutation || null;
+                const lastAdded = lastMutation?.name || null;
+
+                response.events = [
+                    ...(response.events || []),
+                    {
+                        type: 'EVENT_CART_UPDATED',
+                        channel: 'ui_sync',
+                        payload: { totalItems, totalPrice, lastAdded, cartVersion }
+                    }
+                ];
+
+                // menuBehavior: handler can override (e.g. forceClose after confirm_order)
+                // pipeline only provides a safe default
+                response.meta.menuBehavior ??= 'preserve';
+
+                EventLogger.logEvent(activeSessionId, 'cart_updated', {
+                    intent, totalItems, totalPrice, cartVersion,
+                    detectedBy: cartActuallyChanged ? 'snapshot_diff' : 'whitelist'
+                }, null, 'cart').catch(() => {});
+
+                context.trace.push(`cart_event:v=${cartVersion}:items=${totalItems}:price=${totalPrice}:by=${cartActuallyChanged ? 'diff' : 'wl'}`);
+            }
+
+            // ── Order Completed Event ────────────────────────────────────────
+            // After confirm_order, emit lifecycle event so frontend can:
+            //   - clear local cart
+            //   - reset ordering FSM
+            //   - prompt "Chcesz zamówić jeszcze coś?"
+            if (
+                intent === 'confirm_order' &&
+                context.stateMutationCompleted === true
+            ) {
+                const orderSession = getSession(activeSessionId) || {};
+                const orderCart = orderSession.cart || { items: [], total: 0 };
+
+                response.events = [
+                    ...(response.events || []),
+                    {
+                        type: 'EVENT_ORDER_COMPLETED',
+                        channel: 'ui_sync',
+                        payload: {
+                            restaurantId: orderSession.restaurantContext?.id || null,
+                            restaurantName: orderSession.restaurantContext?.name || null,
+                            total: orderCart.total || 0,
+                            itemCount: (orderCart.items || []).length
+                        }
+                    }
+                ];
+
+                // After order completion, UI should close menu
+                response.meta.menuBehavior = 'forceClose';
+
+                EventLogger.logEvent(activeSessionId, 'order_completed', {
+                    intent, total: orderCart.total || 0
+                }, null, 'order').catch(() => {});
+
+                context.trace.push('order_completed_event');
+            }
+            // ─────────────────────────────────────────────────────────────────
 
             // ── Reco V1 ──────────────────────────────────────────────────────
             // Graceful: any error keeps existing behavior (recommendations=[])

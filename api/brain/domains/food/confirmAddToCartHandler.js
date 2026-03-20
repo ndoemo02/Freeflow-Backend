@@ -53,6 +53,15 @@ export class ConfirmAddToCartHandler {
 
         console.log(`🛒 Item added to cart. Session continues.`);
 
+        // Set lastCartMutation for deterministic EVENT_CART_UPDATED payload
+        // (pipeline reads this instead of fragile items[last])
+        if (!session.meta) session.meta = {};
+        session.meta.lastCartMutation = {
+            name: dish,
+            quantity: pendingOrder.items[0]?.qty || pendingOrder.items[0]?.quantity || 1,
+            category: pendingOrder.items[0]?.category || null
+        };
+
         return {
             reply: `Dodano ${dish} z ${restaurantName} do koszyka. Coś jeszcze?`,
             should_reply: true,
