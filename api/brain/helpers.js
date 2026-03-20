@@ -201,17 +201,43 @@ export function extractQuantity(text) {
   if (!text) return 1;
   const normalized = normalizeTxt(text);
 
-  // 1. Numbers with markers (2x, 3x, 2 razy, 2 szt)
-  const numPattern = /(\d+)\s*(?:x|razy|sztuk|szt|porcj|portion)/i;
-  const numMatch = normalized.match(numPattern);
-  if (numMatch) return parseInt(numMatch[1], 10);
-
-  const qtyMatch = normalized.match(/\b(\d+)\b/);
-  if (qtyMatch) {
-    return Math.min(parseInt(qtyMatch[1], 10), 30);
+  // 1. Strong quantity cues (2x, 3 razy, 2 porcje)
+  const explicitPattern = /(\d+)\s*(?:x|razy|porcj|portion)/i;
+  const explicitMatch = normalized.match(explicitPattern);
+  if (explicitMatch) {
+    return Math.min(parseInt(explicitMatch[1], 10), 30);
   }
 
-  // 3. Word form (check normalized version of keys)
+  // 2. "2 sztuki ..." only when used as an ordering phrase prefix
+  // (prevents menu names like "... 6 szt." from being treated as 6 portions)
+  const sztPrefixPattern = /^(?:(?:poprosze|prosze|zamawiam|zamow|dodaj|wezme|biore|chce|chcialbym|chcialabym)\s+)?(\d+)\s*szt\w*\b/i;
+  const sztPrefixMatch = normalized.match(sztPrefixPattern);
+  if (sztPrefixMatch) {
+    return Math.min(parseInt(sztPrefixMatch[1], 10), 30);
+  }
+
+  // 3. Bare number fallback (e.g. "2 burgery"), skipping menu spec units
+  // like "... 6 szt." / "30 cm" / "500 ml" that usually belong to dish names.
+  const unitLikeNextTokens = ['szt', 'sztuk', 'sztuki', 'cm', 'ml', 'l', 'g', 'kg', 'gram', 'gramow'];
+  const numberRegex = /\b(\d+)\b/g;
+  let numberMatch;
+  while ((numberMatch = numberRegex.exec(normalized)) !== null) {
+    const qty = parseInt(numberMatch[1], 10);
+    if (!Number.isFinite(qty)) {
+      continue;
+    }
+
+    const suffix = normalized.slice(numberMatch.index + numberMatch[0].length);
+    const nextToken = (suffix.match(/^\s*([a-z]+)/i)?.[1] || '').toLowerCase();
+    const isLikelyMenuUnit = unitLikeNextTokens.some((unit) => nextToken.startsWith(unit));
+    if (isLikelyMenuUnit) {
+      continue;
+    }
+
+    return Math.min(qty, 30);
+  }
+
+  // 4. Word form (check normalized version of keys)
   for (const [word, qty] of Object.entries(QTY_WORDS)) {
     const normWord = stripDiacritics(word.toLowerCase());
     // Use word boundaries for safety
