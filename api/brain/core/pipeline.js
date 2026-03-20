@@ -36,6 +36,7 @@ import { SessionHydrator } from './pipeline/SessionHydrator.js';
 import { HandlerDispatcher } from './pipeline/HandlerDispatcher.js';
 import { finalizeEntities } from './pipeline/finalizeEntities.js';
 import { applyMultiItemParsing } from './pipeline/multiItemOrderParser.js';
+import { ORDER_MODE_STATE, ORDER_MODE_EVENT, transitionOrderMode } from './pipeline/OrderModeFSM.js';
 import { parseCompoundOrder } from '../nlu/compoundOrderParser.js';
 
 // Reco V1 — rule-based recommendation layer (no extra DB calls)
@@ -131,6 +132,46 @@ function isExplicitRestaurantNavigation(text = '') {
         'gdzie mogďż˝ zjeďż˝ďż˝',
         'gdzie zjem'
     ].some((phrase) => normalized.includes(phrase));
+}
+
+function mapOrderModeEvent({ intent = '', preState = ORDER_MODE_STATE.NEUTRAL, domainResponse = null }) {
+    const normalizedIntent = String(intent || '').trim();
+    const expectedContext = domainResponse?.contextUpdates?.expectedContext || null;
+
+    if (normalizedIntent === 'confirm_order') return ORDER_MODE_EVENT.CONFIRM_ORDER;
+    if (normalizedIntent === 'cancel_order') return ORDER_MODE_EVENT.CANCEL_ORDER;
+
+    if (
+        normalizedIntent === 'find_nearby'
+        || normalizedIntent === 'find_nearby_ask_location'
+        || normalizedIntent === 'DIALOG_CANCEL'
+    ) {
+        return ORDER_MODE_EVENT.RESET_TO_NEUTRAL;
+    }
+
+    if (
+        normalizedIntent === 'select_restaurant'
+        || normalizedIntent === 'menu_request'
+        || normalizedIntent === 'show_menu'
+    ) {
+        return ORDER_MODE_EVENT.SELECT_RESTAURANT;
+    }
+
+    if (expectedContext === 'confirm_order') return ORDER_MODE_EVENT.REQUEST_CONFIRM;
+
+    if (normalizedIntent === 'create_order' || normalizedIntent === 'confirm_add_to_cart') {
+        if (
+            preState === ORDER_MODE_STATE.NEUTRAL
+            || preState === ORDER_MODE_STATE.RESTAURANT_SELECTED
+            || preState === ORDER_MODE_STATE.COMPLETED
+            || preState === ORDER_MODE_STATE.CANCELLED
+        ) {
+            return ORDER_MODE_EVENT.START_ORDER;
+        }
+        return ORDER_MODE_EVENT.ADD_ITEM;
+    }
+
+    return ORDER_MODE_EVENT.NOOP;
 }
 // Mapa handlerÄ‚Ĺ‚w domenowych (BezpoÄąâ€şrednie mapowanie)
 // Kluczem jest "domain", a wewnĂ„â€¦trz "intent"
@@ -1578,6 +1619,35 @@ export class BrainPipeline {
                 } : null,
             });
             context.stateMutationCompleted = true;
+
+            // OrderMode FSM integration (minimal): transition state after handler dispatch.
+            const preOrderMode = preHandlerSession?.orderMode || ORDER_MODE_STATE.NEUTRAL;
+            const outcomeIntent = domainResponse?.intent || context.intent;
+            const orderModeEvent = mapOrderModeEvent({
+                intent: outcomeIntent,
+                preState: preOrderMode,
+                domainResponse,
+            });
+            const orderModeTransition = transitionOrderMode(preOrderMode, orderModeEvent, {
+                intent: outcomeIntent,
+                expectedContext: domainResponse?.contextUpdates?.expectedContext || null,
+            });
+
+            context.orderMode = orderModeTransition.state;
+            context.trace.push(`order_mode_event:${orderModeEvent}`);
+            context.trace.push(`order_mode_state:${orderModeTransition.previousState}->${orderModeTransition.state}`);
+
+            if (orderModeEvent !== ORDER_MODE_EVENT.NOOP && !orderModeTransition.allowed) {
+                BrainLogger.pipeline(
+                    `[ORDER_MODE_FSM] blocked ${orderModeTransition.previousState} --${orderModeEvent}--> ${orderModeTransition.state}`
+                );
+            }
+
+            if (!IS_SHADOW) {
+                updateSession(activeSessionId, {
+                    orderMode: orderModeTransition.state,
+                });
+            }
 
             // Ă˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘Â
             // LOCATION COMMIT: Write entities.location to session BEFORE surface detection
