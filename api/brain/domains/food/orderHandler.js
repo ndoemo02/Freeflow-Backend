@@ -5,6 +5,7 @@ import { extractQuantity, normalizeDish, findBestDishMatch } from '../../helpers
 import { canonicalizeDish } from '../../nlu/dishCanon.js';
 import { resolveMenuItemConflict, DISAMBIGUATION_RESULT } from '../../services/DisambiguationService.js';
 import { commitPendingOrder } from '../../session/sessionCart.js';
+import { buildClarifyOrderMessage, ORDER_REQUESTED_CATEGORY, resolveRequestedCategory } from './clarifyOrderMessage.js';
 
 function hasExplicitQuantityInText(text = '') {
     const normalized = normalizeDish(String(text || ''));
@@ -59,6 +60,371 @@ function getSessionMenu(session = {}) {
     return [];
 }
 
+const NON_MAIN_CATEGORY_HINTS = [
+    'dodatek',
+    'dodatki',
+    'sos',
+    'sosy',
+    'napoj',
+    'napoje',
+    'drink',
+    'drinki',
+    'alkohol',
+    'extra',
+    'modifier',
+    'modyfik',
+    'topping',
+    'dip',
+];
+
+const EXPLICIT_ADDON_HINTS = [
+    'sos',
+    'dodatek',
+    'dodatk',
+    'extra',
+    'modyfik',
+    'dip',
+    'topping',
+];
+
+const EXPLICIT_DRINK_HINTS = [
+    'napoj',
+    'napoje',
+    'woda',
+    'cola',
+    'pepsi',
+    'sprite',
+    'fanta',
+    'sok',
+    'lemoniada',
+    'kawa',
+    'herbata',
+];
+
+const GENERIC_DISH_TOKENS = new Set([
+    'sos',
+    'sosy',
+    'napoj',
+    'napoje',
+    'napoj gazowany',
+    'pizza',
+    'pizze',
+    'burger',
+    'burgery',
+    'kawa',
+    'herbata',
+    'dodatek',
+    'dodatki',
+    'frytki',
+]);
+
+const MODIFIER_SYNONYM_GROUPS = [
+    ['pikantny', 'pikantna', 'pikantne', 'ostry', 'ostra', 'ostre', 'spicy', 'chili', 'chilli'],
+    ['lagodny', 'lagodna', 'lagodne', 'mild'],
+];
+
+function stripQuantityOperators(phrase = '') {
+    const normalized = normalizeDish(phrase || '');
+    if (!normalized) return '';
+
+    return normalized
+        .replace(/^\s*x\s*\d+\b/, '')
+        .replace(/^\s*\d+\s*(?:x|razy|szt|sztuk|szt\.|porcj(?:a|e|i)?)?\b/, '')
+        .replace(/^\s*(?:jeden|jedna|jedno|dwa|dwie|trzy|cztery|piec|szesc|siedem|osiem|dziewiec|dziesiec|kilka|pare)\s*(?:x|razy)?\b/, '')
+        .replace(/\b(?:x\s*\d+|\d+\s*x|\d+\s*razy|razy\s*\d+)\b/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+function isGenericTokenOnly(phrase = '') {
+    const stripped = stripQuantityOperators(phrase);
+    if (!stripped) return false;
+    return GENERIC_DISH_TOKENS.has(stripped);
+}
+
+function resolveItemType(item = {}) {
+    const rawType = String(item?.type || item?.item_type || item?.kind || '').trim();
+    if (rawType) {
+        return rawType.toUpperCase();
+    }
+
+    const category = normalizeDish(item?.category || '');
+    if (category && NON_MAIN_CATEGORY_HINTS.some((hint) => category.includes(hint))) {
+        return 'ADDON';
+    }
+
+    return 'MAIN';
+}
+
+function isMainMenuItem(item = {}) {
+    return resolveItemType(item) === 'MAIN';
+}
+
+function isExplicitAddonRequest(text = '') {
+    const normalized = normalizeDish(text || '');
+    if (!normalized) return false;
+    return EXPLICIT_ADDON_HINTS.some((hint) => normalized.includes(hint));
+}
+
+function isExplicitDrinkRequest(text = '') {
+    const normalized = normalizeDish(text || '');
+    if (!normalized) return false;
+    return EXPLICIT_DRINK_HINTS.some((hint) => normalized.includes(hint));
+}
+
+function isDrinkMenuItem(item = {}) {
+    const category = normalizeDish(item?.category || '');
+    const name = normalizeDish(item?.name || '');
+
+    if (category.includes('napoj') || category.includes('drink') || category.includes('beverage')) {
+        return true;
+    }
+
+    return EXPLICIT_DRINK_HINTS.some((hint) => name.includes(hint));
+}
+
+function summarizeCandidates(candidates = []) {
+    return (candidates || []).slice(0, 5).map((item) => ({
+        id: item?.id || null,
+        name: item?.name || null,
+        type: isDrinkMenuItem(item)
+            ? ORDER_REQUESTED_CATEGORY.DRINK
+            : resolveItemType(item),
+    }));
+}
+
+function collectMenuCandidates(menu = [], requestedDish = '') {
+    if (!Array.isArray(menu) || menu.length === 0) return [];
+
+    const normalizedDish = normalizeDish(requestedDish || '');
+    if (!normalizedDish) return [];
+
+    return menu.filter((item) => {
+        const base = normalizeDish(item?.base_name || '');
+        const name = normalizeDish(item?.name || '');
+        return (base && (base.includes(normalizedDish) || normalizedDish.includes(base)))
+            || (name && (name.includes(normalizedDish) || normalizedDish.includes(name)));
+    });
+}
+
+function inferRequestedCategory({
+    requestedDish = '',
+    rawUserText = '',
+    addonContext = false,
+    candidates = [],
+}) {
+    if (addonContext || isExplicitAddonRequest(rawUserText) || isExplicitAddonRequest(requestedDish)) {
+        return ORDER_REQUESTED_CATEGORY.ADDON;
+    }
+
+    if (isExplicitDrinkRequest(rawUserText) || isExplicitDrinkRequest(requestedDish)) {
+        return ORDER_REQUESTED_CATEGORY.DRINK;
+    }
+
+    if (Array.isArray(candidates) && candidates.length > 0) {
+        const hasMain = candidates.some((item) => resolveItemType(item) === ORDER_REQUESTED_CATEGORY.MAIN);
+        if (hasMain) return ORDER_REQUESTED_CATEGORY.MAIN;
+
+        const hasDrink = candidates.some((item) => isDrinkMenuItem(item));
+        if (hasDrink) return ORDER_REQUESTED_CATEGORY.DRINK;
+
+        const hasAddon = candidates.some((item) => resolveItemType(item) === ORDER_REQUESTED_CATEGORY.ADDON);
+        if (hasAddon) return ORDER_REQUESTED_CATEGORY.ADDON;
+    }
+
+    return ORDER_REQUESTED_CATEGORY.UNKNOWN;
+}
+
+function buildAmbiguousResolution({
+    requestedCategory,
+    candidates = [],
+}) {
+    return {
+        status: 'AMBIGUOUS',
+        requestedCategory: resolveRequestedCategory(requestedCategory),
+        candidates: summarizeCandidates(candidates),
+    };
+}
+
+function resolveCategoryFromItem(item = {}) {
+    if (isDrinkMenuItem(item)) return ORDER_REQUESTED_CATEGORY.DRINK;
+
+    const type = resolveItemType(item);
+    if (type === 'ADDON') return ORDER_REQUESTED_CATEGORY.ADDON;
+    if (type === 'MAIN') return ORDER_REQUESTED_CATEGORY.MAIN;
+    return ORDER_REQUESTED_CATEGORY.UNKNOWN;
+}
+
+function buildClarifyResponse({
+    ambiguousMeta,
+    addonContext = false,
+    sessionRestaurant = null,
+    reason = 'ambiguous_resolution',
+}) {
+    const candidateCount = Array.isArray(ambiguousMeta?.candidates) ? ambiguousMeta.candidates.length : 0;
+    const expectedContext = addonContext ? 'order_addon' : 'clarify_order';
+    const clarifyMeta = {
+        ...(ambiguousMeta || {}),
+        status: 'AMBIGUOUS',
+        expectedContext,
+        candidateCount,
+        restaurantName: sessionRestaurant,
+    };
+
+    console.log('[CLARIFY_REASON_TRACE]', JSON.stringify({
+        reason,
+        category: clarifyMeta.requestedCategory || ORDER_REQUESTED_CATEGORY.UNKNOWN,
+        candidateCount,
+        expectedContext,
+        restaurantName: sessionRestaurant,
+    }));
+
+    return {
+        intent: 'clarify_order',
+        reply: buildClarifyOrderMessage(clarifyMeta),
+        meta: { clarify: clarifyMeta },
+        contextUpdates: {
+            expectedContext,
+        },
+    };
+}
+
+function normalizeOrderItemCandidates(rawItems = []) {
+    if (!Array.isArray(rawItems)) return [];
+
+    return rawItems
+        .map((item) => {
+            if (typeof item === 'string') {
+                const dish = item.trim();
+                if (!dish) return null;
+                return { dish, quantity: 1 };
+            }
+
+            if (item && typeof item === 'object') {
+                const dish = String(item.dish || item.name || '').trim();
+                if (!dish) return null;
+
+                const quantity = Math.max(1, Math.floor(Number(item.quantity ?? item.qty ?? 1) || 1));
+                return {
+                    dish,
+                    quantity,
+                    meta: (item.meta && typeof item.meta === 'object') ? { ...item.meta } : undefined,
+                };
+            }
+
+            return null;
+        })
+        .filter(Boolean);
+}
+
+function isSingleCompoundQuantityAllowed(entities = {}, itemCandidates = []) {
+    const singleItem = Array.isArray(itemCandidates) && itemCandidates.length === 1
+        ? itemCandidates[0]
+        : null;
+
+    if (!singleItem) return false;
+    if (Number(singleItem.quantity || 1) <= 1) return false;
+    if (entities?.compoundSource !== 'compound_parser') return false;
+    if (!entities?.skipCategoryClarify || !entities?.skipGenericTokenBlock) return false;
+
+    const lookupDish = singleItem?.meta?.rawLabel || singleItem?.dish || entities?.dish || '';
+    if (isGenericTokenOnly(lookupDish)) {
+        return false;
+    }
+
+    return true;
+}
+
+function buildModifierVariants(modifier = '') {
+    const normalized = normalizeDish(modifier || '');
+    if (!normalized) return [];
+
+    const variants = new Set([normalized]);
+    const tokens = normalized.split(' ').filter(Boolean);
+
+    for (const group of MODIFIER_SYNONYM_GROUPS) {
+        const groupSet = new Set(group.map((token) => normalizeDish(token)));
+        for (const token of tokens) {
+            if (groupSet.has(token)) {
+                for (const synonym of groupSet) {
+                    variants.add(synonym);
+                }
+            }
+        }
+    }
+
+    if (tokens.length > 1) {
+        const canonicalTokens = [...tokens];
+        for (let i = 0; i < canonicalTokens.length; i += 1) {
+            for (const group of MODIFIER_SYNONYM_GROUPS) {
+                const groupSet = new Set(group.map((token) => normalizeDish(token)));
+                if (groupSet.has(canonicalTokens[i])) {
+                    canonicalTokens[i] = normalizeDish(group[0]);
+                }
+            }
+        }
+        variants.add(canonicalTokens.join(' ').trim());
+    }
+
+    return [...variants].filter(Boolean);
+}
+
+function itemMatchesModifier(item = {}, modifier = '') {
+    const modifierVariants = buildModifierVariants(modifier);
+    if (modifierVariants.length === 0) return false;
+
+    const normalizedName = normalizeDish(item?.name || '');
+    const normalizedBase = normalizeDish(item?.base_name || '');
+    return modifierVariants.some((variant) =>
+        normalizedName.includes(variant) || normalizedBase.includes(variant)
+    );
+}
+
+function filterCandidatesByModifier(candidates = [], modifier = '') {
+    if (!Array.isArray(candidates) || candidates.length === 0) return [];
+    const normalizedModifier = normalizeDish(modifier || '');
+    if (!normalizedModifier) return candidates;
+    return candidates.filter((candidate) => itemMatchesModifier(candidate, normalizedModifier));
+}
+
+function resolveMainItemStrict({ menu = [], rawRequestedDish = '', requestedDish = '', canonicalDish = '', session = null }) {
+    if (!Array.isArray(menu) || menu.length === 0) {
+        return null;
+    }
+
+    const mainItems = menu.filter(isMainMenuItem);
+    const candidatePool = mainItems.length > 0 ? mainItems : menu;
+
+    const exactAttempts = [rawRequestedDish, canonicalDish, requestedDish]
+        .map((value) => normalizeDish(value || ''))
+        .filter(Boolean);
+
+    for (const attempt of exactAttempts) {
+        const exact = candidatePool.find((item) => {
+            const normalizedName = normalizeDish(item?.name || '');
+            const normalizedBase = normalizeDish(item?.base_name || '');
+            return normalizedName === attempt || normalizedBase === attempt;
+        });
+
+        if (exact) {
+            return {
+                item: exact,
+                fallbackUsed: false,
+            };
+        }
+    }
+
+    const fuzzy = findDirectMenuMatch(canonicalDish || requestedDish, candidatePool, session);
+    if (fuzzy) {
+        return {
+            item: fuzzy,
+            fallbackUsed: true,
+        };
+    }
+
+    return null;
+}
+
 function findDirectMenuMatch(searchPhrase, menu = [], session = null) {
     if (!searchPhrase || !Array.isArray(menu) || menu.length === 0) {
         return null;
@@ -110,6 +476,214 @@ function resolveScopedZurekFallback(menu = []) {
         normalizeDish(item?.base_name || item?.name || '').includes('zupa dnia')
     );
     return zupaDnia || normalizedSoupCandidates[0];
+}
+
+async function resolveOrderCandidate({
+    candidateText,
+    candidateMeta = null,
+    rawUserText,
+    session,
+    entities,
+    menu,
+    currentRestaurantId,
+    addonContext,
+}) {
+    const rawRequestedDish = String(candidateText || '').trim();
+    const normalizedMeta = (candidateMeta && typeof candidateMeta === 'object') ? candidateMeta : {};
+    const resolverRawLabel = String(normalizedMeta.rawLabel || rawRequestedDish).trim() || rawRequestedDish;
+    const useRawResolverLabel = Boolean(normalizedMeta.canonicalAliasBundle);
+    const resolverInputDish = useRawResolverLabel ? resolverRawLabel : rawRequestedDish;
+    const canonicalDish = useRawResolverLabel ? resolverInputDish : canonicalizeDish(resolverInputDish, session);
+    const requestedDish = canonicalDish || resolverInputDish;
+    const token = normalizeDish(requestedDish);
+    const modifierHint = normalizeDish(normalizedMeta.modifier || '');
+
+    const explicitAddonRequest =
+        addonContext ||
+        isExplicitAddonRequest(rawUserText) ||
+        isExplicitAddonRequest(requestedDish);
+    const explicitDrinkRequest =
+        isExplicitDrinkRequest(rawRequestedDish) ||
+        isExplicitDrinkRequest(requestedDish);
+    const genericTokenBlocked =
+        isGenericTokenOnly(rawRequestedDish) ||
+        isGenericTokenOnly(requestedDish);
+    const shouldBlockGenericToken = genericTokenBlocked && !modifierHint;
+
+    if (shouldBlockGenericToken) {
+        const requestedCategory = inferRequestedCategory({
+            requestedDish,
+            rawUserText,
+            addonContext,
+            candidates: [],
+        });
+        const ambiguousMeta = buildAmbiguousResolution({
+            requestedCategory,
+            candidates: [],
+        });
+
+        console.log('[GENERIC_TOKEN_BLOCK_TRACE]', JSON.stringify({
+            requestedDish,
+            rawRequestedDish,
+            requestedCategory,
+            addonContext,
+            sessionRestaurant: session?.currentRestaurant?.name || session?.lastRestaurant?.name || null,
+        }));
+
+        return {
+            rawRequestedDish,
+            requestedDish,
+            canonicalDish,
+            resolution: { status: DISAMBIGUATION_RESULT.ITEM_NOT_FOUND, item: null, restaurant: null },
+            ambiguousMeta,
+            requestedCategory,
+            resolvedCategory: null,
+            addonContext,
+            genericTokenBlocked: true,
+        };
+    }
+
+    let directMatch = null;
+    let fallbackUsed = false;
+
+    if (!explicitAddonRequest && !explicitDrinkRequest && menu.length > 0) {
+        const strictMainResolution = resolveMainItemStrict({
+            menu,
+            rawRequestedDish,
+            requestedDish,
+            canonicalDish,
+            session,
+        });
+
+        if (strictMainResolution?.item) {
+            directMatch = strictMainResolution.item;
+            fallbackUsed = strictMainResolution.fallbackUsed;
+        }
+    }
+
+    if (!directMatch && token && menu.length > 0) {
+        directMatch = findDirectMenuMatch(requestedDish, menu, session);
+    }
+
+    if (modifierHint && menu.length > 0) {
+        const modifierCandidates = filterCandidatesByModifier(menu, modifierHint);
+        console.log('[MODIFIER_PRESERVED_TRACE]', JSON.stringify({
+            requestedDish,
+            rawLabel: resolverRawLabel || null,
+            modifier: modifierHint,
+            candidates: modifierCandidates.length,
+        }));
+
+        if (modifierCandidates.length === 0) {
+            const requestedCategory = inferRequestedCategory({
+                requestedDish,
+                rawUserText,
+                addonContext,
+                candidates: [],
+            });
+            const ambiguousMeta = buildAmbiguousResolution({
+                requestedCategory,
+                candidates: [],
+            });
+            return {
+                rawRequestedDish,
+                requestedDish,
+                canonicalDish,
+                resolution: { status: DISAMBIGUATION_RESULT.ITEM_NOT_FOUND, item: null, restaurant: null },
+                ambiguousMeta,
+                requestedCategory,
+                resolvedCategory: null,
+                addonContext,
+                candidateMeta: normalizedMeta,
+            };
+        }
+
+        if (directMatch && !itemMatchesModifier(directMatch, modifierHint)) {
+            directMatch = null;
+        }
+
+        if (!directMatch) {
+            const modifierPool = modifierCandidates.length > 0 ? modifierCandidates : menu;
+            const modifierMatch =
+                findDirectMenuMatch(resolverRawLabel || requestedDish, modifierPool, session)
+                || findDirectMenuMatch(requestedDish, modifierPool, session)
+                || (modifierPool.length === 1 ? modifierPool[0] : null);
+
+            if (modifierMatch) {
+                directMatch = modifierMatch;
+                fallbackUsed = true;
+            }
+        }
+    }
+
+    if (!directMatch && explicitAddonRequest && isStaraKamienicaSession(session)) {
+        const normalizedRequestedDish = normalizeDish(requestedDish);
+        const isZurekRequest =
+            normalizedRequestedDish.includes('zurek') ||
+            normalizedRequestedDish.includes('urek') ||
+            normalizedRequestedDish === 'zur' ||
+            normalizedRequestedDish.includes('zur ');
+
+        if (isZurekRequest) {
+            const scopedFallback = resolveScopedZurekFallback(menu);
+            if (scopedFallback) {
+                directMatch = scopedFallback;
+                fallbackUsed = true;
+            }
+        }
+    }
+
+    const resolution = directMatch
+        ? {
+            status: DISAMBIGUATION_RESULT.ADD_ITEM,
+            item: directMatch,
+            restaurant: session?.currentRestaurant || session?.lastRestaurant,
+        }
+        : await resolveMenuItemConflict(requestedDish, {
+            restaurant_id: currentRestaurantId,
+            entities,
+            session: {
+                ...session,
+                last_menu: menu,
+            },
+            last_menu: menu,
+        });
+
+    const candidatesForCategory =
+        resolution?.status === DISAMBIGUATION_RESULT.DISAMBIGUATION_REQUIRED
+            ? []
+            : collectMenuCandidates(menu, requestedDish);
+    const requestedCategory = inferRequestedCategory({
+        requestedDish,
+        rawUserText,
+        addonContext,
+        candidates: candidatesForCategory,
+    });
+    const ambiguousMeta = buildAmbiguousResolution({
+        requestedCategory,
+        candidates: candidatesForCategory,
+    });
+
+    const resolvedCategory = resolution?.item ? resolveCategoryFromItem(resolution.item) : null;
+    console.log('[ORDER_CATEGORY_TRACE]', JSON.stringify({
+        requestedDish,
+        requestedCategory,
+        resolvedCategory,
+        resolvedItemId: resolution?.item?.id || null,
+        fallbackUsed,
+    }));
+
+    return {
+        rawRequestedDish,
+        requestedDish,
+        canonicalDish,
+        resolution,
+        ambiguousMeta,
+        requestedCategory,
+        resolvedCategory,
+        addonContext,
+        candidateMeta: normalizedMeta,
+    };
 }
 
 export class OrderHandler {
@@ -174,23 +748,301 @@ export class OrderHandler {
             searchPhrase = searchPhrase.replace(/^(?:\d+\s*|jeden|jedna|jedno|dwa|dwie|trzy|cztery|pi[eÄ™][cÄ‡][u]?|sze[sĹ›][cÄ‡][u]?|siedem|osiem|dziewi[eÄ™][cÄ‡][u]?|dziesi[eÄ™][cÄ‡][u]?|kilka|par[Ä™e])\s+/i, '').trim();
         }
 
+        const itemCandidates = normalizeOrderItemCandidates(entities?.items);
+        const singleCompoundQuantityAllowed = isSingleCompoundQuantityAllowed(entities, itemCandidates);
+        const singleCompoundCandidate = itemCandidates.length === 1 ? itemCandidates[0] : null;
+
+        if (singleCompoundQuantityAllowed && singleCompoundCandidate) {
+            quantity = Math.max(1, Math.floor(Number(singleCompoundCandidate.quantity || quantity || 1)));
+            hasExplicitNumber = true;
+            searchPhrase = singleCompoundCandidate.meta?.rawLabel || singleCompoundCandidate.dish || searchPhrase;
+
+            console.log('[SINGLE_COMPOUND_ALLOW_TRACE]', JSON.stringify({
+                source: entities?.compoundSource || 'unknown',
+                dish: searchPhrase,
+                quantity,
+                skipCategoryClarify: Boolean(entities?.skipCategoryClarify),
+                skipGenericTokenBlock: Boolean(entities?.skipGenericTokenBlock),
+            }));
+        }
+
+        if (itemCandidates.length > 1) {
+            const currentRestaurantId = session?.currentRestaurant?.id || session?.lastRestaurant?.id;
+            const menu = getSessionMenu(session);
+            const addonContext = session?.expectedContext === 'order_addon';
+            const sessionRestaurant = session?.currentRestaurant?.name || session?.lastRestaurant?.name || null;
+            const resolvedItems = [];
+            let targetRestaurant = session?.currentRestaurant || session?.lastRestaurant || null;
+
+            for (const candidate of itemCandidates) {
+                const candidateText = candidate.dish;
+                const candidateQuantity = Math.max(1, Math.floor(Number(candidate.quantity || 1)));
+                const candidateResult = await resolveOrderCandidate({
+                    candidateText,
+                    candidateMeta: candidate.meta,
+                    rawUserText,
+                    session,
+                    entities,
+                    menu,
+                    currentRestaurantId,
+                    addonContext,
+                });
+
+                if (candidateResult?.resolution?.status !== DISAMBIGUATION_RESULT.ADD_ITEM || !candidateResult?.resolution?.item) {
+                    return buildClarifyResponse({
+                        ambiguousMeta: {
+                            ...(candidateResult?.ambiguousMeta || {}),
+                            requestedCategory: ORDER_REQUESTED_CATEGORY.MULTI,
+                        },
+                        addonContext,
+                        sessionRestaurant,
+                        reason: 'multi_item_not_resolved',
+                    });
+                }
+
+                if (candidateResult.resolvedCategory === ORDER_REQUESTED_CATEGORY.ADDON && !addonContext) {
+                    return buildClarifyResponse({
+                        ambiguousMeta: {
+                            ...(candidateResult.ambiguousMeta || {}),
+                            requestedCategory: ORDER_REQUESTED_CATEGORY.ADDON,
+                        },
+                        addonContext,
+                        sessionRestaurant,
+                        reason: 'addon_without_context',
+                    });
+                }
+
+                const resolvedRestaurant = candidateResult?.resolution?.restaurant || targetRestaurant;
+                if (targetRestaurant && resolvedRestaurant && String(targetRestaurant.id || '') !== String(resolvedRestaurant.id || '')) {
+                    return buildClarifyResponse({
+                        ambiguousMeta: {
+                            status: 'AMBIGUOUS',
+                            requestedCategory: ORDER_REQUESTED_CATEGORY.MULTI,
+                            candidates: [],
+                        },
+                        addonContext,
+                        sessionRestaurant,
+                        reason: 'multi_restaurant_conflict',
+                    });
+                }
+
+                targetRestaurant = resolvedRestaurant || targetRestaurant;
+                const item = candidateResult.resolution.item;
+                const existingIndex = resolvedItems.findIndex((candidateItem) => String(candidateItem.id) === String(item.id));
+                if (existingIndex >= 0) {
+                    resolvedItems[existingIndex].quantity += candidateQuantity;
+                    resolvedItems[existingIndex].hasExplicitNumber = resolvedItems[existingIndex].hasExplicitNumber || candidateQuantity > 1;
+                } else {
+                    resolvedItems.push({
+                        id: item.id,
+                        name: item.name,
+                        price: parseFloat(item.price_pln ?? item.price ?? 0),
+                        quantity: candidateQuantity,
+                        hasExplicitNumber: candidateQuantity > 1,
+                    });
+                }
+            }
+
+            if (!targetRestaurant?.id || resolvedItems.length === 0) {
+                return buildClarifyResponse({
+                    ambiguousMeta: {
+                        status: 'AMBIGUOUS',
+                        requestedCategory: ORDER_REQUESTED_CATEGORY.MULTI,
+                        candidates: [],
+                    },
+                    addonContext,
+                    sessionRestaurant,
+                    reason: 'multi_missing_restaurant',
+                });
+            }
+
+            const total = resolvedItems
+                .reduce((sum, item) => sum + (Number(item.price) * Number(item.quantity || 1)), 0)
+                .toFixed(2);
+            const totalPieces = resolvedItems.reduce((sum, item) => sum + Number(item.quantity || 1), 0);
+            const hydratedMenu = menu.length > 0 ? menu : getSessionMenu(session);
+
+            session.pendingOrder = {
+                restaurant_id: targetRestaurant.id,
+                restaurant: targetRestaurant.name,
+                items: resolvedItems,
+                total,
+                createdAt: Date.now(),
+            };
+
+            const commitResult = commitPendingOrder(session);
+            if (!commitResult.committed) {
+                return {
+                    reply: "Wystapil problem przy dodawaniu do koszyka. Sprobuj ponownie.",
+                    contextUpdates: {
+                        lastRestaurant: targetRestaurant,
+                        currentRestaurant: targetRestaurant,
+                        expectedContext: null,
+                        lastIntent: 'create_order'
+                    }
+                };
+            }
+
+            session.expectedContext = 'order_continue';
+            if (Array.isArray(hydratedMenu) && hydratedMenu.length > 0) {
+                session.lastMenuItems = hydratedMenu;
+                session.last_menu = hydratedMenu;
+            }
+
+            return {
+                reply: `Dodalam ${resolvedItems.length} pozycje (${totalPieces} szt.) z ${targetRestaurant.name}. Razem ${total} zl.`,
+                actions: [
+                    {
+                        type: 'SHOW_CART',
+                        payload: { mode: 'badge' }
+                    }
+                ],
+                meta: {
+                    source: 'order_handler_multi_autocommit',
+                    addedToCart: true,
+                    cart: session.cart,
+                    orderMode: 'multi_candidate',
+                    restaurant: { id: targetRestaurant.id, name: targetRestaurant.name }
+                },
+                contextUpdates: {
+                    lastRestaurant: targetRestaurant,
+                    currentRestaurant: targetRestaurant,
+                    expectedContext: 'order_continue',
+                    pendingOrder: null,
+                    conversationPhase: 'ordering',
+                    cart: session.cart,
+                    lastIntent: 'create_order',
+                    lastMenuItems: hydratedMenu,
+                    last_menu: hydratedMenu,
+                }
+            };
+        }
+
         // 1. DISAMBIGUATION CHECK
         // Use the new service to resolve what item user wants
         // We pass the current restaurant context if available
         const currentRestaurantId = session?.currentRestaurant?.id || session?.lastRestaurant?.id;
 
         const menu = getSessionMenu(session);
-        const canonicalDish = canonicalizeDish(searchPhrase, session);
-        const requestedDish = canonicalDish || searchPhrase;
+        const rawRequestedDish = searchPhrase;
+        const singleCandidateMeta = singleCompoundCandidate?.meta && typeof singleCompoundCandidate.meta === 'object'
+            ? singleCompoundCandidate.meta
+            : null;
+        const singleResolverRaw = singleCandidateMeta?.rawLabel || rawRequestedDish;
+        const useRawLabelForSingle = Boolean(singleCandidateMeta?.canonicalAliasBundle);
+        const canonicalDish = useRawLabelForSingle
+            ? singleResolverRaw
+            : canonicalizeDish(singleResolverRaw, session);
+        const requestedDish = canonicalDish || singleResolverRaw || rawRequestedDish;
         const token = normalizeDish(requestedDish);
+        const addonContext = session?.expectedContext === 'order_addon';
+        const explicitAddonRequest =
+            addonContext ||
+            isExplicitAddonRequest(rawUserText) ||
+            isExplicitAddonRequest(requestedDish);
+        const explicitDrinkRequest =
+            isExplicitDrinkRequest(rawRequestedDish) ||
+            isExplicitDrinkRequest(requestedDish);
+        const genericTokenBlocked =
+            isGenericTokenOnly(rawRequestedDish) ||
+            isGenericTokenOnly(requestedDish);
+        const modifierHint = normalizeDish(singleCandidateMeta?.modifier || '');
+        const shouldBlockGenericToken = genericTokenBlocked && !singleCompoundQuantityAllowed && !modifierHint;
+
+        if (singleCandidateMeta) {
+            console.log('[SAFE_CANON_ITEM_TRACE]', JSON.stringify({
+                source: entities?.compoundSource || 'single_item',
+                inputDish: rawRequestedDish || null,
+                outputDish: requestedDish || null,
+                quantity: quantity || null,
+                canonicalAliasBundle: Boolean(singleCandidateMeta?.canonicalAliasBundle),
+                rawLabel: singleCandidateMeta?.rawLabel || null,
+            }));
+        }
+
+        if (shouldBlockGenericToken) {
+            const sessionRestaurant = session?.currentRestaurant?.name || session?.lastRestaurant?.name || null;
+            const requestedCategory = inferRequestedCategory({
+                requestedDish,
+                rawUserText,
+                addonContext,
+                candidates: [],
+            });
+            const ambiguousMeta = buildAmbiguousResolution({
+                requestedCategory,
+                candidates: [],
+            });
+
+            console.log('[GENERIC_TOKEN_BLOCK_TRACE]', JSON.stringify({
+                requestedDish,
+                rawRequestedDish,
+                requestedCategory,
+                addonContext,
+                sessionRestaurant,
+            }));
+
+            return buildClarifyResponse({
+                ambiguousMeta,
+                addonContext,
+                sessionRestaurant,
+                reason: 'generic_token_block',
+            });
+        }
 
         let directMatch = null;
         let menuCandidates = [];
+        let fallbackUsed = false;
 
-        if (token && menu.length > 0) {
+        if (!explicitAddonRequest && !explicitDrinkRequest && menu.length > 0) {
+            const strictMainResolution = resolveMainItemStrict({
+                menu,
+                rawRequestedDish,
+                requestedDish,
+                canonicalDish,
+                session,
+            });
+
+            if (strictMainResolution?.item) {
+                directMatch = strictMainResolution.item;
+                fallbackUsed = strictMainResolution.fallbackUsed;
+            } else {
+                const sessionRestaurant = session?.currentRestaurant?.name || session?.lastRestaurant?.name || null;
+                const orderResolveTrace = {
+                    canonical: canonicalDish || requestedDish || null,
+                    resolvedItemId: null,
+                    resolvedType: null,
+                    fallbackUsed: false,
+                };
+                console.log('[ORDER_RESOLVE_TRACE]', JSON.stringify(orderResolveTrace));
+                const clarifyCandidates = collectMenuCandidates(menu, requestedDish);
+                const requestedCategory = inferRequestedCategory({
+                    requestedDish,
+                    rawUserText,
+                    addonContext,
+                    candidates: clarifyCandidates,
+                });
+                const ambiguousMeta = buildAmbiguousResolution({
+                    requestedCategory,
+                    candidates: clarifyCandidates,
+                });
+                console.log('[ORDER_CLARIFY_TRACE]', JSON.stringify({
+                    category: ambiguousMeta.requestedCategory,
+                    candidateCount: ambiguousMeta.candidates.length,
+                    sessionRestaurant,
+                }));
+                return buildClarifyResponse({
+                    ambiguousMeta,
+                    addonContext,
+                    sessionRestaurant,
+                    reason: 'strict_main_not_found',
+                });
+
+            }
+        }
+
+        if (!directMatch && explicitAddonRequest && token && menu.length > 0) {
             directMatch = findDirectMenuMatch(requestedDish, menu, session);
 
-            // Defensive fallback: token word match inside current menu snapshot.
             if (!directMatch) {
                 menuCandidates = menu.filter((item) => {
                     const base = normalizeDish(item?.base_name || '');
@@ -200,11 +1052,59 @@ export class OrderHandler {
 
                 if (menuCandidates.length === 1) {
                     directMatch = menuCandidates[0];
+                    fallbackUsed = true;
                 }
             }
         }
 
-        if (!directMatch && isStaraKamienicaSession(session)) {
+        if (!directMatch && explicitDrinkRequest && token && menu.length > 0) {
+            directMatch = findDirectMenuMatch(requestedDish, menu, session);
+        }
+
+        if (modifierHint && menu.length > 0) {
+            const modifierCandidates = filterCandidatesByModifier(menu, modifierHint);
+            console.log('[MODIFIER_PRESERVED_TRACE]', JSON.stringify({
+                requestedDish,
+                rawLabel: singleCandidateMeta?.rawLabel || rawRequestedDish || null,
+                modifier: modifierHint,
+                candidates: modifierCandidates.length,
+            }));
+
+            if (modifierCandidates.length === 0) {
+                const sessionRestaurant = session?.currentRestaurant?.name || session?.lastRestaurant?.name || null;
+                const requestedCategory = inferRequestedCategory({
+                    requestedDish,
+                    rawUserText,
+                    addonContext,
+                    candidates: [],
+                });
+                const ambiguousMeta = buildAmbiguousResolution({
+                    requestedCategory,
+                    candidates: [],
+                });
+                return buildClarifyResponse({
+                    ambiguousMeta,
+                    addonContext,
+                    sessionRestaurant,
+                    reason: 'modifier_not_found',
+                });
+            }
+
+            if (directMatch && !itemMatchesModifier(directMatch, modifierHint)) {
+                directMatch = null;
+            }
+
+            if (!directMatch) {
+                const modifierPool = modifierCandidates.length > 0 ? modifierCandidates : menu;
+                directMatch =
+                    findDirectMenuMatch(singleCandidateMeta?.rawLabel || requestedDish, modifierPool, session)
+                    || findDirectMenuMatch(requestedDish, modifierPool, session)
+                    || (modifierPool.length === 1 ? modifierPool[0] : null);
+                if (directMatch) fallbackUsed = true;
+            }
+        }
+
+        if (!directMatch && explicitAddonRequest && isStaraKamienicaSession(session)) {
             const normalizedRequestedDish = normalizeDish(requestedDish);
             const isZurekRequest =
                 normalizedRequestedDish.includes('zurek') ||
@@ -217,6 +1117,7 @@ export class OrderHandler {
                 if (scopedFallback) {
                     directMatch = scopedFallback;
                     menuCandidates = [scopedFallback];
+                    fallbackUsed = true;
                 }
             }
         }
@@ -246,17 +1147,98 @@ export class OrderHandler {
 
         console.log(`đź§  Disambiguation Result: ${resolution.status} for "${searchPhrase}"`);
 
+        const resolvedItemCategory = resolution?.item ? resolveCategoryFromItem(resolution.item) : null;
+        if (resolution?.item && !explicitAddonRequest && resolvedItemCategory === ORDER_REQUESTED_CATEGORY.ADDON && !singleCompoundQuantityAllowed) {
+            const sessionRestaurant = session?.currentRestaurant?.name || session?.lastRestaurant?.name || null;
+            const clarifyCandidates = [resolution.item, ...collectMenuCandidates(menu, requestedDish)]
+                .filter(Boolean)
+                .filter((item, index, arr) => {
+                    const key = item?.id
+                        ? String(item.id)
+                        : `${normalizeDish(item?.name || '')}:${resolveItemType(item)}`;
+                    return arr.findIndex((candidate) => {
+                        const candidateKey = candidate?.id
+                            ? String(candidate.id)
+                            : `${normalizeDish(candidate?.name || '')}:${resolveItemType(candidate)}`;
+                        return candidateKey === key;
+                    }) === index;
+                });
+            const requestedCategory = inferRequestedCategory({
+                requestedDish,
+                rawUserText,
+                addonContext,
+                candidates: clarifyCandidates,
+            });
+            const ambiguousMeta = buildAmbiguousResolution({
+                requestedCategory,
+                candidates: clarifyCandidates,
+            });
+            const blockedOrderResolveTrace = {
+                canonical: canonicalDish || requestedDish || null,
+                resolvedItemId: resolution.item.id || null,
+                resolvedType: resolvedItemCategory,
+                fallbackUsed,
+            };
+            console.log('[ORDER_RESOLVE_TRACE]', JSON.stringify(blockedOrderResolveTrace));
+            console.log('[ORDER_CLARIFY_TRACE]', JSON.stringify({
+                category: ambiguousMeta.requestedCategory,
+                candidateCount: ambiguousMeta.candidates.length,
+                sessionRestaurant,
+            }));
+            return buildClarifyResponse({
+                ambiguousMeta,
+                addonContext,
+                sessionRestaurant,
+                reason: 'resolved_non_main_without_addon_context',
+            });
+
+        }
+
+        const orderResolveTrace = {
+            canonical: canonicalDish || requestedDish || null,
+            resolvedItemId: resolution?.item?.id || null,
+            resolvedType: resolvedItemCategory,
+            fallbackUsed,
+        };
+        console.log('[ORDER_RESOLVE_TRACE]', JSON.stringify(orderResolveTrace));
+        console.log('[ORDER_CATEGORY_TRACE]', JSON.stringify({
+            requestedDish,
+            requestedCategory: inferRequestedCategory({
+                requestedDish,
+                rawUserText,
+                addonContext,
+                candidates: collectMenuCandidates(menu, requestedDish),
+            }),
+            resolvedCategory: resolution?.item ? resolveCategoryFromItem(resolution.item) : null,
+        }));
+
         // CASE A: Item Not Found
         if (resolution.status === DISAMBIGUATION_RESULT.ITEM_NOT_FOUND) {
             console.log('[KROK5-DEBUG] fallback triggered - dish not matched', JSON.stringify({ searchPhrase, dish: entities?.dish || null, menuLength: menu.length }));
-            const rName = session?.lastRestaurant?.name || "naszej ofercie";
-            return {
-                intent: 'clarify_order',
-                reply: `Nie mogÄ™ znaleĹşÄ‡ tego dania w ${rName}. SprĂłbuj podaÄ‡ dokĹ‚adniejszÄ… nazwÄ™.`,
-                contextUpdates: {
-                    expectedContext: 'clarify_order'
-                }
-            };
+            const sessionRestaurant = session?.currentRestaurant?.name || session?.lastRestaurant?.name || null;
+            const clarifyCandidates = collectMenuCandidates(menu, requestedDish);
+            const requestedCategory = inferRequestedCategory({
+                requestedDish,
+                rawUserText,
+                addonContext,
+                candidates: clarifyCandidates,
+            });
+            const ambiguousMeta = buildAmbiguousResolution({
+                requestedCategory,
+                candidates: clarifyCandidates,
+            });
+            console.log('[ORDER_CLARIFY_TRACE]', JSON.stringify({
+                category: ambiguousMeta.requestedCategory,
+                candidateCount: ambiguousMeta.candidates.length,
+                sessionRestaurant,
+            }));
+            return buildClarifyResponse({
+                ambiguousMeta,
+                addonContext,
+                sessionRestaurant,
+                reason: 'item_not_found',
+            });
+
         }
 
         // CASE B: Disambiguation Required (Multi-match, no context)
@@ -278,6 +1260,7 @@ export class OrderHandler {
         if (resolution.status === DISAMBIGUATION_RESULT.ADD_ITEM) {
             const item = resolution.item;
             const restaurant = resolution.restaurant || session?.currentRestaurant || session?.lastRestaurant;
+            const hydratedMenu = menu.length > 0 ? menu : getSessionMenu(session);
 
             // Determine if we are switching restaurants
             const isSwitch = currentRestaurantId && currentRestaurantId !== restaurant.id;
@@ -315,6 +1298,12 @@ export class OrderHandler {
                 };
             }
 
+            session.expectedContext = 'order_continue';
+            if (Array.isArray(hydratedMenu) && hydratedMenu.length > 0) {
+                session.lastMenuItems = hydratedMenu;
+                session.last_menu = hydratedMenu;
+            }
+
             const switchPrefix = isSwitch ? `Znaleziono "${item.name}" w ${restaurant.name}. ` : '';
             return {
                 reply: `${switchPrefix}Dodałam ${formatSzt(quantity)} ${item.name} z ${restaurant.name}. Razem ${total} zł.`,
@@ -333,11 +1322,13 @@ export class OrderHandler {
                 contextUpdates: {
                     lastRestaurant: restaurant,
                     currentRestaurant: restaurant,
-                    expectedContext: null,
+                    expectedContext: 'order_continue',
                     pendingOrder: null,
                     conversationPhase: 'ordering',
                     cart: session.cart,
-                    lastIntent: 'create_order'
+                    lastIntent: 'create_order',
+                    lastMenuItems: hydratedMenu,
+                    last_menu: hydratedMenu,
                 }
             };
         }

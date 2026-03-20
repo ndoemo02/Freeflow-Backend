@@ -9,6 +9,7 @@ import { getSession, updateSession, getOrCreateActiveSessionAsync, closeConversa
 import { FindRestaurantHandler } from '../domains/food/findHandler.js';
 import { MenuHandler } from '../domains/food/menuHandler.js';
 import { OrderHandler } from '../domains/food/orderHandler.js';
+import { buildClarifyOrderMessage, ORDER_REQUESTED_CATEGORY } from '../domains/food/clarifyOrderMessage.js';
 import { ConfirmOrderHandler } from '../domains/food/confirmHandler.js';
 import { SelectRestaurantHandler } from '../domains/food/selectHandler.js';
 import { OptionHandler } from '../domains/food/optionHandler.js';
@@ -34,6 +35,8 @@ import { MenuHydrationService } from './pipeline/MenuHydrationService.js';
 import { SessionHydrator } from './pipeline/SessionHydrator.js';
 import { HandlerDispatcher } from './pipeline/HandlerDispatcher.js';
 import { finalizeEntities } from './pipeline/finalizeEntities.js';
+import { applyMultiItemParsing } from './pipeline/multiItemOrderParser.js';
+import { parseCompoundOrder } from '../nlu/compoundOrderParser.js';
 
 // Reco V1 — rule-based recommendation layer (no extra DB calls)
 import { getRecommendations } from '../recommendations/recoEngine.js';
@@ -179,11 +182,36 @@ export class BrainPipeline {
                 confirm_order: new ConfirmOrderHandler(),
                 confirm_add_to_cart: new ConfirmAddToCartHandler(),
                 clarify_order: {
-                    execute: async (ctx) => ({
-                        reply: 'Nie mam pewno\u015bci, o kt\u00f3re danie chodzi. Co dok\u0142adnie chcia\u0142by\u015b zam\u00f3wi\u0107?',
-                        intent: 'clarify_order',
-                        contextUpdates: { expectedContext: 'create_order' }
-                    })
+                    execute: async (ctx) => {
+                        const expectedContext = ctx?.session?.expectedContext || null;
+                        const isMulti = ctx?.meta?.orderMode === 'multi_candidate' || Array.isArray(ctx?.entities?.items);
+                        const requestedCategory = isMulti
+                            ? ORDER_REQUESTED_CATEGORY.MULTI
+                            : expectedContext === 'order_addon'
+                                ? ORDER_REQUESTED_CATEGORY.ADDON
+                                : ORDER_REQUESTED_CATEGORY.UNKNOWN;
+                        const clarifyMeta = {
+                            status: 'AMBIGUOUS',
+                            requestedCategory,
+                            candidates: [],
+                            expectedContext,
+                        };
+                        console.log('[CLARIFY_REASON_TRACE]', JSON.stringify({
+                            category: clarifyMeta.requestedCategory,
+                            candidateCount: 0,
+                            expectedContext,
+                            restaurantName: ctx?.session?.currentRestaurant?.name || ctx?.session?.lastRestaurant?.name || null,
+                        }));
+
+                        return {
+                            reply: buildClarifyOrderMessage(clarifyMeta),
+                            intent: 'clarify_order',
+                            meta: { clarify: clarifyMeta },
+                            contextUpdates: {
+                                expectedContext: expectedContext === 'order_addon' ? 'order_addon' : 'create_order'
+                            }
+                        };
+                    }
                 }
             },
             system: {
@@ -286,6 +314,7 @@ export class BrainPipeline {
             sessionId: activeSessionId,  // Use active (possibly new) session ID
             originalSessionId: sessionId, // Keep original for tracking
             text,
+            rawText: text,
             session: sessionContext,
             startTime,
             meta: { conversationNew: sessionResult.isNew },
@@ -351,6 +380,7 @@ export class BrainPipeline {
             // PRE-NLU CONTEXT OVERRIDE: Fast-track list selections
             // Ă˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘Â
             let intentResult;
+            let skipSingleDishCanon = false;
             const executedGuardNames = [];
 
             const executeGuardChain = (intentContext, guardImplementations, pipelineState = {}) => {
@@ -412,11 +442,26 @@ export class BrainPipeline {
                 // Ă˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘Â
                 // PRE-NLU: Dish Canonicalization (resolve aliases before NLU)
                 // Ă˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘Â
-                const canonResult = canonicalizeDish(text, sessionContext);
-                if (canonResult && (typeof canonResult === 'string') && canonResult !== text) {
-                    BrainLogger.pipeline(`Ä‘Ĺşâ€ťÂ¤ DISH_CANON: "${text}" Ă˘â€ â€™ "${canonResult}"`);
-                    context.canonicalDish = canonResult;
-                    text = canonResult; // Override text for NLU
+                const rawCompoundPreview = parseCompoundOrder(context.rawText || text, sessionContext?.last_menu || []);
+                if (Array.isArray(rawCompoundPreview?.items) && rawCompoundPreview.items.length > 1) {
+                    skipSingleDishCanon = true;
+                    console.log('[COMPOUND_RAW_TRACE]', JSON.stringify({
+                        source: 'pipeline_pre_nlu',
+                        sessionId: activeSessionId,
+                        count: rawCompoundPreview.items.length,
+                        items: rawCompoundPreview.items,
+                    }));
+                }
+
+                if (!skipSingleDishCanon) {
+                    const canonResult = canonicalizeDish(text, sessionContext);
+                    if (canonResult && (typeof canonResult === 'string') && canonResult !== text) {
+                        BrainLogger.pipeline(`Ä‘Ĺşâ€ťÂ¤ DISH_CANON: "${text}" Ă˘â€ â€™ "${canonResult}"`);
+                        context.canonicalDish = canonResult;
+                        text = canonResult; // Override text for NLU
+                    }
+                } else {
+                    context.meta = { ...(context.meta || {}), skipSingleDishCanon: true };
                 }
 
                 // Ă˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘Â
@@ -442,6 +487,11 @@ export class BrainPipeline {
             // Entity sealing contract: finalize entities after NLU and before guard chain.
             // This prevents quantity leaks from dish aliases like "6 szt." inside item names.
             if (intentResult) {
+                if (intentResult?.entities?.items && Array.isArray(intentResult.entities.items)) {
+                    skipSingleDishCanon = true;
+                    context.meta = { ...(context.meta || {}), skipSingleDishCanon: true };
+                }
+
                 const extractedQuantity = intentResult?.entities?.quantity ?? null;
                 const sealing = finalizeEntities({
                     text,
@@ -469,6 +519,58 @@ export class BrainPipeline {
                             null,
                             'nlu'
                         ).catch(() => { });
+                    }
+                }
+
+                if (intentResult?.entities?.items && Array.isArray(intentResult.entities.items)) {
+                    const existingItems = intentResult.entities.items;
+                    console.log('[COMPOUND_CANON_TRACE]', JSON.stringify({
+                        source: 'pipeline_entities_guard',
+                        sessionId: activeSessionId,
+                        items: existingItems,
+                    }));
+
+                    if (existingItems.length > 1 || existingItems.some((item) => Number(item?.quantity || item?.qty || 1) > 1)) {
+                        intentResult.meta = {
+                            ...(intentResult.meta || {}),
+                            orderMode: 'multi_candidate',
+                        };
+                        context.meta = {
+                            ...(context.meta || {}),
+                            orderMode: 'multi_candidate',
+                        };
+                        context.trace.push(`multi_parse:${existingItems.length}`);
+                        console.log('[MULTI_PARSE_TRACE]', JSON.stringify({
+                            count: existingItems.length,
+                            items: existingItems,
+                            sessionId: activeSessionId,
+                            source: 'entities_guard',
+                        }));
+                    }
+                } else {
+                    const multiParsing = applyMultiItemParsing({
+                        text: context.rawText || text,
+                        intent: intentResult?.intent,
+                        entities: intentResult?.entities,
+                        menu: sessionContext?.last_menu || [],
+                    });
+                    intentResult.entities = multiParsing.entities;
+
+                    if (multiParsing.orderMode === 'multi_candidate') {
+                        intentResult.meta = {
+                            ...(intentResult.meta || {}),
+                            orderMode: 'multi_candidate',
+                        };
+                        context.meta = {
+                            ...(context.meta || {}),
+                            orderMode: 'multi_candidate',
+                        };
+                        context.trace.push(`multi_parse:${multiParsing.items.length}`);
+                        console.log('[MULTI_PARSE_TRACE]', JSON.stringify({
+                            count: multiParsing.items.length,
+                            items: multiParsing.items,
+                            sessionId: activeSessionId,
+                        }));
                     }
                 }
             }
@@ -1435,6 +1537,13 @@ export class BrainPipeline {
 
                     const stage = context.intentMutationStage || 'post_dispatch_lock';
                     const oldIntent = dispatchIntent;
+                    console.warn('[ORDER_INTENT_MUTATION_BLOCKED]', JSON.stringify({
+                        from: oldIntent,
+                        to: nextIntent,
+                        stage,
+                        sessionId: activeSessionId,
+                        trace: context.trace,
+                    }));
                     BrainLogger.pipeline(
                         `[DISPATCH_INTENT_LOCKED] blocked intent mutation "${oldIntent}" -> "${nextIntent}" | stage=${stage} | session=${activeSessionId} | trace=${(context.trace || []).join(' > ')}`
                     );

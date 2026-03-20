@@ -11,6 +11,8 @@ import { parseRestaurantAndDish } from '../order/parseOrderItems.js';
 import { extractLocation, extractCuisineType, extractQuantity } from './extractors.js';
 import { findRestaurantInText } from '../data/restaurantCatalog.js';
 import { fuzzyIncludes, normalizeDish, levenshtein } from '../helpers.js';
+import { parseCompoundOrder } from './compoundOrderParser.js';
+import { canonicalizeDish } from './dishCanon.js';
 
 function isExplicitRestaurantSearch(text = '') {
     const t = String(text || '').toLowerCase();
@@ -27,6 +29,125 @@ function isExplicitRestaurantSearch(text = '') {
         'gdzie mogĂ„â„˘ zjeÄąâ€şĂ„â€ˇ',
         'gdzie moge zjesc'
     ].some(k => t.includes(k));
+}
+
+function isAliasBundleText(value = '') {
+    const normalized = String(value || '').trim();
+    if (!normalized) return false;
+    return normalized.includes('/') || normalized.includes(',');
+}
+
+const GENERIC_COMPOUND_TOKENS = new Set([
+    'sos',
+    'sosy',
+    'napoj',
+    'napoje',
+    'pizza',
+    'burger',
+    'dodatki',
+    'dodatek',
+]);
+
+function stripCompoundQuantityOperators(value = '') {
+    return normalizeDish(String(value || ''))
+        .replace(/^\s*(?:x\s*\d+|\d+\s*x|\d+\s*razy|razy\s*\d+)\b/, '')
+        .replace(/^\s*(?:\d+|jeden|jedna|jedno|dwa|dwie|trzy|cztery|piec|szesc|siedem|osiem|dziewiec|dziesiec|kilka|pare)\s*(?:x|razy)?\b/, '')
+        .replace(/\b(?:x\s*\d+|\d+\s*x|\d+\s*razy|razy\s*\d+)\b/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+function isGenericCompoundToken(value = '') {
+    const stripped = stripCompoundQuantityOperators(value);
+    if (!stripped) return false;
+    return GENERIC_COMPOUND_TOKENS.has(stripped);
+}
+
+function safeCanonicalizeCompoundItem(item = {}, session = null) {
+    const originalDish = String(item?.dish || '').trim();
+    const incomingMeta = (item?.meta && typeof item.meta === 'object') ? item.meta : {};
+    const rawLabel = String(incomingMeta.rawLabel || originalDish).trim() || originalDish;
+    const canonicalDish = String(canonicalizeDish(originalDish, session) || '').trim();
+    const normalizedOriginal = normalizeDish(originalDish);
+    const normalizedCanonical = normalizeDish(canonicalDish);
+    const alreadyBundleSafe = Boolean(incomingMeta.canonicalAliasBundle);
+
+    if (alreadyBundleSafe) {
+        return {
+            item: {
+                ...item,
+                dish: originalDish || rawLabel,
+                meta: {
+                    ...incomingMeta,
+                    rawLabel,
+                    canonicalAliasBundle: true,
+                },
+            },
+            canonicalAlias: incomingMeta.canonicalAlias || null,
+            canonicalApplied: false,
+        };
+    }
+
+    if (!canonicalDish) {
+        return {
+            item: {
+                ...item,
+                dish: originalDish,
+                meta: {
+                    ...incomingMeta,
+                    rawLabel,
+                },
+            },
+            canonicalAlias: null,
+            canonicalApplied: false,
+        };
+    }
+
+    if (isAliasBundleText(canonicalDish)) {
+        return {
+            item: {
+                ...item,
+                dish: rawLabel || originalDish || canonicalDish,
+                meta: {
+                    ...incomingMeta,
+                    rawLabel,
+                    canonicalAlias: canonicalDish,
+                    canonicalAliasBundle: true,
+                },
+            },
+            canonicalAlias: canonicalDish,
+            canonicalApplied: false,
+        };
+    }
+
+    if (normalizedOriginal && normalizedOriginal === normalizedCanonical) {
+        return {
+            item: {
+                ...item,
+                dish: originalDish || canonicalDish,
+                meta: {
+                    ...incomingMeta,
+                    rawLabel,
+                },
+            },
+            canonicalAlias: null,
+            canonicalApplied: false,
+        };
+    }
+
+    return {
+        item: {
+            ...item,
+            dish: canonicalDish,
+            meta: {
+                ...incomingMeta,
+                rawLabel,
+                canonicalAlias: canonicalDish,
+            },
+        },
+        canonicalAlias: canonicalDish,
+        canonicalApplied: true,
+    };
 }
 
 export class NLURouter {
@@ -271,8 +392,104 @@ export class NLURouter {
         //       create_order+qty=2 instead of find_nearby.
         if (session?.currentRestaurant && session?.last_menu?.length > 0) {
             const menu = session.last_menu;
-            const rawDishText = ctx?.body?.text || text;
+            const rawDishText = ctx?.rawText || ctx?.body?.text || text;
             const qty = extractQuantity(rawDishText) || 1;
+
+            const compound = parseCompoundOrder(rawDishText, menu);
+            const compoundItems = Array.isArray(compound?.items) ? compound.items : [];
+            const hasCompoundSignal = compoundItems.length > 1 || compoundItems.some((item) => Number(item?.quantity || 1) > 1);
+            if (hasCompoundSignal) {
+                console.log('[COMPOUND_RAW_TRACE]', JSON.stringify({
+                    source: 'compound_parser',
+                    rawText: rawDishText,
+                    items: compoundItems,
+                    count: compoundItems.length,
+                }));
+
+                if (Array.isArray(compound?.segmentTraces) && compound.segmentTraces.length > 0) {
+                    for (const segmentTrace of compound.segmentTraces) {
+                        console.log('[QUANTITY_SEGMENT_TRACE]', JSON.stringify({
+                            source: 'compound_parser',
+                            ...segmentTrace,
+                        }));
+                    }
+                }
+
+                if (Array.isArray(compound?.heuristicTraces) && compound.heuristicTraces.length > 0) {
+                    for (const heuristicTrace of compound.heuristicTraces) {
+                        console.log('[COMPOUND_HEURISTIC_TRACE]', JSON.stringify({
+                            source: 'compound_parser',
+                            ...heuristicTrace,
+                        }));
+                    }
+                }
+
+                const canonicalizedItems = compoundItems.map((item) => {
+                    const safeCanonical = safeCanonicalizeCompoundItem(item, session);
+                    console.log('[SAFE_CANON_ITEM_TRACE]', JSON.stringify({
+                        source: 'compound_parser',
+                        inputDish: item?.dish || null,
+                        outputDish: safeCanonical.item?.dish || null,
+                        quantity: safeCanonical.item?.quantity || null,
+                        canonicalAlias: safeCanonical.canonicalAlias,
+                        canonicalApplied: safeCanonical.canonicalApplied,
+                    }));
+
+                    if (safeCanonical.item?.meta?.modifier) {
+                        console.log('[MODIFIER_PRESERVED_TRACE]', JSON.stringify({
+                            source: 'compound_parser',
+                            dish: safeCanonical.item?.dish || null,
+                            rawLabel: safeCanonical.item?.meta?.rawLabel || null,
+                            modifier: safeCanonical.item?.meta?.modifier || null,
+                        }));
+                    }
+
+                    return safeCanonical.item;
+                });
+
+                console.log('[COMPOUND_CANON_TRACE]', JSON.stringify({
+                    source: 'compound_parser',
+                    rawItems: compoundItems,
+                    canonicalItems: canonicalizedItems,
+                }));
+
+                const singleCompoundQuantity =
+                    canonicalizedItems.length === 1 &&
+                    Number(canonicalizedItems[0]?.quantity || 1) > 1;
+                const singleCompoundGeneric =
+                    singleCompoundQuantity &&
+                    isGenericCompoundToken(canonicalizedItems[0]?.dish || canonicalizedItems[0]?.meta?.rawLabel || '');
+                const allowSingleCompound = singleCompoundQuantity && !singleCompoundGeneric;
+
+                if (singleCompoundQuantity) {
+                    console.log('[SINGLE_COMPOUND_ALLOW_TRACE]', JSON.stringify({
+                        source: 'compound_parser',
+                        dish: canonicalizedItems[0]?.dish || null,
+                        quantity: canonicalizedItems[0]?.quantity || null,
+                        genericToken: singleCompoundGeneric,
+                        allowed: allowSingleCompound,
+                    }));
+                }
+
+                BrainLogger.nlu(`MULTI_COMPOUND_GUARD: parsed ${canonicalizedItems.length} items before DISH_GUARD`);
+                return {
+                    intent: 'create_order',
+                    confidence: 1.0,
+                    source: 'compound_parser',
+                    entities: {
+                        ...entities,
+                        dish: entities?.dish || canonicalizedItems[0]?.dish || null,
+                        items: canonicalizedItems,
+                        restaurant: session.currentRestaurant.name,
+                        restaurantId: session.currentRestaurant.id,
+                        compoundSource: 'compound_parser',
+                        skipCategoryClarify: allowSingleCompound,
+                        skipGenericTokenBlock: allowSingleCompound,
+                        quantity: null,
+                        hasExplicitNumber: canonicalizedItems.some((item) => Number(item?.quantity || 1) > 1),
+                    }
+                };
+            }
 
             // Strip leading quantity word so "dwa Pizza Margherita" Ă˘â€ â€™ "Pizza Margherita"
             const QTY_STRIP = /^(?:\\d+\\s*|jeden|jedna|jedno|dwa|dwie|trzy|cztery|pi[eĂ„â„˘][cĂ„â€ˇ][u]?|sze[sÄąâ€ş][cĂ„â€ˇ][u]?|siedem|osiem|dziewi[eĂ„â„˘][cĂ„â€ˇ][u]?|dziesi[eĂ„â„˘][cĂ„â€ˇ][u]?|kilka|par[Ă„â„˘e])\\s+/i;
