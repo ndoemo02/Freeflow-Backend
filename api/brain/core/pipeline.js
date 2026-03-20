@@ -33,6 +33,7 @@ import { ResponseBuilder } from './pipeline/ResponseBuilder.js';
 import { MenuHydrationService } from './pipeline/MenuHydrationService.js';
 import { SessionHydrator } from './pipeline/SessionHydrator.js';
 import { HandlerDispatcher } from './pipeline/HandlerDispatcher.js';
+import { finalizeEntities } from './pipeline/finalizeEntities.js';
 
 // Reco V1 — rule-based recommendation layer (no extra DB calls)
 import { getRecommendations } from '../recommendations/recoEngine.js';
@@ -435,6 +436,41 @@ export class BrainPipeline {
 
                 // 2. NLU Decision
                 intentResult = await this.nlu.detect(context);
+                context.nluResult = intentResult;
+            }
+
+            // Entity sealing contract: finalize entities after NLU and before guard chain.
+            // This prevents quantity leaks from dish aliases like "6 szt." inside item names.
+            if (intentResult) {
+                const extractedQuantity = intentResult?.entities?.quantity ?? null;
+                const sealing = finalizeEntities({
+                    text,
+                    entities: intentResult?.entities,
+                    intent: intentResult?.intent,
+                    session: sessionContext,
+                });
+
+                intentResult.entities = sealing.entities;
+
+                if (sealing.qtyRejectedReason) {
+                    context.trace.push(`qty_rejected:${sealing.qtyRejectedReason}`);
+
+                    if (!IS_SHADOW) {
+                        EventLogger.logEvent(
+                            activeSessionId,
+                            'qty_rejected_reason',
+                            {
+                                reason: sealing.qtyRejectedReason,
+                                quantityConfidence: sealing.quantityConfidence,
+                                extractedQuantity,
+                                text,
+                                intent: intentResult?.intent,
+                            },
+                            null,
+                            'nlu'
+                        ).catch(() => { });
+                    }
+                }
             }
 
             // Ă˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘Â
@@ -1375,6 +1411,41 @@ export class BrainPipeline {
                 }
             }
 
+            // Deterministic dispatch contract:
+            // NLU + guards + bridges may mutate intent up to this point.
+            // From here, dispatch intent is locked and cannot be changed.
+            const isOrderingTransactionIntent =
+                ORDER_INTENTS.includes(context.intent) ||
+                (context.intent === 'select_restaurant' && (sessionContext?.pendingOrder || sessionContext?.expectedContext === 'confirm_add_to_cart'));
+
+            context.intentGroup = isOrderingTransactionIntent ? 'ordering_transaction' : 'general';
+            context.dispatchIntentLocked = true;
+            context.intentFinalized = true;
+            context.trace.push(`intent_finalized:${context.intent}`);
+
+            let dispatchIntent = context.intent;
+            Object.defineProperty(context, 'intent', {
+                configurable: true,
+                enumerable: true,
+                get() {
+                    return dispatchIntent;
+                },
+                set(nextIntent) {
+                    if (nextIntent === dispatchIntent) return true;
+
+                    const stage = context.intentMutationStage || 'post_dispatch_lock';
+                    const oldIntent = dispatchIntent;
+                    BrainLogger.pipeline(
+                        `[DISPATCH_INTENT_LOCKED] blocked intent mutation "${oldIntent}" -> "${nextIntent}" | stage=${stage} | session=${activeSessionId} | trace=${(context.trace || []).join(' > ')}`
+                    );
+                    context.trace.push(`intent_mutation_blocked:${stage}:${oldIntent}->${nextIntent}`);
+                    return true;
+                }
+            });
+
+            intent = dispatchIntent;
+            domain = context.domain;
+
             const { domainHandlers, handler } = HandlerDispatcher.resolve({
                 handlers: this.handlers,
                 context,
@@ -1383,6 +1454,7 @@ export class BrainPipeline {
                 console.log('[KROK5-DEBUG] missing handler', JSON.stringify({ intent: context.intent, domain: context.domain, entities: context.entities || null }));
             }
             context.trace.push(`handler:${context.intent}`);
+            context.stateMutationCompleted = false;
             const domainResponse = await HandlerDispatcher.executeTransactional({
                 handler,
                 context,
@@ -1390,6 +1462,7 @@ export class BrainPipeline {
                     updateSession(activeSessionId, contextUpdates);
                 } : null,
             });
+            context.stateMutationCompleted = true;
 
             // Ă˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘Â
             // LOCATION COMMIT: Write entities.location to session BEFORE surface detection
@@ -1633,7 +1706,13 @@ export class BrainPipeline {
             // ── Reco V1 ──────────────────────────────────────────────────────
             // Graceful: any error keeps existing behavior (recommendations=[])
             response.recommendations = [];
-            if (process.env.RECO_V1_ENABLED === 'true' && menuItems?.length) {
+            const recoEligible =
+                process.env.RECO_V1_ENABLED === 'true' &&
+                menuItems?.length &&
+                context.stateMutationCompleted === true &&
+                context.intentGroup !== 'ordering_transaction';
+
+            if (recoEligible) {
                 try {
                     const targetItems = context?.nluResult?.slots?.items
                         || context?.nluResult?.targetItems
@@ -1651,6 +1730,8 @@ export class BrainPipeline {
                         console.warn('[RECO_V1] scoring error:', e.message);
                     }
                 }
+            } else {
+                context.trace.push(`reco_skipped:${context.intentGroup || 'unknown'}:${context.stateMutationCompleted === true ? 'state_ok' : 'state_not_committed'}`);
             }
             // ─────────────────────────────────────────────────────────────────
 

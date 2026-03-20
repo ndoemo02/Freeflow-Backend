@@ -10,9 +10,11 @@ function hasExplicitQuantityInText(text = '') {
     const normalized = normalizeDish(String(text || ''));
     if (!normalized) return false;
 
-    const numberPattern = /\b\d+\s*(?:x|razy|szt|szt\.|sztuk|porcj|ml|l|cm|g|kg)?\b/i;
-    const wordPattern = /\b(jeden|jedna|jedno|dwa|dwie|trzy|cztery|piec|szesc|siedem|osiem|dziewiec|dziesiec|kilka|pare)\b/i;
-    return numberPattern.test(normalized) || wordPattern.test(normalized);
+    // Only treat quantity as explicit when it is part of order syntax.
+    // This avoids false positives from dish names like "6 szt.".
+    const prefixPattern = /^\s*(?:\d+|jeden|jedna|jedno|dwa|dwie|trzy|cztery|piec|szesc|siedem|osiem|dziewiec|dziesiec|kilka|pare)\b(?:\s*(?:x|razy|szt|szt\.|sztuk|porcj))?/i;
+    const verbPattern = /\b(dodaj|zamawiam|wezme|chce|poprosze|poprosz)\b\s+(?:mi\s+)?(?:\d+|jeden|jedna|jedno|dwa|dwie|trzy|cztery|piec|szesc|siedem|osiem|dziewiec|dziesiec|kilka|pare)\b/i;
+    return prefixPattern.test(normalized) || verbPattern.test(normalized);
 }
 
 function formatSzt(quantity) {
@@ -126,6 +128,7 @@ export class OrderHandler {
 
         const rawUserText = ctx?.body?.text || text || '';
         const rawExtractedQuantity = extractQuantity(rawUserText);
+        let hasExplicitNumber = hasExplicitQuantityInText(rawUserText);
 
         // 0. Extract quantity â€” normalize primitive/object/string forms safely.
         let quantity = entities?.quantity;
@@ -134,17 +137,20 @@ export class OrderHandler {
             quantity = quantity.value ?? 1;
         }
 
-        quantity = Number(quantity ?? extractQuantity(text) ?? 1);
+        if (quantity == null) {
+            quantity = hasExplicitNumber ? rawExtractedQuantity : 1;
+        }
+
+        quantity = Number(quantity ?? 1);
 
         if (!Number.isFinite(quantity) || quantity < 1) {
             quantity = 1;
         }
 
-        let hasExplicitNumber = hasExplicitQuantityInText(rawUserText);
         const hasPortionInDish = /\b\d+\s*(?:szt|szt\.|sztuk|ml|l|cm|g|kg)\b/i.test(String(entities?.dish || ''));
 
         // Prefer quantity explicitly provided by user text over canonized entity quantity.
-        if (rawExtractedQuantity > 1) {
+        if (rawExtractedQuantity > 1 && hasExplicitNumber) {
             quantity = rawExtractedQuantity;
             hasExplicitNumber = true;
         }

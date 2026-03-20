@@ -24,33 +24,41 @@
             return { ...r, displayName: `${r.name} (${meters} m)` };
         });
 
+        const sessionSnapshot = getSession(activeSessionId) || {};
+        const phase = sessionSnapshot?.conversationPhase || 'idle';
+        const cart = sessionSnapshot?.cart || { items: [], total: 0 };
+        const safeIntent = intent || domainResponse?.intent || 'unknown';
+        const safeReply = speechText || domainResponse?.reply || '';
+
         const response = {
             ...cleanDomainResponse,
             ok: true,
             session_id: activeSessionId,
-            text: speechText,
-            reply: speechText,
+            text: safeReply,
+            reply: safeReply,
             tts_text: speechPartForTTS,
             audioContent,
-            intent,
+            intent: safeIntent,
+            phase,
             should_reply: domainResponse.should_reply ?? true,
             actions: domainResponse.actions || [],
             restaurants: restaurantsWithDisplayName,
             menuItems,
             menu: menuItems,
-            cart: getSession(activeSessionId)?.cart || { items: [], total: 0 },
+            cart,
+            recommendations: Array.isArray(cleanDomainResponse.recommendations) ? cleanDomainResponse.recommendations : [],
             meta: {
                 latency_total_ms: totalLatency,
                 source: domainMeta?.source || source || 'llm',
                 styling_ms: stylingMs,
                 tts_ms: ttsMs,
                 state: {
-                    conversationPhase: getSession(activeSessionId)?.conversationPhase || 'idle',
-                    currentRestaurant: getSession(activeSessionId)?.currentRestaurant || null,
+                    conversationPhase: phase,
+                    currentRestaurant: sessionSnapshot?.currentRestaurant || null,
                 },
                 ...(domainMeta || {}),
             },
-            context: getSession(activeSessionId),
+            context: sessionSnapshot,
             locationRestaurants: restaurants.length > 0 ? restaurantsWithDisplayName : restaurants,
             timestamp: new Date().toISOString(),
         };

@@ -29,7 +29,8 @@
     "test:brain:e2e": "vitest run api/brain/tests/brainRouter.e2e.test.js",
     "test:mc:direct": "vitest run api/brain/tests/monteCarlo_direct.e2e.test.js",
     "test:mc:std": "vitest run api/brain/tests/monteCarlo_std.e2e.test.js",
-    "test:orders": "npx vitest tests/orders-api.test.js --run"
+    "test:orders": "npx vitest tests/orders-api.test.js --run",
+    "scan:encoding": "node scripts/scanEncoding.js"
   },
   "dependencies": {
     "@ai-sdk/google": "^3.0.2",

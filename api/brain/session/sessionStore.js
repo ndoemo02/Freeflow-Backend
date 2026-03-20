@@ -1,5 +1,9 @@
 ﻿import { getDefault, update } from "../ai/contextState.js";
-import supabase from "../supabaseClient.js";
+import {
+    loadSession as loadSessionFromAdapter,
+    saveSession as saveSessionToAdapter,
+    touchSession as touchSessionInAdapter,
+} from "./sessionAdapter.js";
 
 const SESSION_TTL_MS = 2 * 60 * 60 * 1000; // 2h
 const CACHE_SWEEP_INTERVAL_MS = 5 * 60 * 1000;
@@ -68,50 +72,6 @@ function queueWrite(sessionId, writer) {
     return current;
 }
 
-async function readSessionFromDb(sessionId) {
-    const { data, error } = await supabase
-        .from('brain_sessions')
-        .select('data, updated_at')
-        .eq('id', sessionId)
-        .maybeSingle();
-
-    if (error) {
-        throw error;
-    }
-
-    return data || null;
-}
-
-async function upsertSessionInDb(sessionId, data) {
-    const updatedAt = nowIso();
-    const payload = {
-        id: sessionId,
-        data,
-        updated_at: updatedAt,
-    };
-
-    const { error } = await supabase
-        .from('brain_sessions')
-        .upsert(payload, { onConflict: 'id' });
-
-    if (error) {
-        throw error;
-    }
-
-    return updatedAt;
-}
-
-async function deleteSessionInDb(sessionId) {
-    const { error } = await supabase
-        .from('brain_sessions')
-        .delete()
-        .eq('id', sessionId);
-
-    if (error) {
-        throw error;
-    }
-}
-
 async function loadSessionToCache(sessionId, { createIfMissing = true } = {}) {
     const cached = getCache(sessionId);
     if (cached) {
@@ -125,20 +85,9 @@ async function loadSessionToCache(sessionId, { createIfMissing = true } = {}) {
 
     const reader = (async () => {
         try {
-            const row = await readSessionFromDb(sessionId);
+            const row = await loadSessionFromAdapter(sessionId);
 
-            if (row?.updated_at && isExpiredByTimestamp(parseTimestamp(row.updated_at))) {
-                sessions.delete(sessionId);
-                try {
-                    await deleteSessionInDb(sessionId);
-                } catch (err) {
-                    console.warn(`[SessionStore] TTL cleanup failed for ${sessionId}: ${err.message}`);
-                }
-
-                if (!createIfMissing) {
-                    return null;
-                }
-            } else if (row?.data) {
+            if (row?.data) {
                 return setCache(sessionId, row.data, row.updated_at);
             }
 
@@ -150,8 +99,11 @@ async function loadSessionToCache(sessionId, { createIfMissing = true } = {}) {
             setCache(sessionId, fresh);
 
             try {
-                const updatedAt = await upsertSessionInDb(sessionId, fresh);
-                setCache(sessionId, fresh, updatedAt);
+                const saved = await saveSessionToAdapter({
+                    id: sessionId,
+                    data: fresh,
+                });
+                setCache(sessionId, fresh, saved?.updated_at || nowIso());
             } catch (err) {
                 console.warn(`[SessionStore] create upsert failed for ${sessionId}: ${err.message}`);
             }
@@ -197,7 +149,12 @@ if (!globalThis.__brainSessionStoreSweeper) {
 
 export async function getSessionAsync(sessionId, opts = {}) {
     const normalizedSessionId = ensureSessionId(sessionId);
-    return loadSessionToCache(normalizedSessionId, opts);
+    const loaded = await loadSessionToCache(normalizedSessionId, opts);
+
+    // Keep ttl warm only for explicit async reads.
+    void touchSessionInAdapter(normalizedSessionId).catch(() => { });
+
+    return loaded;
 }
 
 export async function setSession(sessionId, data) {
@@ -208,7 +165,11 @@ export async function setSession(sessionId, data) {
 
     const updatedAt = await queueWrite(normalizedSessionId, async () => {
         try {
-            return await upsertSessionInDb(normalizedSessionId, payload);
+            const saved = await saveSessionToAdapter({
+                id: normalizedSessionId,
+                data: payload,
+            });
+            return saved?.updated_at || nowIso();
         } catch (err) {
             console.warn(`[SessionStore] upsert failed for ${normalizedSessionId}: ${err.message}`);
             return nowIso();
