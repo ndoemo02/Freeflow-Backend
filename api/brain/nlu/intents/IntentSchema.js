@@ -26,6 +26,7 @@ export const ALLOWED_INTENTS = [
     'create_order',
     'confirm_order',
     'confirm_add_to_cart',
+    'open_checkout',
     'cancel_order',
 
     // System

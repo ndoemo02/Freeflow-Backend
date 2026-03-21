@@ -33,6 +33,20 @@ describe('OrderModeFSM', () => {
         expect(next.allowed).toBe(true);
     });
 
+    it('transitions building -> checkout_form on OPEN_CHECKOUT', () => {
+        const next = transitionOrderMode(ORDER_MODE_STATE.BUILDING, ORDER_MODE_EVENT.OPEN_CHECKOUT);
+        expect(next.state).toBe(ORDER_MODE_STATE.CHECKOUT_FORM);
+        expect(next.changed).toBe(true);
+        expect(next.allowed).toBe(true);
+    });
+
+    it('keeps checkout_form on OPEN_CHECKOUT', () => {
+        const next = transitionOrderMode(ORDER_MODE_STATE.CHECKOUT_FORM, ORDER_MODE_EVENT.OPEN_CHECKOUT);
+        expect(next.state).toBe(ORDER_MODE_STATE.CHECKOUT_FORM);
+        expect(next.changed).toBe(false);
+        expect(next.allowed).toBe(true);
+    });
+
     it('transitions building -> awaiting_confirmation on REQUEST_CONFIRM', () => {
         const next = transitionOrderMode(ORDER_MODE_STATE.BUILDING, ORDER_MODE_EVENT.REQUEST_CONFIRM);
         expect(next.state).toBe(ORDER_MODE_STATE.AWAITING_CONFIRMATION);

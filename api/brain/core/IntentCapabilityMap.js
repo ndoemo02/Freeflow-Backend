@@ -114,6 +114,15 @@ export const INTENT_CAPS = {
         MUTATES_CART: true, // Adds item to cart
     },
 
+    open_checkout: {
+        domain: 'ordering',
+        requiredState: {},
+        allowedTransitions: ['confirm_order', 'create_order', 'cancel_order', 'find_nearby', 'menu_request', 'select_restaurant'],
+        setsState: ['conversationPhase'],
+        fallbackIntent: null,
+        MUTATES_CART: false,
+    },
+
     cancel_order: {
         domain: 'ordering',
         requiredState: {},

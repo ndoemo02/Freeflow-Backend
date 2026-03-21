@@ -161,7 +161,7 @@ export class NLURouter {
     _mapDomain(intent) {
         if (!intent) return 'unknown';
         if (['find_nearby', 'select_restaurant', 'menu_request', 'show_city_results', 'show_more_options', 'recommend', 'confirm', 'cancel_order'].includes(intent)) return 'food';
-        if (['create_order', 'confirm_order', 'confirm_add_to_cart', 'add_item', 'choose_restaurant', 'clarify_order'].includes(intent)) return 'ordering';
+        if (['create_order', 'confirm_order', 'confirm_add_to_cart', 'open_checkout', 'add_item', 'choose_restaurant', 'clarify_order'].includes(intent)) return 'ordering';
         return 'system';
     }
 
@@ -241,6 +241,19 @@ export class NLURouter {
             };
         }
 
+        const isExplicitCheckoutRequest =
+            /\b(checkout\w*|kasa|platnosc\w*|zaplac\w*|finaliz\w*|zloz(?:yc)?\s+zamowienie|przejdz\s+do\s+platnosci)\b/i
+                .test(normalized);
+
+        if (isExplicitCheckoutRequest) {
+            return {
+                intent: 'open_checkout',
+                confidence: 0.98,
+                source: 'explicit_checkout_bridge',
+                entities
+            };
+        }
+
         if (session?.currentRestaurant && explicitRestaurantSearch) {
             return {
                 intent: 'find_nearby',
@@ -308,7 +321,7 @@ export class NLURouter {
         }
 
         if (session?.expectedContext === 'select_restaurant' || session?.expectedContext === 'show_more_options') {
-            const isIntentLike = /(menu|zamawiam|zamÄ‚Ĺ‚w|poproszĂ„â„˘|poprosze|wezmĂ„â„˘|wezme|chcĂ„â„˘|chce|pokaÄąÄ˝|pokaz|znajdÄąĹź|znajdz|gdzie|health)/i.test(normalized);
+            const isIntentLike = /(menu|zamawiam|zamÄ‚Ĺ‚w|poproszĂ„â„˘|poprosze|wezmĂ„â„˘|wezme|chcĂ„â„˘|chce|pokaÄąÄ˝|pokaz|znajdÄąĹź|znajdz|gdzie|health|checkout|kasa|platnosc)/i.test(normalized);
             const isManualSelection = /\b(numer|nr|opcja|opcje)\s+\d+\b/i.test(normalized);
             // If it's just a number or simple phrase, it's selection
             if (!isIntentLike || /^[0-9]\b/.test(normalized.trim()) || isManualSelection) {

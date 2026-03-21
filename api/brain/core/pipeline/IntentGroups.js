@@ -1,6 +1,7 @@
 ﻿export const ORDER_INTENTS = [
     'create_order',
     'confirm_add_to_cart',
+    'open_checkout',
     'remove_from_cart',
     'confirm_order',
     'cancel_order'
@@ -9,6 +10,7 @@
 export const TRANSACTION_ALLOWED_INTENTS = [
     'create_order',
     'confirm_add_to_cart',
+    'open_checkout',
     'remove_from_cart',
     'confirm_order',
     'cancel_order'
@@ -17,6 +19,7 @@ export const TRANSACTION_ALLOWED_INTENTS = [
 export const ORDER_INTENTS_CLEANUP = [
     'create_order',
     'confirm_add_to_cart',
+    'open_checkout',
     'remove_from_cart',
     'confirm_order',
     'cancel_order'

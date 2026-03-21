@@ -124,6 +124,8 @@ const MODIFIER_SYNONYM_GROUPS = [
     ['czosnkowy', 'czosnkowa', 'czosnkowe', 'garlic'],
 ];
 
+const ORDER_FLOW_ANCHOR_REPLY = 'Dodałam. Co dalej — chcesz zobaczyć więcej dań czy przejść do zamówienia?';
+
 function stripQuantityOperators(phrase = '') {
     const normalized = normalizeDish(phrase || '');
     if (!normalized) return '';
@@ -234,6 +236,55 @@ function inferRequestedCategory({
     }
 
     return ORDER_REQUESTED_CATEGORY.UNKNOWN;
+}
+
+function getCartRestaurantLock(session = {}) {
+    const cart = session?.cart || {};
+    const cartItems = Array.isArray(cart?.items) ? cart.items : [];
+    const firstItemRestaurantId = cartItems[0]?.restaurant_id || null;
+
+    return {
+        hasItems: cartItems.length > 0,
+        lockedRestaurantId: cart?.restaurantId || firstItemRestaurantId || null,
+        cartRestaurantName:
+            cartItems[0]?.restaurant_name
+            || session?.currentRestaurant?.name
+            || session?.lastRestaurant?.name
+            || 'innej restauracji',
+    };
+}
+
+function buildRestaurantSwitchConflictResponse({
+    currentRestaurantName,
+    targetRestaurant,
+    lockedRestaurantId = null,
+}) {
+    const restaurantLockTrace = {
+        conflict: true,
+        lockedRestaurantId: lockedRestaurantId || null,
+        currentRestaurantName: currentRestaurantName || null,
+        targetRestaurantId: targetRestaurant?.id || null,
+        targetRestaurantName: targetRestaurant?.name || null,
+    };
+    console.log('[RESTAURANT_LOCK_TRACE]', JSON.stringify(restaurantLockTrace));
+
+    return {
+        reply: `Masz już pozycje z ${currentRestaurantName}. Czy wyczyścić koszyk i przejść do ${targetRestaurant?.name}?`,
+        contextUpdates: {
+            expectedContext: 'confirm_restaurant_switch',
+            pendingRestaurantSwitch: targetRestaurant
+                ? {
+                    id: targetRestaurant.id,
+                    name: targetRestaurant.name,
+                    city: targetRestaurant.city || null,
+                }
+                : null,
+        },
+        meta: {
+            source: 'restaurant_switch_conflict_from_order',
+            restaurantLockTrace,
+        },
+    };
 }
 
 function buildAmbiguousResolution({
@@ -956,6 +1007,27 @@ export class OrderHandler {
                 .toFixed(2);
             const totalPieces = resolvedItems.reduce((sum, item) => sum + Number(item.quantity || 1), 0);
             const hydratedMenu = menu.length > 0 ? menu : getSessionMenu(session);
+            const cartLock = getCartRestaurantLock(session);
+            const restaurantLockTrace = {
+                conflict: false,
+                lockedRestaurantId: cartLock.lockedRestaurantId || null,
+                currentRestaurantName: cartLock.cartRestaurantName || null,
+                targetRestaurantId: targetRestaurant?.id || null,
+                targetRestaurantName: targetRestaurant?.name || null,
+            };
+
+            if (
+                cartLock.hasItems &&
+                cartLock.lockedRestaurantId &&
+                String(cartLock.lockedRestaurantId) !== String(targetRestaurant.id)
+            ) {
+                return buildRestaurantSwitchConflictResponse({
+                    currentRestaurantName: cartLock.cartRestaurantName,
+                    targetRestaurant,
+                    lockedRestaurantId: cartLock.lockedRestaurantId,
+                });
+            }
+            console.log('[RESTAURANT_LOCK_TRACE]', JSON.stringify(restaurantLockTrace));
 
             session.pendingOrder = {
                 restaurant_id: targetRestaurant.id,
@@ -985,7 +1057,7 @@ export class OrderHandler {
             }
 
             return {
-                reply: `Dodalam ${resolvedItems.length} pozycje (${totalPieces} szt.) z ${targetRestaurant.name}. Razem ${total} zl.`,
+                reply: `Dodalam ${resolvedItems.length} pozycje (${totalPieces} szt.) z ${targetRestaurant.name}. Razem ${total} zl. ${ORDER_FLOW_ANCHOR_REPLY}`,
                 actions: [
                     {
                         type: 'SHOW_CART',
@@ -997,7 +1069,8 @@ export class OrderHandler {
                     addedToCart: true,
                     cart: session.cart,
                     orderMode: 'multi_candidate',
-                    restaurant: { id: targetRestaurant.id, name: targetRestaurant.name }
+                    restaurant: { id: targetRestaurant.id, name: targetRestaurant.name },
+                    restaurantLockTrace,
                 },
                 contextUpdates: {
                     lastRestaurant: targetRestaurant,
@@ -1351,6 +1424,27 @@ export class OrderHandler {
             const item = resolution.item;
             const restaurant = resolution.restaurant || session?.currentRestaurant || session?.lastRestaurant;
             const hydratedMenu = menu.length > 0 ? menu : getSessionMenu(session);
+            const cartLock = getCartRestaurantLock(session);
+            const restaurantLockTrace = {
+                conflict: false,
+                lockedRestaurantId: cartLock.lockedRestaurantId || null,
+                currentRestaurantName: cartLock.cartRestaurantName || null,
+                targetRestaurantId: restaurant?.id || null,
+                targetRestaurantName: restaurant?.name || null,
+            };
+
+            if (
+                cartLock.hasItems &&
+                cartLock.lockedRestaurantId &&
+                String(cartLock.lockedRestaurantId) !== String(restaurant?.id || '')
+            ) {
+                return buildRestaurantSwitchConflictResponse({
+                    currentRestaurantName: cartLock.cartRestaurantName,
+                    targetRestaurant: restaurant,
+                    lockedRestaurantId: cartLock.lockedRestaurantId,
+                });
+            }
+            console.log('[RESTAURANT_LOCK_TRACE]', JSON.stringify(restaurantLockTrace));
 
             // Determine if we are switching restaurants
             const isSwitch = currentRestaurantId && currentRestaurantId !== restaurant.id;
@@ -1396,7 +1490,7 @@ export class OrderHandler {
 
             const switchPrefix = isSwitch ? `Znaleziono "${item.name}" w ${restaurant.name}. ` : '';
             return {
-                reply: `${switchPrefix}Dodałam ${formatSzt(quantity)} ${item.name} z ${restaurant.name}. Razem ${total} zł.`,
+                reply: `${switchPrefix}Dodałam ${formatSzt(quantity)} ${item.name} z ${restaurant.name}. Razem ${total} zł. ${ORDER_FLOW_ANCHOR_REPLY}`,
                 actions: [
                     {
                         type: 'SHOW_CART',
@@ -1407,7 +1501,8 @@ export class OrderHandler {
                     source: 'order_handler_autocommit',
                     addedToCart: true,
                     cart: session.cart,
-                    restaurant: { id: restaurant.id, name: restaurant.name }
+                    restaurant: { id: restaurant.id, name: restaurant.name },
+                    restaurantLockTrace,
                 },
                 contextUpdates: {
                     lastRestaurant: restaurant,

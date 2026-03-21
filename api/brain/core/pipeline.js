@@ -139,6 +139,7 @@ function mapOrderModeEvent({ intent = '', preState = ORDER_MODE_STATE.NEUTRAL, d
     const expectedContext = domainResponse?.contextUpdates?.expectedContext || null;
 
     if (normalizedIntent === 'confirm_order') return ORDER_MODE_EVENT.CONFIRM_ORDER;
+    if (normalizedIntent === 'open_checkout') return ORDER_MODE_EVENT.OPEN_CHECKOUT;
     if (normalizedIntent === 'cancel_order') return ORDER_MODE_EVENT.CANCEL_ORDER;
 
     if (
@@ -172,6 +173,76 @@ function mapOrderModeEvent({ intent = '', preState = ORDER_MODE_STATE.NEUTRAL, d
     }
 
     return ORDER_MODE_EVENT.NOOP;
+}
+
+const RECO_ORDER_COMPLETED_COOLDOWN_MS = 12000;
+
+function resolveRecoContextPolicy({
+    sessionSnapshot = {},
+    orderMode = ORDER_MODE_STATE.NEUTRAL,
+    intent = '',
+}) {
+    const normalizedIntent = String(intent || '').trim();
+    const effectiveOrderMode = orderMode || ORDER_MODE_STATE.NEUTRAL;
+    const lastOrderCompletedAt = Number(sessionSnapshot?.lastOrderCompletedAt || 0);
+    const elapsedSinceCompletion = lastOrderCompletedAt > 0 ? Date.now() - lastOrderCompletedAt : Number.POSITIVE_INFINITY;
+    const cooldownRemainingMs = Number.isFinite(elapsedSinceCompletion)
+        ? Math.max(0, RECO_ORDER_COMPLETED_COOLDOWN_MS - elapsedSinceCompletion)
+        : 0;
+
+    if (cooldownRemainingMs > 0) {
+        return {
+            context: 'order_confirmed',
+            mode: 'off',
+            allowReco: false,
+            reason: 'order_completed_cooldown',
+            cooldownRemainingMs,
+        };
+    }
+
+    if (effectiveOrderMode === ORDER_MODE_STATE.CHECKOUT_FORM) {
+        return {
+            context: 'checkout_form',
+            mode: 'off',
+            allowReco: false,
+            reason: 'checkout_focus',
+            cooldownRemainingMs: 0,
+        };
+    }
+
+    if (
+        effectiveOrderMode === ORDER_MODE_STATE.BUILDING
+        || effectiveOrderMode === ORDER_MODE_STATE.AWAITING_CONFIRMATION
+    ) {
+        return {
+            context: 'building_cart',
+            mode: 'subtle',
+            allowReco: true,
+            reason: 'cart_building',
+            cooldownRemainingMs: 0,
+        };
+    }
+
+    if (
+        effectiveOrderMode === ORDER_MODE_STATE.RESTAURANT_SELECTED
+        || ['menu_request', 'show_menu', 'show_more_options', 'select_restaurant'].includes(normalizedIntent)
+    ) {
+        return {
+            context: 'browsing_menu',
+            mode: 'ok',
+            allowReco: true,
+            reason: 'menu_browsing',
+            cooldownRemainingMs: 0,
+        };
+    }
+
+    return {
+        context: 'general',
+        mode: 'subtle',
+        allowReco: true,
+        reason: 'default',
+        cooldownRemainingMs: 0,
+    };
 }
 // Mapa handlerÄ‚Ĺ‚w domenowych (BezpoÄąâ€şrednie mapowanie)
 // Kluczem jest "domain", a wewnĂ„â€¦trz "intent"
@@ -222,6 +293,48 @@ export class BrainPipeline {
                 create_order: new OrderHandler(),
                 confirm_order: new ConfirmOrderHandler(),
                 confirm_add_to_cart: new ConfirmAddToCartHandler(),
+                open_checkout: {
+                    execute: async (ctx) => {
+                        const sessionCart = ctx?.session?.cart || { items: [], total: 0 };
+                        const cartItems = Array.isArray(sessionCart.items) ? sessionCart.items : [];
+
+                        if (cartItems.length === 0) {
+                            return {
+                                reply: 'Koszyk jest pusty. Dodaj cos do koszyka, a potem przejde do checkoutu.',
+                                intent: 'open_checkout',
+                                contextUpdates: {
+                                    conversationPhase: 'ordering',
+                                    expectedContext: 'create_order',
+                                },
+                                meta: {
+                                    source: 'open_checkout_bridge_empty',
+                                    checkoutUi: false,
+                                    cartEmpty: true,
+                                }
+                            };
+                        }
+
+                        return {
+                            reply: 'Otwieram checkout. Uzupelnij dane dostawy i potwierdz zamowienie.',
+                            intent: 'open_checkout',
+                            actions: [
+                                {
+                                    type: 'SHOW_CART',
+                                    payload: { mode: 'checkout' }
+                                }
+                            ],
+                            contextUpdates: {
+                                conversationPhase: 'checkout',
+                                expectedContext: 'confirm_order',
+                            },
+                            meta: {
+                                source: 'open_checkout_bridge',
+                                checkoutUi: true,
+                                menuBehavior: 'preserve',
+                            }
+                        };
+                    }
+                },
                 clarify_order: {
                     execute: async (ctx) => {
                         const expectedContext = ctx?.session?.expectedContext || null;
@@ -1637,6 +1750,17 @@ export class BrainPipeline {
             context.trace.push(`order_mode_event:${orderModeEvent}`);
             context.trace.push(`order_mode_state:${orderModeTransition.previousState}->${orderModeTransition.state}`);
 
+            const orderModeTrace = {
+                previousState: orderModeTransition.previousState,
+                event: orderModeEvent,
+                nextState: orderModeTransition.state,
+                allowed: orderModeTransition.allowed,
+                changed: orderModeTransition.changed,
+                intent: outcomeIntent,
+            };
+            context.orderModeTrace = orderModeTrace;
+            context.trace.push(`ORDER_MODE_TRACE:${JSON.stringify(orderModeTrace)}`);
+
             if (orderModeEvent !== ORDER_MODE_EVENT.NOOP && !orderModeTransition.allowed) {
                 BrainLogger.pipeline(
                     `[ORDER_MODE_FSM] blocked ${orderModeTransition.previousState} --${orderModeEvent}--> ${orderModeTransition.state}`
@@ -1886,7 +2010,28 @@ export class BrainPipeline {
                 ...(response.meta || {}),
                 guard_trace: executedGuardNames,
                 pipeline_trace: context.trace,
+                orderModeTrace: context.orderModeTrace || null,
+                ORDER_MODE_TRACE: context.orderModeTrace || null,
             };
+
+            const checkoutProgress = response?.meta?.checkoutProgress || null;
+            const checkoutProgressTrace = {
+                phase: response.phase || null,
+                completion: checkoutProgress?.completion ?? null,
+                complete: checkoutProgress?.complete ?? null,
+                readyToSubmit: checkoutProgress?.readyToSubmit ?? null,
+                missingFields: Array.isArray(checkoutProgress?.missingFields) ? checkoutProgress.missingFields : [],
+            };
+            context.checkoutProgressTrace = checkoutProgressTrace;
+            response.meta.checkoutProgressTrace = checkoutProgressTrace;
+            response.meta.CHECKOUT_PROGRESS_TRACE = checkoutProgressTrace;
+            context.trace.push(`CHECKOUT_PROGRESS_TRACE:${JSON.stringify(checkoutProgressTrace)}`);
+
+            if (domainResponse?.meta?.restaurantLockTrace) {
+                response.meta.restaurantLockTrace = domainResponse.meta.restaurantLockTrace;
+                response.meta.RESTAURANT_LOCK_TRACE = domainResponse.meta.restaurantLockTrace;
+                context.trace.push(`RESTAURANT_LOCK_TRACE:${JSON.stringify(domainResponse.meta.restaurantLockTrace)}`);
+            }
 
             // ── Cart Sync Event ─────────────────────────────────────────────
             // After every COMMITTED cart mutation, emit EVENT_CART_UPDATED.
@@ -1902,6 +2047,17 @@ export class BrainPipeline {
                 || postCartTotal !== preCartTotal;
 
             context.cartMutated = cartActuallyChanged;
+            const cartEventTrace = {
+                emitted: false,
+                stateMutationCompleted: context.stateMutationCompleted === true,
+                intent,
+                detectedBy: cartActuallyChanged ? 'snapshot_diff' : 'whitelist',
+                pre: { itemCount: preCartItemCount, total: preCartTotal },
+                post: { itemCount: postCartItemCount, total: postCartTotal },
+                cartVersion: null,
+                totalItems: null,
+                totalPrice: null,
+            };
 
             if (
                 context.stateMutationCompleted === true &&
@@ -1919,6 +2075,10 @@ export class BrainPipeline {
 
                 const totalItems = cartItems.reduce((s, i) => s + (i.qty || i.quantity || 1), 0);
                 const totalPrice = cartSnap.total || 0;
+                cartEventTrace.emitted = true;
+                cartEventTrace.cartVersion = cartVersion;
+                cartEventTrace.totalItems = totalItems;
+                cartEventTrace.totalPrice = totalPrice;
 
                 // lastAdded: ONLY from handler-set session.meta.lastCartMutation
                 // No items[last] fallback — too fragile for batch/merge/reorder
@@ -1945,6 +2105,10 @@ export class BrainPipeline {
 
                 context.trace.push(`cart_event:v=${cartVersion}:items=${totalItems}:price=${totalPrice}:by=${cartActuallyChanged ? 'diff' : 'wl'}`);
             }
+            context.cartEventTrace = cartEventTrace;
+            response.meta.cartEventTrace = cartEventTrace;
+            response.meta.CART_EVENT_TRACE = cartEventTrace;
+            context.trace.push(`CART_EVENT_TRACE:${JSON.stringify(cartEventTrace)}`);
 
             // ── Order Completed Event ────────────────────────────────────────
             // After confirm_order, emit lifecycle event so frontend can:
@@ -1999,11 +2163,13 @@ export class BrainPipeline {
                     lastRestaurant: null,
                     lastMenuItems: [],
                     lastMenu: [],
+                    pendingOrder: null,
                     pendingDish: null,
                     awaiting: null,
                     expectedContext: null,
                     conversationPhase: 'idle',
                     orderMode: ORDER_MODE_STATE.NEUTRAL,
+                    lastOrderCompletedAt: Date.now(),
                 });
                 context.trace.push('order_completed_event');
                 context.trace.push('order_completed_lifecycle_reset');
@@ -2013,11 +2179,24 @@ export class BrainPipeline {
             // ── Reco V1 ──────────────────────────────────────────────────────
             // Graceful: any error keeps existing behavior (recommendations=[])
             response.recommendations = [];
+            const recoSessionSnapshot = getSession(activeSessionId) || {};
+            const recoPolicy = resolveRecoContextPolicy({
+                sessionSnapshot: recoSessionSnapshot,
+                orderMode: recoSessionSnapshot?.orderMode || context.orderMode || ORDER_MODE_STATE.NEUTRAL,
+                intent,
+            });
+            response.meta.recoContext = {
+                context: recoPolicy.context,
+                mode: recoPolicy.mode,
+                reason: recoPolicy.reason,
+                cooldownRemainingMs: recoPolicy.cooldownRemainingMs,
+            };
             const recoEligible =
                 process.env.RECO_V1_ENABLED === 'true' &&
                 menuItems?.length &&
                 context.stateMutationCompleted === true &&
-                context.intentGroup !== 'ordering_transaction';
+                context.intentGroup !== 'ordering_transaction' &&
+                recoPolicy.allowReco === true;
 
             if (recoEligible) {
                 try {
@@ -2038,6 +2217,9 @@ export class BrainPipeline {
                     }
                 }
             } else {
+                if (recoPolicy.allowReco !== true) {
+                    context.trace.push(`reco_context_off:${recoPolicy.context}:${recoPolicy.reason}:${recoPolicy.cooldownRemainingMs}`);
+                }
                 context.trace.push(`reco_skipped:${context.intentGroup || 'unknown'}:${context.stateMutationCompleted === true ? 'state_ok' : 'state_not_committed'}`);
             }
             // ─────────────────────────────────────────────────────────────────

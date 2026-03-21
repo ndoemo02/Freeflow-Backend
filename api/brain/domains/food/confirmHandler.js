@@ -89,7 +89,7 @@ export class ConfirmOrderHandler {
 
         return {
             reply,
-            closing_question: "Coś jeszcze?",
+            closing_question: "Czy chcesz jeszcze coś zamówić?",
             should_reply: true,
             intent: 'confirm_order',
             // Order ID z DB

@@ -14,6 +14,8 @@ import { updateSession } from '../../session/sessionStore.js';
 import { commitPendingOrder } from '../../session/sessionCart.js';
 import crypto from 'node:crypto';
 
+const ORDER_FLOW_ANCHOR_REPLY = 'Dodałam. Co dalej — chcesz zobaczyć więcej dań czy przejść do zamówienia?';
+
 export class ConfirmAddToCartHandler {
     async execute(ctx) {
         const { session, entities, sessionId } = ctx;
@@ -63,7 +65,7 @@ export class ConfirmAddToCartHandler {
         };
 
         return {
-            reply: `Dodano ${dish} z ${restaurantName} do koszyka. Coś jeszcze?`,
+            reply: `Dodano ${dish} z ${restaurantName} do koszyka. ${ORDER_FLOW_ANCHOR_REPLY}`,
             should_reply: true,
             conversationClosed: false,
             actions: [
