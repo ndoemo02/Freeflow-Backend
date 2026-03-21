@@ -58,6 +58,21 @@ export class ConfirmOrderHandler {
         // dopiero po manualnym potwierdzeniu w UI (CartContext.jsx).
         // ═══════════════════════════════════════════════════════════════════
         let orderId = null;
+        // 4.5 ORDER LIFECYCLE RESET (before conversation close)
+        // This prevents restaurant/menu context leakage into the next session.
+        const lifecycleReset = {
+            restaurantContext: null,
+            currentRestaurant: null,
+            lastRestaurant: null,
+            lastMenuItems: [],
+            lastMenu: [],
+            pendingDish: null,
+            awaiting: null,
+            expectedContext: null,
+            conversationPhase: 'idle',
+            orderMode: 'neutral',
+        };
+        Object.assign(session, lifecycleReset);
         console.log(`🛒 Order added to cart session. Persistence deferred to manual checkout.`);
 
         // ═══════════════════════════════════════════════════════════════════
@@ -97,7 +112,13 @@ export class ConfirmOrderHandler {
                 transaction_status: 'success',
                 persisted: !!orderId,
                 source: 'confirm_handler',
-                conversationClosed: true
+                conversationClosed: true,
+                orderCompletion: {
+                    restaurantId: restaurantId || null,
+                    restaurantName: restaurantName || null,
+                    total: session?.cart?.total || 0,
+                    itemCount: (session?.cart?.items || []).length,
+                }
             },
             // NOTE: contextUpdates help keep the frontend state clean when session is closed
             contextUpdates: {
@@ -105,7 +126,15 @@ export class ConfirmOrderHandler {
                 pendingOrder: null,
                 lastIntent: 'order_complete',
                 lastOrderId: orderId,
-                conversationPhase: 'idle'
+                conversationPhase: 'idle',
+                restaurantContext: null,
+                currentRestaurant: null,
+                lastRestaurant: null,
+                lastMenuItems: [],
+                lastMenu: [],
+                orderMode: 'neutral',
+                pendingDish: null,
+                awaiting: null,
             }
         };
     }

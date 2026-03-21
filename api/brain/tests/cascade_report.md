@@ -1,5 +1,5 @@
 # Cascade Test Report
-_Generated: 2026-03-15T09:28:49.867Z_
+_Generated: 2026-03-21T02:25:31.736Z_
 
 ## Main Scenarios
 
@@ -23,15 +23,15 @@ _Generated: 2026-03-15T09:28:49.867Z_
 | 16 | Tasty King Kebab | Kebab Box | full | `find_nearby→select_restaurant→menu_request→create_order→create_order` | 1 | - | ✅ PASS | ok |
 | 17 | Tasty King Kebab | Kebab Box | alias | `find_nearby→select_restaurant→menu_request→create_order→create_order` | 1 | - | ✅ PASS | ok |
 | 18 | Tasty King Kebab | Kebab Box | qty_2 | `find_nearby→select_restaurant→menu_request→create_order→create_order` | 1 | - | ✅ PASS | ok |
-| 19 | Restauracja Stara Kamienica | Rolada śląska z kluskami i modrą kapustą | full | `find_nearby→select_restaurant→menu_request→create_order→create_order` | 1 | - | ✅ PASS | ok |
+| 19 | Restauracja Stara Kamienica | Rolada śląska z kluskami i modrą kapustą | full | `find_nearby→select_restaurant→menu_request→create_order→clarify_order` | 0 | - | ❌ FAIL | cart_empty (cartItems=0) |
 | 20 | Restauracja Stara Kamienica | Rolada śląska z kluskami i modrą kapustą | alias | `find_nearby→select_restaurant→menu_request→create_order→create_order` | 1 | - | ✅ PASS | ok |
-| 21 | Restauracja Stara Kamienica | Rolada śląska z kluskami i modrą kapustą | qty_2 | `find_nearby→select_restaurant→menu_request→create_order→create_order` | 1 | - | ✅ PASS | ok |
-| 22 | Restauracja Stara Kamienica | Żurek śląski na maślance | full | `find_nearby→select_restaurant→menu_request→clarify_order→create_order` | 0 | - | ❌ FAIL | cart_empty (cartItems=0) |
-| 23 | Restauracja Stara Kamienica | Żurek śląski na maślance | alias | `find_nearby→select_restaurant→menu_request→clarify_order→create_order` | 0 | - | ❌ FAIL | cart_empty (cartItems=0) |
-| 24 | Restauracja Stara Kamienica | Żurek śląski na maślance | qty_2 | `find_nearby→select_restaurant→menu_request→clarify_order→create_order` | 0 | - | ❌ FAIL | cart_empty (cartItems=0) |
-| 25 | Restauracja Stara Kamienica | Kotlet schabowy z ziemniakami i kapustą | full | `find_nearby→select_restaurant→menu_request→create_order→create_order` | 1 | - | ✅ PASS | ok |
+| 21 | Restauracja Stara Kamienica | Rolada śląska z kluskami i modrą kapustą | qty_2 | `find_nearby→select_restaurant→menu_request→create_order→clarify_order` | 0 | - | ❌ FAIL | cart_empty (cartItems=0) |
+| 22 | Restauracja Stara Kamienica | Żurek śląski na maślance | full | `find_nearby→select_restaurant→menu_request→create_order→clarify_order` | 0 | - | ❌ FAIL | cart_empty (cartItems=0) |
+| 23 | Restauracja Stara Kamienica | Żurek śląski na maślance | alias | `find_nearby→select_restaurant→menu_request→create_order→clarify_order` | 0 | - | ❌ FAIL | cart_empty (cartItems=0) |
+| 24 | Restauracja Stara Kamienica | Żurek śląski na maślance | qty_2 | `find_nearby→select_restaurant→menu_request→create_order→clarify_order` | 0 | - | ❌ FAIL | cart_empty (cartItems=0) |
+| 25 | Restauracja Stara Kamienica | Kotlet schabowy z ziemniakami i kapustą | full | `find_nearby→select_restaurant→menu_request→create_order→clarify_order` | 0 | - | ❌ FAIL | cart_empty (cartItems=0) |
 | 26 | Restauracja Stara Kamienica | Kotlet schabowy z ziemniakami i kapustą | alias | `find_nearby→select_restaurant→menu_request→create_order→create_order` | 1 | - | ✅ PASS | ok |
-| 27 | Restauracja Stara Kamienica | Kotlet schabowy z ziemniakami i kapustą | qty_2 | `find_nearby→select_restaurant→menu_request→create_order→create_order` | 1 | - | ✅ PASS | ok |
+| 27 | Restauracja Stara Kamienica | Kotlet schabowy z ziemniakami i kapustą | qty_2 | `find_nearby→select_restaurant→menu_request→create_order→clarify_order` | 0 | - | ❌ FAIL | cart_empty (cartItems=0) |
 | 28 | Dwór Hubertus | Ćwiartka kaczki | full | `find_nearby→select_restaurant→menu_request→create_order→create_order` | 1 | - | ✅ PASS | ok |
 | 29 | Dwór Hubertus | Ćwiartka kaczki | alias | `find_nearby→select_restaurant→menu_request→create_order→create_order` | 1 | - | ✅ PASS | ok |
 | 30 | Dwór Hubertus | Ćwiartka kaczki | qty_2 | `find_nearby→select_restaurant→menu_request→create_order→create_order` | 1 | - | ✅ PASS | ok |
@@ -61,13 +61,13 @@ _Generated: 2026-03-15T09:28:49.867Z_
 | 54 | Vien-Thien | Wołowina 5 smaków | qty_2 | `find_nearby→select_restaurant→menu_request→create_order→create_order` | 1 | - | ✅ PASS | ok |
 | 55 | Callzone | Pizza Pepperoni | full | `find_nearby→select_restaurant→menu_request→create_order→create_order` | 1 | - | ✅ PASS | ok |
 | 56 | Callzone | Pizza Pepperoni | alias | `find_nearby→select_restaurant→menu_request→create_order→create_order` | 1 | - | ✅ PASS | ok |
-| 57 | Callzone | Pizza Pepperoni | qty_2 | `find_nearby→select_restaurant→menu_request→create_order→create_order` | 1 | - | ✅ PASS | ok |
+| 57 | Callzone | Pizza Pepperoni | qty_2 | `find_nearby→select_restaurant→menu_request→create_order→clarify_order` | 0 | - | ❌ FAIL | cart_empty (cartItems=0) |
 | 58 | Callzone | Pizza Hawajska | full | `find_nearby→select_restaurant→menu_request→create_order→create_order` | 1 | - | ✅ PASS | ok |
 | 59 | Callzone | Pizza Hawajska | alias | `find_nearby→select_restaurant→menu_request→create_order→create_order` | 1 | - | ✅ PASS | ok |
-| 60 | Callzone | Pizza Hawajska | qty_2 | `find_nearby→select_restaurant→menu_request→create_order→create_order` | 1 | - | ✅ PASS | ok |
+| 60 | Callzone | Pizza Hawajska | qty_2 | `find_nearby→select_restaurant→menu_request→create_order→clarify_order` | 0 | - | ❌ FAIL | cart_empty (cartItems=0) |
 | 61 | Callzone | Pizza Margherita | full | `find_nearby→select_restaurant→menu_request→create_order→create_order` | 1 | - | ✅ PASS | ok |
 | 62 | Callzone | Pizza Margherita | alias | `find_nearby→select_restaurant→menu_request→create_order→create_order` | 1 | - | ✅ PASS | ok |
-| 63 | Callzone | Pizza Margherita | qty_2 | `find_nearby→select_restaurant→menu_request→create_order→create_order` | 1 | - | ✅ PASS | ok |
+| 63 | Callzone | Pizza Margherita | qty_2 | `find_nearby→select_restaurant→menu_request→create_order→clarify_order` | 0 | - | ❌ FAIL | cart_empty (cartItems=0) |
 | 64 | Klaps Burgers | Głodzilla | full | `find_nearby→select_restaurant→menu_request→create_order→create_order` | 1 | - | ✅ PASS | ok |
 | 65 | Klaps Burgers | Głodzilla | alias | `find_nearby→select_restaurant→menu_request→create_order→create_order` | 1 | - | ✅ PASS | ok |
 | 66 | Klaps Burgers | Głodzilla | qty_2 | `find_nearby→select_restaurant→menu_request→create_order→create_order` | 1 | - | ✅ PASS | ok |
@@ -87,7 +87,7 @@ _Generated: 2026-03-15T09:28:49.867Z_
 
 ## Summary
 
-- **Main scenarios:** 69/72 PASS
+- **Main scenarios:** 62/72 PASS
 - **Edge tests:** 2/2 PASS
-- **Total:** 71/74 PASS
+- **Total:** 64/74 PASS
 - **State warnings:** 0 scenarios had FSM state issues

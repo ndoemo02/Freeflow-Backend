@@ -1957,6 +1957,19 @@ export class BrainPipeline {
             ) {
                 const orderSession = getSession(activeSessionId) || {};
                 const orderCart = orderSession.cart || { items: [], total: 0 };
+                const completionSnapshot = domainResponse?.meta?.orderCompletion || {};
+                const completedRestaurantId = completionSnapshot.restaurantId
+                    ?? orderSession.restaurantContext?.id
+                    ?? orderSession.currentRestaurant?.id
+                    ?? orderSession.lastRestaurant?.id
+                    ?? null;
+                const completedRestaurantName = completionSnapshot.restaurantName
+                    ?? orderSession.restaurantContext?.name
+                    ?? orderSession.currentRestaurant?.name
+                    ?? orderSession.lastRestaurant?.name
+                    ?? null;
+                const completedTotal = completionSnapshot.total ?? orderCart.total ?? 0;
+                const completedItemCount = completionSnapshot.itemCount ?? (orderCart.items || []).length;
 
                 response.events = [
                     ...(response.events || []),
@@ -1964,10 +1977,10 @@ export class BrainPipeline {
                         type: 'EVENT_ORDER_COMPLETED',
                         channel: 'ui_sync',
                         payload: {
-                            restaurantId: orderSession.restaurantContext?.id || null,
-                            restaurantName: orderSession.restaurantContext?.name || null,
-                            total: orderCart.total || 0,
-                            itemCount: (orderCart.items || []).length
+                            restaurantId: completedRestaurantId,
+                            restaurantName: completedRestaurantName,
+                            total: completedTotal,
+                            itemCount: completedItemCount
                         }
                     }
                 ];
@@ -1976,10 +1989,24 @@ export class BrainPipeline {
                 response.meta.menuBehavior = 'forceClose';
 
                 EventLogger.logEvent(activeSessionId, 'order_completed', {
-                    intent, total: orderCart.total || 0
+                    intent, total: completedTotal
                 }, null, 'order').catch(() => {});
 
+                // Lifecycle reset: keep cart, but reset restaurant/menu/order mode context.
+                updateSession(activeSessionId, {
+                    restaurantContext: null,
+                    currentRestaurant: null,
+                    lastRestaurant: null,
+                    lastMenuItems: [],
+                    lastMenu: [],
+                    pendingDish: null,
+                    awaiting: null,
+                    expectedContext: null,
+                    conversationPhase: 'idle',
+                    orderMode: ORDER_MODE_STATE.NEUTRAL,
+                });
                 context.trace.push('order_completed_event');
+                context.trace.push('order_completed_lifecycle_reset');
             }
             // ─────────────────────────────────────────────────────────────────
 

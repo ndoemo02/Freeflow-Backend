@@ -1,4 +1,6 @@
-﻿export class ResponseBuilder {
+import { buildCheckoutProgress } from './CheckoutDraft.js';
+
+export class ResponseBuilder {
     static build({
         domainResponse,
         activeSessionId,
@@ -27,6 +29,7 @@
         const sessionSnapshot = getSession(activeSessionId) || {};
         const phase = sessionSnapshot?.conversationPhase || 'idle';
         const cart = sessionSnapshot?.cart || { items: [], total: 0 };
+        const checkoutProgress = buildCheckoutProgress(sessionSnapshot);
         const safeIntent = intent || domainResponse?.intent || 'unknown';
         const safeReply = speechText || domainResponse?.reply || '';
 
@@ -55,7 +58,9 @@
                 state: {
                     conversationPhase: phase,
                     currentRestaurant: sessionSnapshot?.currentRestaurant || null,
+                    orderMode: sessionSnapshot?.orderMode || null,
                 },
+                checkoutProgress,
                 ...(domainMeta || {}),
             },
             context: sessionSnapshot,
