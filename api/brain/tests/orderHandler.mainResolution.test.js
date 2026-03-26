@@ -236,6 +236,166 @@ describe('OrderHandler main-item resolution', () => {
         expect(response.contextUpdates?.expectedContext).toBe('order_continue');
     });
 
+    it('resolves qty_2 pizza when menu item has size suffix (e.g. "33cm")', async () => {
+        canonicalizeDishMock.mockImplementation((text) => {
+            if (String(text || '').toLowerCase().includes('pizza margherita')) return 'Margherita';
+            return text;
+        });
+
+        const session = {
+            currentRestaurant: { id: 'R_CALLZONE', name: 'Callzone' },
+            lastRestaurant: { id: 'R_CALLZONE', name: 'Callzone' },
+            last_menu: [
+                {
+                    id: 'main-callzone-margherita-33',
+                    name: 'Pizza Margherita 33cm',
+                    base_name: 'Pizza Margherita 33cm',
+                    category: 'Pizza',
+                    type: 'MAIN',
+                    price_pln: 32,
+                },
+            ],
+            cart: { items: [], total: 0 },
+        };
+
+        const response = await handler.execute({
+            text: 'dwa Pizza Margherita',
+            entities: {
+                dish: 'Pizza Margherita',
+                items: [{ dish: 'Pizza Margherita 33cm', quantity: 2, meta: { rawLabel: 'Pizza Margherita' } }],
+                compoundSource: 'compound_parser',
+                skipCategoryClarify: true,
+                skipGenericTokenBlock: true,
+            },
+            session,
+        });
+
+        expect(response.intent).not.toBe('clarify_order');
+        expect(response.meta?.addedToCart).toBe(true);
+        expect(response.contextUpdates?.cart?.items?.[0]?.id).toBe('main-callzone-margherita-33');
+        expect(response.contextUpdates?.cart?.items?.[0]?.qty).toBe(2);
+    });
+
+    it('applies scoped Żurek fallback in Stara Kamienica without addon context', async () => {
+        canonicalizeDishMock.mockImplementation((text) => text);
+
+        const session = {
+            currentRestaurant: { id: 'R_STARA', name: 'Restauracja Stara Kamienica' },
+            lastRestaurant: { id: 'R_STARA', name: 'Restauracja Stara Kamienica' },
+            last_menu: [
+                {
+                    id: 'main-zurek',
+                    name: 'Żurek śląski na maślance',
+                    base_name: 'Żurek śląski na maślance',
+                    category: 'Zupy',
+                    type: 'MAIN',
+                    price_pln: 22,
+                },
+                {
+                    id: 'main-rosol',
+                    name: 'Rosół domowy',
+                    base_name: 'Rosół domowy',
+                    category: 'Zupy',
+                    type: 'MAIN',
+                    price_pln: 19,
+                },
+            ],
+            cart: { items: [], total: 0 },
+        };
+
+        const response = await handler.execute({
+            text: 'żur',
+            entities: { dish: 'żur', quantity: 1 },
+            session,
+        });
+
+        expect(response.intent).not.toBe('clarify_order');
+        expect(response.meta?.addedToCart).toBe(true);
+        expect(response.contextUpdates?.cart?.items?.[0]?.id).toBe('main-zurek');
+    });
+
+    it('does not fallback to unrelated MAIN dish when requesting pierogi', async () => {
+        canonicalizeDishMock.mockImplementation((text) => {
+            if (String(text || '').toLowerCase().includes('pierogi')) {
+                return 'Pierogi (ruskie lub z miesem) 6 szt.';
+            }
+            return text;
+        });
+
+        const session = {
+            currentRestaurant: { id: 'R_STARA', name: 'Restauracja Stara Kamienica' },
+            lastRestaurant: { id: 'R_STARA', name: 'Restauracja Stara Kamienica' },
+            last_menu: [
+                {
+                    id: 'main-nalesnik',
+                    name: 'Nalesnik z dzemem truskawkowym lub wisniowym',
+                    base_name: 'Nalesnik z dzemem truskawkowym lub wisniowym',
+                    category: 'Danie glowne',
+                    type: 'MAIN',
+                    price_pln: 13,
+                },
+                {
+                    id: 'main-jajecznica',
+                    name: 'Jajecznica z jaj',
+                    base_name: 'Jajecznica z jaj',
+                    category: 'Danie glowne',
+                    type: 'MAIN',
+                    price_pln: 14,
+                },
+                {
+                    id: 'main-schabowy',
+                    name: 'Tradycyjny schabowy',
+                    base_name: 'Tradycyjny schabowy',
+                    category: 'Danie glowne',
+                    type: 'MAIN',
+                    price_pln: 28,
+                },
+            ],
+            cart: { items: [], total: 0 },
+        };
+
+        const response = await handler.execute({
+            text: 'domowe pierogi',
+            entities: { dish: 'Pierogi (ruskie lub z miesem) 6 szt.' },
+            session,
+        });
+
+        expect(response.intent).toBe('clarify_order');
+        expect(response.meta?.addedToCart).not.toBe(true);
+        expect(response.contextUpdates?.cart?.items?.length || 0).toBe(0);
+    });
+
+    it('allows specific rich addon phrase without addon context when single candidate exists (pierogi case)', async () => {
+        canonicalizeDishMock.mockImplementation((text) => text);
+
+        const session = {
+            currentRestaurant: { id: 'R_STARA', name: 'Restauracja Stara Kamienica' },
+            lastRestaurant: { id: 'R_STARA', name: 'Restauracja Stara Kamienica' },
+            last_menu: [
+                {
+                    id: 'addon-pierogi',
+                    name: 'Pierogi (ruskie lub z miesem) 6 szt.',
+                    base_name: 'Pierogi',
+                    category: 'Dodatek',
+                    type: 'ADDON',
+                    price_pln: 13,
+                },
+            ],
+            cart: { items: [], total: 0 },
+        };
+
+        const response = await handler.execute({
+            text: 'chce zamowic pierogi (ruskie lub z miesem) 6 szt.',
+            entities: { dish: 'Pierogi (ruskie lub z miesem) 6 szt.' },
+            session,
+        });
+
+        expect(response.intent).not.toBe('clarify_order');
+        expect(response.meta?.addedToCart).toBe(true);
+        expect(response.contextUpdates?.cart?.items?.[0]?.id).toBe('addon-pierogi');
+        expect(response.contextUpdates?.cart?.items?.[0]?.qty).toBe(1);
+    });
+
     it('resolves addon by preserved modifier for "2 x sos pikantny"', async () => {
         canonicalizeDishMock.mockImplementation((text) => text);
 
@@ -483,5 +643,84 @@ describe('OrderHandler main-item resolution', () => {
         expect(response.meta?.clarify?.requestedCategory).toBe('ADDON');
         expect(response.contextUpdates?.expectedContext).toBe('clarify_order');
         expect(session.cart.items.length).toBe(0);
+    });
+
+    it('resolves single-item compound qty2 pizza using resolved candidate dish from parser', async () => {
+        canonicalizeDishMock.mockImplementation((text) => {
+            if (String(text || '').toLowerCase().includes('pepperoni')) return 'Pizza Pepperoni 33cm';
+            return text;
+        });
+
+        const session = {
+            currentRestaurant: { id: 'R_CALLZONE', name: 'Callzone' },
+            lastRestaurant: { id: 'R_CALLZONE', name: 'Callzone' },
+            last_menu: [
+                {
+                    id: 'main-callzone-pepperoni-33',
+                    name: 'Pizza Pepperoni 33cm',
+                    base_name: 'Pizza Pepperoni',
+                    category: 'Pizza',
+                    price_pln: 35,
+                },
+            ],
+            cart: { items: [], total: 0 },
+        };
+
+        const response = await handler.execute({
+            text: 'dwa Pizza Pepperoni',
+            entities: {
+                dish: 'Pizza Pepperoni',
+                items: [{ dish: 'Pizza Pepperoni', quantity: 2, meta: { rawLabel: 'Pizza Pepperoni' } }],
+                compoundSource: 'compound_parser',
+                skipCategoryClarify: true,
+                skipGenericTokenBlock: true,
+            },
+            session,
+        });
+
+        expect(response.intent).not.toBe('clarify_order');
+        expect(response.meta?.addedToCart).toBe(true);
+        expect(response.contextUpdates?.cart?.items?.[0]?.id).toBe('main-callzone-pepperoni-33');
+        expect(response.contextUpdates?.cart?.items?.[0]?.qty).toBe(2);
+    });
+
+    it('resolves single-item compound qty1 using parser-resolved main dish instead of raw phrase drift', async () => {
+        canonicalizeDishMock.mockImplementation((text) => text);
+
+        const session = {
+            currentRestaurant: { id: 'R_STARA', name: 'Restauracja Stara Kamienica' },
+            lastRestaurant: { id: 'R_STARA', name: 'Restauracja Stara Kamienica' },
+            last_menu: [
+                {
+                    id: 'main-rolada',
+                    name: 'Rolada wołowa (na zamówienie)',
+                    base_name: 'Rolada wołowa',
+                    category: 'Danie główne',
+                    price_pln: 27,
+                },
+                {
+                    id: 'addon-kapusta',
+                    name: 'Kapusta modra',
+                    base_name: 'Kapusta modra',
+                    category: 'Dodatki',
+                    price_pln: 8,
+                },
+            ],
+            cart: { items: [], total: 0 },
+        };
+
+        const response = await handler.execute({
+            text: 'Rolada śląska z kluskami i modrą kapustą',
+            entities: {
+                dish: 'modrą kapustą',
+                items: [{ dish: 'Rolada wołowa', quantity: 1, meta: { rawLabel: 'Rolada śląska z kluskami i modrą kapustą' } }],
+                compoundSource: 'compound_parser',
+            },
+            session,
+        });
+
+        expect(response.intent).not.toBe('clarify_order');
+        expect(response.meta?.addedToCart).toBe(true);
+        expect(response.contextUpdates?.cart?.items?.[0]?.id).toBe('main-rolada');
     });
 });
