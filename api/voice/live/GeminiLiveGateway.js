@@ -1,6 +1,10 @@
 import { WebSocketServer } from 'ws';
 import { URL } from 'node:url';
 import { LIVE_TOOL_SCHEMAS } from './ToolSchemas.js';
+import { validateAndSanitize } from './ToolValidator.js';
+import { liveLog } from './liveObservability.js';
+
+const TOOL_EXECUTION_TIMEOUT_MS = 8000;
 
 function safeJsonParse(raw) {
     try {
@@ -8,6 +12,14 @@ function safeJsonParse(raw) {
     } catch {
         return null;
     }
+}
+
+function withTimeout(promise, ms) {
+    let timer;
+    const timeout = new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error('tool_timeout')), ms);
+    });
+    return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 }
 
 export class GeminiLiveGateway {
@@ -36,6 +48,12 @@ export class GeminiLiveGateway {
                 return;
             }
 
+            liveLog.wsConnect({ sessionId });
+
+            socket.on('close', (code) => {
+                liveLog.wsDisconnect({ sessionId, code });
+            });
+
             socket.send(JSON.stringify({
                 type: 'live_ready',
                 session_id: sessionId,
@@ -44,34 +62,52 @@ export class GeminiLiveGateway {
 
             socket.on('message', async (rawPayload) => {
                 const parsed = safeJsonParse(rawPayload.toString());
+
                 if (!parsed) {
-                    socket.send(JSON.stringify({
-                        type: 'tool_error',
-                        error: 'invalid_json',
-                    }));
+                    socket.send(JSON.stringify({ type: 'tool_error', error: 'invalid_json' }));
                     return;
                 }
 
                 if (parsed.type !== 'tool_call') {
+                    socket.send(JSON.stringify({ type: 'tool_error', error: 'unsupported_message_type' }));
+                    return;
+                }
+
+                const toolName = parsed.tool;
+                const requestId = parsed.request_id || null;
+
+                // 1. Validate + sanitize args before touching ToolRouter
+                const validation = validateAndSanitize(toolName, parsed.args || {});
+                if (!validation.valid) {
+                    liveLog.toolFail({ sessionId, toolName, requestId, error: validation.error, field: validation.field });
                     socket.send(JSON.stringify({
                         type: 'tool_error',
-                        error: 'unsupported_message_type',
+                        request_id: requestId,
+                        tool: toolName,
+                        error: validation.error,
+                        field: validation.field || null,
                     }));
                     return;
                 }
 
+                liveLog.toolCall({ sessionId, toolName, requestId });
+
+                // 2. Execute with timeout
                 try {
-                    const result = await this.toolRouter.executeToolCall({
-                        sessionId,
-                        toolName: parsed.tool,
-                        args: parsed.args || {},
-                        requestId: parsed.request_id || null,
-                    });
+                    const result = await withTimeout(
+                        this.toolRouter.executeToolCall({
+                            sessionId,
+                            toolName,
+                            args: validation.sanitized,
+                            requestId,
+                        }),
+                        TOOL_EXECUTION_TIMEOUT_MS,
+                    );
 
                     socket.send(JSON.stringify({
                         type: 'tool_result',
-                        request_id: parsed.request_id || null,
-                        tool: parsed.tool,
+                        request_id: requestId,
+                        tool: toolName,
                         ok: result.ok,
                         response: result.response || null,
                         trace: result.trace || [],
@@ -80,16 +116,18 @@ export class GeminiLiveGateway {
                     if (Array.isArray(result.response?.events) && result.response.events.length > 0) {
                         socket.send(JSON.stringify({
                             type: 'ui_events',
-                            request_id: parsed.request_id || null,
+                            request_id: requestId,
                             events: result.response.events,
                         }));
                     }
                 } catch (error) {
+                    const errMsg = error?.message || 'live_gateway_error';
+                    liveLog.toolFail({ sessionId, toolName, requestId, error: errMsg });
                     socket.send(JSON.stringify({
                         type: 'tool_error',
-                        request_id: parsed.request_id || null,
-                        tool: parsed.tool || null,
-                        error: error?.message || 'live_gateway_error',
+                        request_id: requestId,
+                        tool: toolName,
+                        error: errMsg,
                     }));
                 }
             });
@@ -98,4 +136,3 @@ export class GeminiLiveGateway {
         return this.wss;
     }
 }
-
