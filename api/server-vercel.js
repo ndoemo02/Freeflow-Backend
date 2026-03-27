@@ -6,15 +6,18 @@ import express from 'express';
 import cors from 'cors';
 // import morgan from 'morgan'; // Disabled for stability debugging
 import { createClient } from '@supabase/supabase-js';
+import fs from 'fs';
 import { verifyAmberAdmin } from './middleware/verifyAmberAdmin.js';
 import adminRouter from './admin/adminRouter.js';
+import { registerLiveRoutes, attachLiveGateway } from './voice/live/index.js';
 
-// 🧠 Enable Brain Debug Mode explicitly for Vercel logs
-global.BRAIN_DEBUG = true;
+// 🧠 Debug mode must be opt-in via env (avoid leaking conversation data in logs)
+global.BRAIN_DEBUG = process.env.BRAIN_DEBUG === 'true';
 
 // --- App setup ---
 const app = express();
 app.use(express.json());
+registerLiveRoutes(app);
 
 // CORS configuration
 const CORS_ORIGINS_PROD = [
@@ -46,8 +49,7 @@ app.options(/.*/, (req, res) => {
   if (ALLOWED_ORIGINS.includes(origin)) {
     res.setHeader('Access-Control-Allow-Origin', origin);
   } else {
-    // Default fallback if we trust it or wildcard
-    res.setHeader('Access-Control-Allow-Origin', ALLOWED_ORIGINS[0]);
+    return res.status(403).end();
   }
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-admin-token');
@@ -62,22 +64,86 @@ console.log('🧠 ENV OK');
 console.log('🔑 SUPABASE_URL:', process.env.SUPABASE_URL ? '✅' : '❌');
 console.log('🔑 SUPABASE_KEY:', process.env.SUPABASE_SERVICE_ROLE_KEY ? '✅' : '❌');
 
+async function runStartupHealthReport() {
+  const checks = [];
+  const pushCheck = (name, ok, detail) => {
+    checks.push({ module: name, status: ok ? 'OK' : 'FAIL', detail });
+  };
+
+  const requestSupabaseKey =
+    process.env.SUPABASE_ANON_KEY ||
+    process.env.SUPABASE_KEY ||
+    process.env.SUPABASE_SERVICE_ROLE_KEY;
+  pushCheck('env.SUPABASE_URL', Boolean(process.env.SUPABASE_URL), process.env.SUPABASE_URL ? 'set' : 'missing');
+  pushCheck('env.SUPABASE request key', Boolean(requestSupabaseKey), requestSupabaseKey ? 'set' : 'missing');
+  pushCheck('supabase.requestClient', Boolean(supabase), supabase ? 'initialized' : 'missing');
+  pushCheck('supabase.adminClient', Boolean(supabaseAdmin), supabaseAdmin ? 'initialized' : 'disabled (no service role)');
+
+  const googleCredPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+  pushCheck(
+    'env.GOOGLE_APPLICATION_CREDENTIALS',
+    Boolean(googleCredPath),
+    googleCredPath ? googleCredPath : 'missing'
+  );
+  pushCheck(
+    'google.credentials.file',
+    Boolean(googleCredPath) && fs.existsSync(googleCredPath),
+    googleCredPath ? (fs.existsSync(googleCredPath) ? 'found' : 'not found') : 'skipped'
+  );
+  pushCheck('env.GEMINI_API_KEY', Boolean(process.env.GEMINI_API_KEY), process.env.GEMINI_API_KEY ? 'set' : 'missing');
+  pushCheck('env.OPENAI_API_KEY', Boolean(process.env.OPENAI_API_KEY), process.env.OPENAI_API_KEY ? 'set' : 'missing');
+
+  const moduleChecks = [
+    ['brainV2', './brain/brainV2.js'],
+    ['pipeline', './brain/core/pipeline.js'],
+    ['nlu.router', './brain/nlu/router.js'],
+    ['orderHandler', './brain/domains/food/orderHandler.js'],
+    ['ttsClient', './brain/tts/ttsClient.js'],
+    ['sessionAdapter', './brain/session/sessionAdapter.js'],
+  ];
+
+  for (const [name, modulePath] of moduleChecks) {
+    try {
+      await import(modulePath);
+      pushCheck(`module.${name}`, true, 'import ok');
+    } catch (err) {
+      pushCheck(`module.${name}`, false, err?.message || 'import failed');
+    }
+  }
+
+  console.log('[STARTUP_HEALTH] Module readiness report');
+  console.table(checks);
+
+  const failed = checks.filter((check) => check.status === 'FAIL');
+  if (failed.length > 0) {
+    console.warn(`[STARTUP_HEALTH] Degraded startup: ${failed.length}/${checks.length} checks failed.`);
+  } else {
+    console.log(`[STARTUP_HEALTH] All checks passed (${checks.length}/${checks.length}).`);
+  }
+}
+
 // --- Supabase client ---
 let supabase;
+let supabaseAdmin;
 try {
-  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
-    throw new Error('Missing Supabase Credentials');
+  if (!process.env.SUPABASE_URL) {
+    throw new Error('Missing SUPABASE_URL');
   }
-  supabase = createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY
-  );
-  console.log('✅ Supabase client initialized');
+  const requestKey = process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!requestKey) {
+    throw new Error('Missing Supabase request key');
+  }
+  supabase = createClient(process.env.SUPABASE_URL, requestKey);
+  supabaseAdmin = process.env.SUPABASE_SERVICE_ROLE_KEY
+    ? createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
+    : null;
+  console.log('✅ Supabase request client initialized');
 } catch (err) {
   console.error('❌ Supabase init failed:', err);
   supabase = { from: () => ({ select: () => ({ limit: () => ({ data: [], error: { message: 'Supabase Not Initialized' } }) }) }) };
+  supabaseAdmin = null;
 }
-export { supabase };
+export { supabase, supabaseAdmin };
 
 // --- Health check ---
 app.get('/api/health', async (req, res) => {
@@ -678,8 +744,15 @@ export default app;
 // --- KEEP ALIVE FOR LOCAL DEV ---
 if (process.env.NODE_ENV !== "production") {
   const PORT = process.env.PORT || 3000;
-  app.listen(PORT, () => {
+  const server = app.listen(PORT, async () => {
     console.log(`🧠 FreeFlow Brain running locally on http://localhost:${PORT}`);
+    if (process.env.LIVE_MODE === 'true') {
+      attachLiveGateway(server);
+      console.log('🔌 Gemini Live Gateway enabled on /api/voice/live/ws');
+    } else {
+      console.log('🔌 Gemini Live Gateway disabled (set LIVE_MODE=true to enable)');
+    }
+    await runStartupHealthReport();
   });
 }
 
