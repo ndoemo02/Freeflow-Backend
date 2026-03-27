@@ -203,6 +203,13 @@ export class NLURouter {
         const explicitRestaurantSearch = isExplicitRestaurantSearch(text);
 
         if (session?.currentRestaurant && explicitRestaurantSearch) {
+            console.log('[DISCOVERY_CONTEXT_OVERRIDE_TRACE]', JSON.stringify({
+                source: 'restaurant_navigation_override',
+                text,
+                location,
+                cuisine,
+                currentRestaurant: session?.currentRestaurant?.name || null,
+            }));
             return {
                 intent: 'find_nearby',
                 confidence: 0.9,
@@ -254,19 +261,16 @@ export class NLURouter {
             /^\s*koszyk\s*$/i.test(normalized);
 
         if (isExplicitCheckoutRequest) {
+            console.log('[CHECKOUT_BRIDGE_TRACE]', JSON.stringify({
+                source: 'explicit_checkout_bridge',
+                text,
+                normalized,
+                hasCurrentRestaurant: Boolean(session?.currentRestaurant),
+            }));
             return {
                 intent: 'open_checkout',
                 confidence: 0.98,
                 source: 'explicit_checkout_bridge',
-                entities
-            };
-        }
-
-        if (session?.currentRestaurant && explicitRestaurantSearch) {
-            return {
-                intent: 'find_nearby',
-                confidence: 0.9,
-                source: 'restaurant_navigation_override',
                 entities
             };
         }
