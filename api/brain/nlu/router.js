@@ -246,9 +246,12 @@ export class NLURouter {
             };
         }
 
+        // Intentionally requires explicit checkout verbs to avoid shadowing discovery/menu intents.
         const isExplicitCheckoutRequest =
             /\b(checkout\w*|kasa|platnosc\w*|zaplac\w*|finaliz\w*|zloz(?:yc)?\s+zamowienie|przejdz\s+do\s+platnosci)\b/i
-                .test(normalized);
+                .test(normalized) ||
+            /\b(pokaz|przejdz(?:my)?|otworz|idz)\b.*\bkoszyk/i.test(normalized) ||
+            /^\s*koszyk\s*$/i.test(normalized);
 
         if (isExplicitCheckoutRequest) {
             return {
