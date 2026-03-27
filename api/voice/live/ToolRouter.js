@@ -8,6 +8,7 @@ import {
     getIntentDomain,
     mutatesCart,
 } from '../../brain/core/IntentCapabilityMap.js';
+import { liveLog } from './liveObservability.js';
 import { CART_MUTATION_WHITELIST } from '../../brain/core/pipeline/IntentGroups.js';
 import { ORDER_MODE_EVENT, ORDER_MODE_STATE, transitionOrderMode } from '../../brain/core/pipeline/OrderModeFSM.js';
 
@@ -324,6 +325,7 @@ export class ToolRouter {
         if (orderModeResult.changed) {
             this.updateSession(sessionId, { orderMode: orderModeResult.state });
             context.trace.push(`order_mode:${preOrderMode}->${orderModeResult.state}`);
+            liveLog.orderModeTrace({ sessionId, toolName, from: preOrderMode, to: orderModeResult.state, fsm_event: orderModeEvent });
         } else {
             context.trace.push(`order_mode:${preOrderMode}(noop)`);
         }
@@ -354,6 +356,17 @@ export class ToolRouter {
             },
             trace: context.trace,
         };
+
+        const totalLatency = Date.now() - startedAt;
+        liveLog.toolComplete({
+            sessionId,
+            toolName,
+            requestId,
+            ok: true,
+            latencyMs: totalLatency,
+            intent: runtimeIntent,
+            orderMode: orderModeResult.state,
+        });
 
         return {
             ok: true,
