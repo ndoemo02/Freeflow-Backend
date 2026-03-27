@@ -1,0 +1,148 @@
+export const LIVE_TOOL_SCHEMAS = Object.freeze([
+    {
+        name: 'find_nearby',
+        description: 'Find nearby restaurants using optional location and cuisine filters.',
+        parameters: {
+            type: 'object',
+            properties: {
+                location: { type: 'string' },
+                cuisine: { type: 'string' },
+                lat: { type: 'number' },
+                lng: { type: 'number' },
+            },
+            additionalProperties: false,
+        },
+    },
+    {
+        name: 'select_restaurant',
+        description: 'Select restaurant from list or direct id.',
+        parameters: {
+            type: 'object',
+            properties: {
+                restaurant_id: { type: 'string' },
+                restaurant_name: { type: 'string' },
+                selection_text: { type: 'string' },
+            },
+            additionalProperties: false,
+        },
+    },
+    {
+        name: 'show_menu',
+        description: 'Show menu for selected restaurant.',
+        parameters: {
+            type: 'object',
+            properties: {
+                restaurant_id: { type: 'string' },
+                restaurant_name: { type: 'string' },
+            },
+            additionalProperties: false,
+        },
+    },
+    {
+        name: 'show_more_options',
+        description: 'Paginate or show more options from current restaurant list.',
+        parameters: {
+            type: 'object',
+            properties: {},
+            additionalProperties: false,
+        },
+    },
+    {
+        name: 'add_item_to_cart',
+        description: 'Add one item to cart by dish name and quantity.',
+        parameters: {
+            type: 'object',
+            properties: {
+                dish: { type: 'string' },
+                quantity: { type: 'number' },
+                restaurant_id: { type: 'string' },
+                restaurant_name: { type: 'string' },
+            },
+            required: ['dish'],
+            additionalProperties: false,
+        },
+    },
+    {
+        name: 'add_items_to_cart',
+        description: 'Add multiple items to cart in one transaction.',
+        parameters: {
+            type: 'object',
+            properties: {
+                items: {
+                    type: 'array',
+                    items: {
+                        type: 'object',
+                        properties: {
+                            dish: { type: 'string' },
+                            quantity: { type: 'number' },
+                        },
+                        required: ['dish'],
+                        additionalProperties: false,
+                    },
+                },
+                restaurant_id: { type: 'string' },
+                restaurant_name: { type: 'string' },
+            },
+            required: ['items'],
+            additionalProperties: false,
+        },
+    },
+    {
+        name: 'confirm_add_to_cart',
+        description: 'Confirm pending add-to-cart operation.',
+        parameters: {
+            type: 'object',
+            properties: {},
+            additionalProperties: false,
+        },
+    },
+    {
+        name: 'open_checkout',
+        description: 'Open checkout flow for current cart.',
+        parameters: {
+            type: 'object',
+            properties: {},
+            additionalProperties: false,
+        },
+    },
+    {
+        name: 'confirm_order',
+        description: 'Confirm and finalize current order flow.',
+        parameters: {
+            type: 'object',
+            properties: {},
+            additionalProperties: false,
+        },
+    },
+    {
+        name: 'cancel_order',
+        description: 'Cancel current order flow and reset ordering state.',
+        parameters: {
+            type: 'object',
+            properties: {},
+            additionalProperties: false,
+        },
+    },
+    {
+        name: 'get_cart_state',
+        description: 'Read current server-side cart/session state.',
+        parameters: {
+            type: 'object',
+            properties: {},
+            additionalProperties: false,
+        },
+    },
+]);
+
+export function getToolSchema(toolName) {
+    return LIVE_TOOL_SCHEMAS.find((tool) => tool.name === toolName) || null;
+}
+
+export function toGeminiFunctionDeclarations() {
+    return LIVE_TOOL_SCHEMAS.map((tool) => ({
+        name: tool.name,
+        description: tool.description,
+        parameters: tool.parameters,
+    }));
+}
+

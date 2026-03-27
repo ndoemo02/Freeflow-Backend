@@ -11,6 +11,20 @@ const MENU = [
     { id: 'side_fries', name: 'Frytki', base_name: 'Frytki' },
 ];
 
+const MULTI_MAIN_MENU = [
+    { id: 'main_flaki', name: 'Flaki z indyka', base_name: 'Flaki z indyka', type: 'MAIN', category: 'Danie główne' },
+    { id: 'main_burger', name: 'Burger wołowy', base_name: 'Burger wołowy', type: 'MAIN', category: 'Danie główne' },
+    { id: 'side_frytki', name: 'Frytki', base_name: 'Frytki', type: 'ADDON', category: 'Dodatki' },
+    { id: 'side_surowka', name: 'Surówka', base_name: 'Surówka', type: 'ADDON', category: 'Dodatki' },
+];
+
+const STARA_MENU = [
+    { id: 'main_rolada', name: 'Rolada wołowa (na zamówienie)', base_name: 'Rolada wołowa', type: 'MAIN', category: 'Danie główne' },
+    { id: 'main_schabowy', name: 'Kotlet schabowy', base_name: 'Kotlet schabowy', type: 'MAIN', category: 'Danie główne' },
+    { id: 'addon_kapusta', name: 'Kapusta modra', base_name: 'Kapusta modra', type: 'ADDON', category: 'Dodatki' },
+    { id: 'addon_ziemniaki', name: 'Ziemniaki', base_name: 'Ziemniaki', type: 'ADDON', category: 'Dodatki' },
+];
+
 function findDish(items, token) {
     const normalizedToken = String(token || '').toLowerCase();
     return items.find((item) => String(item?.dish || '').toLowerCase().includes(normalizedToken));
@@ -171,5 +185,53 @@ describe('compoundOrderParser', () => {
         expect(result.items[0]?.quantity).toBe(3);
         expect(result.items[0]?.meta?.canonicalAliasBundle).toBe(true);
         expect(result.items[0]?.meta?.rawLabel).toBe('Pepsi');
+    });
+
+    it('collapses serving phrase "Rolada ... z ... i ..." into single MAIN item', () => {
+        const result = parseCompoundOrder('Rolada śląska z kluskami i modrą kapustą', STARA_MENU);
+
+        expect(result.items.length).toBe(1);
+        expect(result.items[0]?.dish).toBe('Rolada wołowa');
+        expect(result.items[0]?.quantity).toBe(1);
+        expect(result.items[0]?.meta?.collapsedServingPhrase).toBe(true);
+    });
+
+    it('collapses qty serving phrase "dwa Kotlet ... z ... i ..." into single MAIN item with qty=2', () => {
+        const result = parseCompoundOrder('dwa Kotlet schabowy z ziemniakami i kapustą', STARA_MENU);
+
+        expect(result.items.length).toBe(1);
+        expect(result.items[0]?.dish).toBe('Kotlet schabowy');
+        expect(result.items[0]?.quantity).toBe(2);
+    });
+
+    // Regression: multi-dish utterance with "z ... i ..." must NOT be collapsed
+    // to single item by tryWholePhraseSingleItem (substring-match false positive).
+    // The parser sees "flaki z indyka" / "burger wołowy z frytkami" / "surówką" as
+    // three segments, so items.length >= 2 with both main dishes present.
+    it('regression: "flaki z indyka i burger wołowy z frytkami i surówką" contains flaki and burger', () => {
+        const result = parseCompoundOrder('flaki z indyka i burger wołowy z frytkami i surówką', MULTI_MAIN_MENU);
+
+        expect(result.items.length).toBeGreaterThanOrEqual(2);
+        expect(findDish(result.items, 'flaki')?.quantity).toBe(1);
+        expect(findDish(result.items, 'burger')?.quantity).toBe(1);
+    });
+
+    it('regression: "proszę jeszcze flaki z indyka i burger wołowy z frytkami i surówką" contains flaki and burger', () => {
+        const result = parseCompoundOrder(
+            'proszę jeszcze flaki z indyka i burger wołowy z frytkami i surówką',
+            MULTI_MAIN_MENU,
+        );
+
+        expect(result.items.length).toBeGreaterThanOrEqual(2);
+        expect(findDish(result.items, 'flaki')?.quantity).toBe(1);
+        expect(findDish(result.items, 'burger')?.quantity).toBe(1);
+    });
+
+    it('regression: "2 flaki z indyka i 3 burgery wołowe" → 2 items with correct quantities', () => {
+        const result = parseCompoundOrder('2 flaki z indyka i 3 burgery wołowe', MULTI_MAIN_MENU);
+
+        expect(result.items.length).toBe(2);
+        expect(findDish(result.items, 'flaki')?.quantity).toBe(2);
+        expect(findDish(result.items, 'burger')?.quantity).toBe(3);
     });
 });

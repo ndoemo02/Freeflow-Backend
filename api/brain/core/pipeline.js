@@ -115,6 +115,51 @@ function buildMenuSummaryForTTS(menuItems) {
     return summary;
 }
 
+// UTF-8 safe replacements for legacy mojibake summaries.
+function buildRestaurantSummaryForTTSV2(restaurants, location) {
+    if (!restaurants || restaurants.length === 0) return null;
+
+    const count = restaurants.length;
+    const locationPart = location ? ` w okolicy: ${location}` : '';
+    const nearest = restaurants
+        .slice(0, 3)
+        .map((r) => r?.name)
+        .filter(Boolean);
+
+    if (nearest.length === 0) {
+        return `Mam ${count} propozycji${locationPart}. Którą wybierasz?`;
+    }
+
+    return `Mam ${count} propozycji${locationPart}. Najbliżej są: ${nearest.join(', ')}. Którą wybierasz?`;
+}
+
+function buildMenuSummaryForTTSV2(menuItems) {
+    if (!menuItems || menuItems.length === 0) return null;
+
+    const categories = [...new Set(menuItems.map((i) => i.category).filter(Boolean))];
+    const hasVege = menuItems.some((i) => i.is_vege);
+    const hasSpicy = menuItems.some((i) => i.spicy);
+
+    let summary = 'W menu są między innymi: ';
+    if (categories.length > 0) {
+        summary += categories.join(', ');
+    }
+
+    if (hasVege && !summary.includes('wegetariańskie')) summary += ', opcje wegetariańskie';
+    if (hasSpicy && !summary.includes('ostre')) summary += ', dania ostre';
+
+    const baseNames = [...new Set(menuItems.map((i) => i.base_name || i.name).filter(Boolean))];
+    const sample = baseNames.slice(0, 3).join(', ');
+
+    if (sample) {
+        summary += `. Na przykład: ${sample}. Co wybierasz?`;
+    } else {
+        summary += '. Co wybierasz?';
+    }
+
+    return summary;
+}
+
 
 function isExplicitRestaurantNavigation(text = '') {
     const normalized = String(text || '').toLowerCase();
@@ -624,7 +669,7 @@ export class BrainPipeline {
                 // If a phonetic match is found, text is replaced before NLU.
                 // Ă˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘Â
                 const hasExplicitQuantityPrefix = /^\s*(?:\d+|jeden|jedna|jedno|dwa|dwie|trzy|cztery|pi[eďż˝]c|sze[sďż˝]c|siedem|osiem|dziewi[eďż˝]c|dziesi[eďż˝]c|kilka|par[eďż˝])\b/i.test(text);
-                if (sessionContext?.last_menu?.length > 0 && !isExplicitRestaurantNavigation(text) && !hasExplicitQuantityPrefix) {
+                if (sessionContext?.last_menu?.length > 0 && !isExplicitRestaurantNavigation(text) && !hasExplicitQuantityPrefix && !skipSingleDishCanon) {
                     const phoneticMatch = matchDishPhonetic(text, sessionContext.last_menu);
                     if (phoneticMatch) {
                         BrainLogger.pipeline(`Ä‘Ĺşâ€ťĹ  PHONETIC_MATCH: "${text}" Ă˘â€ â€™ "${phoneticMatch}"`);
@@ -1950,7 +1995,7 @@ export class BrainPipeline {
 
             if (domainResponse?.restaurants?.length) {
                 const loc = domainResponse.location || (domainResponse.contextUpdates && domainResponse.contextUpdates.last_location) || null;
-                const summary = buildRestaurantSummaryForTTS(
+                const summary = buildRestaurantSummaryForTTSV2(
                     domainResponse.restaurants,
                     loc
                 );
@@ -1959,7 +2004,7 @@ export class BrainPipeline {
                     BrainLogger.pipeline(`Ă˘Ĺ›â€šÄŹÂ¸Ĺą Smart TTS Restaurant Summary: "${speechPartForTTS.substring(0, 50)}..."`);
                 }
             } else if (domainResponse?.menuItems?.length) {
-                const summary = buildMenuSummaryForTTS(
+                const summary = buildMenuSummaryForTTSV2(
                     domainResponse.menuItems
                 );
                 if (summary) {

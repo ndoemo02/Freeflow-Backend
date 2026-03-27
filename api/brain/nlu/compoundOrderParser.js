@@ -47,6 +47,7 @@ const MODIFIER_BASE_TOKENS = new Set([
     'burger',
     'pizza',
 ]);
+const CONJUNCTION_PATTERN = /\b(?:i|oraz)\b|,|\+/i;
 
 function normalizeText(value = '') {
     return String(value || '')
@@ -412,12 +413,179 @@ function splitWithHeuristic(cleaned = '') {
     return { segments: splitSegments.length > 0 ? splitSegments : [cleaned], heuristicTraces: [] };
 }
 
+function findMenuEntryForResolvedDish(dish = '', menu = []) {
+    const dishNorm = normalizeText(dish);
+    if (!dishNorm || !Array.isArray(menu) || menu.length === 0) return null;
+
+    return menu.find((item) => {
+        const baseNorm = normalizeText(item?.base_name || '');
+        const nameNorm = normalizeText(item?.name || '');
+        return baseNorm === dishNorm || nameNorm === dishNorm;
+    }) || null;
+}
+
+function classifyMenuItem(entry = null) {
+    if (!entry) return 'UNKNOWN';
+
+    const typeNorm = normalizeText(entry?.type || '');
+    const categoryNorm = normalizeText(entry?.category || '');
+
+    if (typeNorm === 'main' || categoryNorm.includes('danie')) return 'MAIN';
+    if (
+        typeNorm === 'addon' ||
+        categoryNorm.includes('dodatek') ||
+        categoryNorm.includes('dodatki')
+    ) return 'ADDON';
+    if (
+        typeNorm === 'drink' ||
+        categoryNorm.includes('napoj') ||
+        categoryNorm.includes('napoje')
+    ) return 'DRINK';
+
+    return 'UNKNOWN';
+}
+
+function collapseServingPhraseToSingleMain(cleaned = '', parsedItems = [], menu = []) {
+    if (!cleaned || !Array.isArray(parsedItems) || parsedItems.length < 2) return null;
+    if (!Array.isArray(menu) || menu.length === 0) return null;
+
+    const cleanedNorm = normalizeText(cleaned);
+    // Typical single-dish phrasing with side components: "X z ... i ..."
+    const looksLikeServingPhrase = /\bz\s+.+\bi\b/.test(cleanedNorm);
+    if (!looksLikeServingPhrase) return null;
+
+    const mapped = parsedItems.map((item) => {
+        const entry = findMenuEntryForResolvedDish(item?.dish || '', menu);
+        return {
+            item,
+            entry,
+            kind: classifyMenuItem(entry),
+        };
+    });
+
+    const mains = mapped.filter((x) => x.kind === 'MAIN');
+    const addons = mapped.filter((x) => x.kind === 'ADDON');
+    const unsupported = mapped.filter((x) => x.kind === 'DRINK' || x.kind === 'UNKNOWN');
+
+    if (mains.length !== 1 || addons.length < 1 || unsupported.length > 0) {
+        return null;
+    }
+
+    const mainCandidate = mains[0].item;
+    const quantity = Math.max(
+        1,
+        ...parsedItems.map((x) => Math.max(1, Math.floor(Number(x?.quantity) || 1)))
+    );
+
+    return {
+        items: [{
+            ...mainCandidate,
+            quantity,
+            meta: {
+                ...(mainCandidate?.meta || {}),
+                rawLabel: toTitleCase(cleaned),
+                collapsedServingPhrase: true,
+            },
+        }],
+        trace: {
+            strategy: 'serving_phrase_collapsed_to_main',
+            input: cleaned,
+            mainDish: mainCandidate?.dish || null,
+            collapsedFrom: parsedItems.map((x) => x?.dish).filter(Boolean),
+            quantity,
+        },
+    };
+}
+
+function tryWholePhraseSingleItem(cleaned = '', menu = []) {
+    if (!cleaned || !Array.isArray(menu) || menu.length === 0) {
+        return null;
+    }
+
+    if (!CONJUNCTION_PATTERN.test(cleaned)) {
+        return null;
+    }
+
+    const cleanedNorm = normalizeText(cleaned);
+    // Limit single-item override to serving-style phrases ("X z ... i ...")
+    // so we don't collapse genuine multi orders like "Pepsi i kawa".
+    if (!/\bz\s+.+\bi\b/.test(cleanedNorm)) {
+        return null;
+    }
+
+    const { quantity, dishPart } = extractQuantityFromSegment(cleaned);
+    const collapsed = collapseRepeatedDishTokens(dishPart, quantity);
+    const rawLabel = cleanSegmentText(collapsed.dish);
+    if (!rawLabel) {
+        return null;
+    }
+
+    const variants = generatePhraseVariants(rawLabel);
+    const exact = menu.find((item) => {
+        const itemNorm = normalizeText(item?.base_name || item?.name || '');
+        return variants.some((variant) => variant === itemNorm);
+    });
+
+    let matchedItem = exact || null;
+    let strategy = 'whole_phrase_single_item_match';
+
+    if (!matchedItem) {
+        const fuzzy = findBestDishMatch(rawLabel, menu);
+        if (fuzzy) {
+            const fuzzyScore = scoreMenuCandidate(rawLabel, fuzzy);
+            if (fuzzyScore >= 0.68) {
+                matchedItem = fuzzy;
+                strategy = 'whole_phrase_single_item_fuzzy_match';
+            }
+        }
+    }
+
+    if (!matchedItem) {
+        return null;
+    }
+
+    const resolvedDish = String(matchedItem?.base_name || matchedItem?.name || '').trim();
+    if (!resolvedDish) {
+        return null;
+    }
+
+    const modifier = extractModifier(rawLabel, resolvedDish);
+    const meta = {
+        rawLabel: toTitleCase(rawLabel || resolvedDish),
+    };
+
+    if (modifier) {
+        meta.modifier = modifier;
+    }
+
+    return {
+        item: {
+            dish: resolvedDish,
+            quantity: Math.max(1, Math.floor(Number(collapsed.quantity) || 1)),
+            meta,
+        },
+        trace: {
+            strategy,
+            input: cleaned,
+            rawLabel,
+            resolvedDish,
+            quantity: Math.max(1, Math.floor(Number(collapsed.quantity) || 1)),
+        },
+    };
+}
+
 export function parseCompoundOrder(text = '', menu = []) {
     const cleaned = cleanSegmentText(text);
     if (!cleaned) {
         return { items: [], segmentTraces: [], heuristicTraces: [] };
     }
 
+    // Run segment-based split first.  tryWholePhraseSingleItem is used only as
+    // a fallback (parsedItems.length <= 1) to avoid false-positive collapse of
+    // genuine multi-dish utterances like "flaki z indyka i burger wołowy z
+    // frytkami i surówką" — the scorer returns 1.1 for such a phrase when a
+    // menu item name is a substring of the full text, which would incorrectly
+    // reduce two dishes to one.
     const { segments: sourceSegments, heuristicTraces } = splitWithHeuristic(cleaned);
     const segmentTraces = [];
 
@@ -462,6 +630,31 @@ export function parseCompoundOrder(text = '', menu = []) {
         })
         .filter(Boolean);
 
-    const items = mergeDuplicateItems(parsedItems);
+    if (parsedItems.length <= 1) {
+        const wholePhraseMatch = tryWholePhraseSingleItem(cleaned, menu);
+        if (wholePhraseMatch) {
+            return {
+                items: [wholePhraseMatch.item],
+                segmentTraces: [{
+                    segment: cleaned,
+                    quantity: wholePhraseMatch.trace.quantity,
+                    quantitySource: 'whole_phrase_single_item',
+                    dishRaw: wholePhraseMatch.trace.rawLabel,
+                    dishResolved: wholePhraseMatch.trace.resolvedDish,
+                    modifier: wholePhraseMatch.item?.meta?.modifier || null,
+                    canonicalAliasBundle: false,
+                }],
+                heuristicTraces: [wholePhraseMatch.trace],
+            };
+        }
+    }
+
+    const servingCollapse = collapseServingPhraseToSingleMain(cleaned, parsedItems, menu);
+    const finalItems = servingCollapse ? servingCollapse.items : parsedItems;
+    if (servingCollapse?.trace) {
+        heuristicTraces.push(servingCollapse.trace);
+    }
+
+    const items = mergeDuplicateItems(finalItems);
     return { items, segmentTraces, heuristicTraces };
 }
