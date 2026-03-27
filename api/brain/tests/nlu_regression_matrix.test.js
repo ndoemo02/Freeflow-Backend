@@ -103,4 +103,24 @@ describe('NLU regression matrix', () => {
     expect(result.intent).toBe('cancel_order');
     expect(result.source).toBe('ordering_escape_guard');
   });
+
+  it('keeps discovery intent inside restaurant context for "gdzie zjem w Piekarach"', async () => {
+    const nlu = new NLURouter();
+    const session = {
+      currentRestaurant: { id: 'TKK', name: 'Tasty King Kebab' },
+      last_menu: [
+        { id: 'n1', name: 'Nuggets box', base_name: 'Nuggets box', price_pln: '15.00' },
+        { id: 'k1', name: 'Kebab amerykanski', base_name: 'Kebab amerykanski', price_pln: '20.00' }
+      ]
+    };
+
+    const result = await nlu.detect({
+      text: 'gdzie zjem w Piekarach',
+      body: { text: 'gdzie zjem w Piekarach' },
+      session
+    });
+
+    expect(result.intent).toBe('find_nearby');
+    expect(result.source).toBe('restaurant_navigation_override');
+  });
 });

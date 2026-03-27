@@ -26,6 +26,11 @@ function isExplicitRestaurantSearch(text = '') {
         'dostepne restauracje',
         'w pobliÄąÄ˝u',
         'w poblizu',
+        'gdzie zjem',
+        'gdzie zamowie',
+        'gdzie zamówię',
+        'gdzie moge zamowic',
+        'gdzie mogÄ™ zamĂłwiÄ‡',
         'gdzie mogĂ„â„˘ zjeÄąâ€şĂ„â€ˇ',
         'gdzie moge zjesc'
     ].some(k => t.includes(k));
