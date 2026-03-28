@@ -807,6 +807,10 @@ export class BrainPipeline {
                     return intentContext;
                 },
                 orderingAffirmationGuard: (intentContext) => {
+                    // P0 guard: if session expects a confirmation context, let expectedContextGuard handle it.
+                    if (CONFIRMATION_CONTEXTS.includes(sessionContext?.expectedContext)) {
+                        return intentContext;
+                    }
                     const isOrderingAffirmation = /^(tak|ok|okej|potwierdzam|zgadza sie|dawaj|dobra|jasne|leci)$/i.test(normalizedPreGuardInput);
                     const hasCartItems = Array.isArray(sessionContext?.cart?.items) && sessionContext.cart.items.length > 0;
                     if (isOrderingAffirmation && sessionContext?.conversationPhase === 'ordering' && hasCartItems && !sessionContext?.pendingOrder) {

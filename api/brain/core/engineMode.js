@@ -44,6 +44,55 @@ export function isStable() { return getEngineMode() === 'stable'; }
 export function isStrict() { return getEngineMode() === 'strict'; }
 
 // ═══════════════════════════════════════════
+// UTF-8 SAFE OUTPUT INIT
+// On Windows, Node.js stdout/stderr may default to a non-UTF-8 encoding
+// (e.g. CP936, CP1250) which garbles Polish text and multi-byte sequences.
+// Called once at module load; safe to call multiple times.
+// ═══════════════════════════════════════════
+function _initUtf8Streams() {
+    try {
+        // Node 21+ exposes reconfigure(); older versions expose setDefaultEncoding().
+        if (typeof process.stdout.reconfigure === 'function') {
+            process.stdout.reconfigure({ encoding: 'utf8' });
+        } else if (typeof process.stdout.setDefaultEncoding === 'function') {
+            process.stdout.setDefaultEncoding('utf8');
+        }
+        if (typeof process.stderr.reconfigure === 'function') {
+            process.stderr.reconfigure({ encoding: 'utf8' });
+        } else if (typeof process.stderr.setDefaultEncoding === 'function') {
+            process.stderr.setDefaultEncoding('utf8');
+        }
+    } catch {
+        // Never throw from logging infrastructure.
+    }
+}
+_initUtf8Streams();
+
+/**
+ * Sanitize a single log argument for safe UTF-8 output.
+ *
+ * Preserves:
+ *   - ASCII printable (U+0020–U+007E)
+ *   - Common whitespace (\n \r \t)
+ *   - Polish and broader Latin characters (U+00A0–U+024F)
+ *   - Full BMP punctuation & symbols (U+2000–U+2BFF) kept as-is
+ *
+ * Replaces with '?' :
+ *   - C1 control characters (U+0080–U+009F) — these are pure artefacts of
+ *     CP1252→UTF-8 double-encoding and are never intentional in log strings.
+ *
+ * Non-string args pass through unchanged so objects/numbers stay readable.
+ *
+ * Exported for unit testing.
+ */
+export function safeLogStr(val) {
+    if (typeof val !== 'string') return val;
+    // Replace C1 control block (0x80-0x9F): produced by mojibake, never valid Polish text.
+    // eslint-disable-next-line no-control-regex
+    return val.replace(/[\u0080-\u009F]/g, '?');
+}
+
+// ═══════════════════════════════════════════
 // CONDITIONAL LOGGING
 // Only emit logs in dev mode. In stable/strict — silent.
 // ═══════════════════════════════════════════
@@ -53,21 +102,21 @@ export function isStrict() { return getEngineMode() === 'strict'; }
  * Drop-in replacement for `console.log(...)` scattered across pipeline.
  */
 export function devLog(...args) {
-    if (isDev()) console.log(...args);
+    if (isDev()) console.log(...args.map(safeLogStr));
 }
 
 /**
  * console.warn that only fires in dev mode.
  */
 export function devWarn(...args) {
-    if (isDev()) console.warn(...args);
+    if (isDev()) console.warn(...args.map(safeLogStr));
 }
 
 /**
  * console.error that fires in dev AND strict (never silent in strict).
  */
 export function devError(...args) {
-    if (isDev() || isStrict()) console.error(...args);
+    if (isDev() || isStrict()) console.error(...args.map(safeLogStr));
 }
 
 // ═══════════════════════════════════════════

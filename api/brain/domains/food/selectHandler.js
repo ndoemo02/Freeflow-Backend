@@ -267,7 +267,11 @@ export class SelectRestaurantHandler {
 
         // If cart has items and they belong to a different restaurant, raise conflict
         if (hasCartItems && isDifferentRestaurant) {
-            const oldRestaurantName = session?.currentRestaurant?.name || 'innej restauracji';
+            // Resolve source name: cart item metadata first, then session.currentRestaurant
+            const oldRestaurantName =
+                cart?.items?.[0]?.restaurant_name ||
+                session?.currentRestaurant?.name ||
+                'innej restauracji';
             console.log(`🛡️ SelectHandler: Restaurant switch conflict detected! Current: ${oldRestaurantName}, Target: ${selected.name}`);
             return {
                 reply: `Masz już pozycje z ${oldRestaurantName}. Czy wyczyścić koszyk i przejść do ${selected.name}?`,
