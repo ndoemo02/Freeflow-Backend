@@ -9,6 +9,52 @@ let vertexClient = null;
 const ttsCache = new Map();
 const stylizeCache = new Map();
 
+// --- Stylization circuit breaker (OpenAI 429) ---
+// Exported so tests can reset it between runs.
+export const _stylize429CB = { suppressedUntil: 0, count: 0 };
+
+function _emitStyleTrace(provider, status, fallbackUsed) {
+    try {
+        console.log(JSON.stringify({
+            event: 'STYLIZE_PROVIDER_TRACE',
+            _src: 'stylize',
+            ts: new Date().toISOString(),
+            provider,
+            status,
+            fallbackUsed,
+        }));
+    } catch { }
+}
+
+async function _stylizeWithGemini(rawText, system) {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) return null;
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 5000);
+    try {
+        const resp = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(apiKey)}`,
+            {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                signal: ctrl.signal,
+                body: JSON.stringify({
+                    system_instruction: { parts: [{ text: system }] },
+                    contents: [{ role: 'user', parts: [{ text: `Przeredaguj na mowę rozmowną:\n${rawText}` }] }],
+                    generationConfig: { temperature: 0.6, maxOutputTokens: 200 },
+                }),
+            }
+        );
+        if (!resp.ok) return null;
+        const data = await resp.json();
+        return data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || null;
+    } catch {
+        return null;
+    } finally {
+        clearTimeout(timer);
+    }
+}
+
 function normalizeGoogleVoice(engineRaw, voice) {
   const raw = String(voice || "");
   if (/Chirp3-HD-Erinome/i.test(raw)) {
@@ -166,64 +212,102 @@ export async function formatTTSReply(rawText, intent = 'neutral') {
 }
 
 export async function stylizeWithGPT4o(rawText, intent = 'neutral') {
-  try {
-    if (!rawText || typeof rawText !== 'string') return rawText;
-    const model = process.env.OPENAI_MODEL;
-    if (!model) return rawText;
-    if (process.env.NODE_ENV === 'test') return rawText;
-    const openai = getOpenAI();
-    if (!openai) return rawText;
-    const key = `${rawText}|${intent}`;
-    if (stylizeCache.has(key)) return stylizeCache.get(key);
-    let system = `Jesteś Amber – głosem FreeFlow. Przekształć surowy tekst w krótką, naturalną wypowiedź (max 2 zdania), ciepły lokalny ton, lekko dowcipny. Nie używaj list, numeracji ani nawiasów. Nie dodawaj informacji, nie używaj znaczników i SSML. Intencja: ${intent}.`;
-
     try {
-      const cfg = await getConfig();
-      const style = (cfg?.speech_style || 'standard').toLowerCase();
+        if (!rawText || typeof rawText !== 'string') return rawText;
+        if (process.env.NODE_ENV === 'test') return rawText;
 
-      if (cfg?.amber_prompt && typeof cfg.amber_prompt === "string" && cfg.amber_prompt.trim().length > 0) {
-        system = cfg.amber_prompt;
-      } else if (style === 'silesian' || style === 'śląska' || style === 'slask') {
-        system = `Jesteś Amber – głosem FreeFlow. Przekształć surowy tekst w krótką, naturalną wypowiedź (max 2 zdania).
+        const key = `${rawText}|${intent}`;
+        if (stylizeCache.has(key)) return stylizeCache.get(key);
+
+        // Build system prompt (shared by all providers)
+        let system = `Jesteś Amber – głosem FreeFlow. Przekształć surowy tekst w krótką, naturalną wypowiedź (max 2 zdania), ciepły lokalny ton, lekko dowcipny. Nie używaj list, numeracji ani nawiasów. Nie dodawaj informacji, nie używaj znaczników i SSML. Intencja: ${intent}.`;
+        try {
+            const cfg = await getConfig();
+            const style = (cfg?.speech_style || 'standard').toLowerCase();
+            if (cfg?.amber_prompt && typeof cfg.amber_prompt === 'string' && cfg.amber_prompt.trim().length > 0) {
+                system = cfg.amber_prompt;
+            } else if (style === 'silesian' || style === 'śląska' || style === 'slask') {
+                system = `Jesteś Amber – głosem FreeFlow. Przekształć surowy tekst w krótką, naturalną wypowiedź (max 2 zdania).
 Mów przyjaźnie i jasno, ale używaj śląskiej gwary (gōdka) – lekkiej i zrozumiałej dla osób spoza regionu.
-Unikaj bardzo rzadkich słów, nie przesadzaj z gwarą, tylko dodaj lokalny klimat (np. „joch”, „kaj”, "po naszymu").
-Nie zmieniaj faktów ani liczb. Intencja użytkownika: "${intent}".`;
-      }
-    } catch { }
-    let out = '';
-    if (process.env.OPENAI_STREAM === 'true') {
-      const completion = await openai.chat.completions.create({
-        model,
-        messages: [
-          { role: 'system', content: system },
-          { role: 'user', content: `Przeredaguj na mowę rozmowną:\n${rawText}` }
-        ],
-        temperature: 0.6,
-        stream: true
-      });
-      for await (const chunk of completion) {
-        out += chunk?.choices?.[0]?.delta?.content || '';
-      }
-    } else {
-      const resp = await openai.chat.completions.create({
-        model,
-        temperature: 0.6,
-        messages: [
-          { role: 'system', content: system },
-          { role: 'user', content: `Przeredaguj na mowę rozmowną:\n${rawText}` }
-        ]
-      });
-      out = resp?.choices?.[0]?.message?.content?.trim() || '';
+Unikaj bardzo rzadkich słów, nie przesadzaj z gwarą, tylko dodaj lokalny klimat (np. „joch”, „kaj”, “po naszymu”).
+Nie zmieniaj faktów ani liczb. Intencja użytkownika: “${intent}”.`;
+            }
+        } catch { }
+
+        const model = process.env.OPENAI_MODEL;
+        const openai = model ? getOpenAI() : null;
+        const cbNow = Date.now();
+        const cbSuppressed = cbNow < _stylize429CB.suppressedUntil;
+
+        let out = null;
+
+        // Primary: OpenAI (skipped if no model/client or circuit breaker open)
+        if (openai && !cbSuppressed) {
+            try {
+                if (process.env.OPENAI_STREAM === 'true') {
+                    const completion = await openai.chat.completions.create({
+                        model,
+                        messages: [
+                            { role: 'system', content: system },
+                            { role: 'user', content: `Przeredaguj na mowę rozmowną:\n${rawText}` },
+                        ],
+                        temperature: 0.6,
+                        stream: true,
+                    });
+                    let streamed = '';
+                    for await (const chunk of completion) {
+                        streamed += chunk?.choices?.[0]?.delta?.content || '';
+                    }
+                    out = streamed || null;
+                } else {
+                    const resp = await openai.chat.completions.create({
+                        model,
+                        temperature: 0.6,
+                        messages: [
+                            { role: 'system', content: system },
+                            { role: 'user', content: `Przeredaguj na mowę rozmowną:\n${rawText}` },
+                        ],
+                    });
+                    out = resp?.choices?.[0]?.message?.content?.trim() || null;
+                }
+                if (out) _emitStyleTrace('openai', 'ok', false);
+            } catch (e) {
+                const is429 = e?.status === 429 || /429/.test(String(e?.message || ''));
+                if (is429) {
+                    const firstHit = cbNow >= _stylize429CB.suppressedUntil;
+                    _stylize429CB.suppressedUntil = cbNow + 5 * 60 * 1000;
+                    _stylize429CB.count++;
+                    if (firstHit) {
+                        console.warn(`stylizeWithGPT4o: OpenAI 429 – suppressing for 5 min (total_count=${_stylize429CB.count})`);
+                    }
+                    // fall through to Gemini
+                } else {
+                    console.warn('stylizeWithGPT4o OpenAI error:', e?.message || e);
+                    // fall through to Gemini
+                }
+            }
+        }
+
+        // Fallback: Gemini (if OpenAI unavailable, suppressed, or failed)
+        if (out === null) {
+            out = await _stylizeWithGemini(rawText, system);
+            if (out) _emitStyleTrace('gemini', 'ok', true);
+        }
+
+        // Final deterministic fallback — never throws, never loses the message
+        if (!out) {
+            _emitStyleTrace('deterministic', 'ok', true);
+            return rawText;
+        }
+
+        const cleaned = out.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+        stylizeCache.set(key, cleaned);
+        if (stylizeCache.size > 20) stylizeCache.delete(stylizeCache.keys().next().value);
+        return cleaned;
+    } catch (e) {
+        console.warn('stylizeWithGPT4o error:', e?.message || e);
+        return rawText;
     }
-    if (!out) return rawText;
-    const cleaned = out.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
-    stylizeCache.set(key, cleaned);
-    if (stylizeCache.size > 20) stylizeCache.delete(stylizeCache.keys().next().value);
-    return cleaned;
-  } catch (e) {
-    console.warn('stylizeWithGPT4o error:', e?.message || e);
-    return rawText;
-  }
 }
 
 export async function playTTS(text, options = {}) {
