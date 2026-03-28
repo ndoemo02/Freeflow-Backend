@@ -1,4 +1,4 @@
-﻿import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { NLURouter } from '../nlu/router.js';
 
 vi.mock('../../_supabase.js', () => ({

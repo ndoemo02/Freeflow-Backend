@@ -1,7 +1,11 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { callBrain } from "./utils/testClient.js";
 
-describe("Amber Brain - Logic Flow (Current Contract)", () => {
+// Requires a running backend on localhost:3000.
+// Skip when not in integration mode: BRAIN_INTEGRATION=1 npx vitest
+const runIntegration = !!process.env.BRAIN_INTEGRATION;
+
+describe.skipIf(!runIntegration)("Amber Brain - Logic Flow (Current Contract)", () => {
   let sessionId;
 
   beforeEach(() => {
@@ -9,43 +13,43 @@ describe("Amber Brain - Logic Flow (Current Contract)", () => {
   });
 
   it("routes restaurant ordering requests into discovery when location is still needed", async () => {
-    const result = await callBrain("Zamów kebaba w Piekarach", sessionId);
+    const result = await callBrain("Zamï¿½w kebaba w Piekarach", sessionId);
 
     expect(result.intent).toBe("find_nearby");
-    expect(result.reply).toMatch(/Gdzie mam szukaæ|Podaj miasto|w pobli¿u/i);
+    expect(result.reply).toMatch(/Gdzie mam szukaï¿½|Podaj miasto|w pobliï¿½u/i);
     expect(result.context?.expectedContext).toBe("find_nearby_ask_location");
   });
 
   it("maps cancel phrases to dialog cancel when there is nothing actionable to cancel", async () => {
-    await callBrain("Zamów pizzê w Bytomiu", sessionId);
-    await callBrain("Tak, potwierdŸ", sessionId);
+    await callBrain("Zamï¿½w pizzï¿½ w Bytomiu", sessionId);
+    await callBrain("Tak, potwierdï¿½", sessionId);
 
-    const result = await callBrain("Anuluj zamówienie", sessionId);
+    const result = await callBrain("Anuluj zamï¿½wienie", sessionId);
 
     expect(result.intent).toBe("DIALOG_CANCEL");
-    expect(result.reply).toMatch(/anuluj|anulujê|rozumiem/i);
+    expect(result.reply).toMatch(/anuluj|anulujï¿½|rozumiem/i);
     expect(result.meta).toBeDefined();
   });
 
   it("keeps restaurant selection context when user asks for more or the rest of the list", async () => {
-    await callBrain("Poka¿ restauracje w Piekarach", sessionId);
+    await callBrain("Pokaï¿½ restauracje w Piekarach", sessionId);
 
-    const more = await callBrain("Poka¿ wiêcej opcji", sessionId);
+    const more = await callBrain("Pokaï¿½ wiï¿½cej opcji", sessionId);
     expect(["DIALOG_NEXT", "show_more_options", "select_restaurant"]).toContain(more.intent);
     expect(more.context?.expectedContext).toBe("select_restaurant");
 
-    const rest = await callBrain("Poka¿ resztê", sessionId);
-    expect(rest.reply).toMatch(/Która Ciê interesuje|Któr¹ wybierasz|\d\./i);
+    const rest = await callBrain("Pokaï¿½ resztï¿½", sessionId);
+    expect(rest.reply).toMatch(/Ktï¿½ra Ciï¿½ interesuje|Ktï¿½rï¿½ wybierasz|\d\./i);
     expect(rest.context?.expectedContext).toBe("select_restaurant");
   });
 
   it("interprets ordinal restaurant selection correctly", async () => {
-    await callBrain("Poka¿ restauracje w Piekarach", sessionId);
+    await callBrain("Pokaï¿½ restauracje w Piekarach", sessionId);
 
-    const result = await callBrain("pierwsz¹", sessionId);
+    const result = await callBrain("pierwszï¿½", sessionId);
 
     expect(result.intent).toBe("select_restaurant");
-    expect(result.reply).toMatch(/wybrano|menu|restauracjê|Wybierz numer|z listy/i);
+    expect(result.reply).toMatch(/wybrano|menu|restauracjï¿½|Wybierz numer|z listy/i);
     expect(result.meta).toBeDefined();
   });
 
@@ -57,14 +61,14 @@ describe("Amber Brain - Logic Flow (Current Contract)", () => {
   });
 
   it("asks for location again when user confirms before giving a location", async () => {
-    await callBrain("Zamów pizzê w Bytomiu", sessionId);
+    await callBrain("Zamï¿½w pizzï¿½ w Bytomiu", sessionId);
     await callBrain("Nie, inna restauracja", sessionId);
-    await callBrain("Zamów burgera", sessionId);
+    await callBrain("Zamï¿½w burgera", sessionId);
 
     const result = await callBrain("Tak", sessionId);
 
     expect(result.intent).toBe("find_nearby_ask_location");
-    expect(result.reply).toMatch(/powiedz mi miasto|¿ebym znalaz³a restauracje|Gdzie mam szukaæ/i);
+    expect(result.reply).toMatch(/powiedz mi miasto|ï¿½ebym znalazï¿½a restauracje|Gdzie mam szukaï¿½/i);
     expect(result.context?.expectedContext).toBe("find_nearby_ask_location");
   });
 });

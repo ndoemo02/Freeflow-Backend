@@ -1,4 +1,3 @@
-﻿
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { resolveMenuItemConflict, DISAMBIGUATION_RESULT } from '../services/DisambiguationService.js';
 import { OrderHandler } from '../domains/food/orderHandler.js';

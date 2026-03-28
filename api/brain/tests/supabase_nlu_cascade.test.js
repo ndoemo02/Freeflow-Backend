@@ -6,13 +6,15 @@ import path from 'path';
 
 // Load analysis report
 const reportPath = path.resolve(process.cwd(), 'analysis_report.json');
+const reportExists = fs.existsSync(reportPath);
 let testData = { testCases: [] };
 
-if (fs.existsSync(reportPath)) {
+if (reportExists) {
     testData = JSON.parse(fs.readFileSync(reportPath, 'utf8'));
 }
 
-describe('🧠 Supabase Real-Data NLU Cascade', () => {
+// Skip entire suite when analysis_report.json is absent (offline / CI without fixture).
+describe.skipIf(!reportExists)('🧠 Supabase Real-Data NLU Cascade', () => {
     let nlu;
 
     beforeAll(() => {
