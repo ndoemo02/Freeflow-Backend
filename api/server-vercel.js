@@ -1,4 +1,7 @@
 // --- FreeFlow Serverless Adapter for Vercel ---
+// NOTE: On Vercel, key endpoints have dedicated serverless handlers (see vercel.json).
+// This Express app serves as the catch-all and local dev entrypoint.
+// Serverless files: api/health.js, api/voice/live/{health,tools,tool-call}.js
 import { config } from 'dotenv';
 try { config(); } catch (e) { console.warn('dotenv missing, assuming env vars present'); }
 
