@@ -3,7 +3,7 @@ import { createOrder } from '../orders.js';
 import { updateDebugSession } from '../debug.js';
 import { getRestaurantAliases } from '../config/configService.js';
 
-// óóó Utils: Import from helpers óóó
+// ‚Äî‚Äî‚Äî Utils: Import from helpers ‚Äî‚Äî‚Äî
 import {
   normalize,
   stripDiacritics,
@@ -44,9 +44,9 @@ function nameHasSize(name, size) {
   if (!size) return false;
   const n = normalizeTxt(name);
   return n.includes(String(size)) || (
-    size === 26 && /\b(mala|ma≥a|small)\b/.test(n) ||
-    size === 32 && /\b(srednia|úrednia|medium)\b/.test(n) ||
-    size === 40 && /\b(duza|duøa|large)\b/.test(n)
+    size === 26 && /\b(mala|ma≈Ça|small)\b/.test(n) ||
+    size === 32 && /\b(srednia|≈õrednia|medium)\b/.test(n) ||
+    size === 40 && /\b(duza|du≈ºa|large)\b/.test(n)
   );
 }
 
@@ -54,7 +54,7 @@ function baseDishKey(name) {
   let n = normalizeTxt(name);
   n = n
     .replace(/\b(\d+\s*(cm|ml|g))\b/g, ' ')
-    .replace(/\b(duza|duøa|mala|ma≥a|srednia|úrednia|xl|xxl|small|medium|large)\b/g, ' ')
+    .replace(/\b(duza|du≈ºa|mala|ma≈Ça|srednia|≈õrednia|xl|xxl|small|medium|large)\b/g, ' ')
     .replace(/\(.*?\)/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
@@ -78,12 +78,12 @@ function dedupHitsByBase(hits, preferredSize = null) {
       selected.push(arr[0]);
       continue;
     }
-    // auto-pick po rozmiarze, jeúli podano w tekúcie
+    // auto-pick po rozmiarze, je≈õli podano w tek≈õcie
     if (preferredSize) {
       const pick = arr.find(x => nameHasSize(x.name, preferredSize));
       if (pick) { selected.push(pick); continue; }
     }
-    // brak rozmiaru õ pytamy
+    // brak rozmiaru ‚Ä∫ pytamy
     clarifications.push({
       restaurant_id: arr[0].restaurant_id,
       restaurant_name: arr[0].restaurant_name,
@@ -104,26 +104,27 @@ const NAME_ALIASES = {
   'czosnkowa': 'zupa czosnkowa',
   'czosnkowe': 'zupa czosnkowa',
   'czosnkowej': 'zupa czosnkowa',
-  'zurek': 'øurek úlπski',
-  'zurku': 'øurek úlπski',
-  'zurkiem': 'øurek úlπski',
+  'zurek': '≈ºurek ≈õlƒÖski',
+  'zurku': '≈ºurek ≈õlƒÖski',
+  'zurkiem': '≈ºurek ≈õlƒÖski',
   'pho': 'zupa pho bo',
 
   // Pizza
   'margherita': 'pizza margherita',
   'margherite': 'pizza margherita',
-  'margerita': 'pizza margherita',  // czÍsty b≥πd STT
-  'margarita': 'pizza margherita',  // czÍsty b≥πd STT
+  'margerita': 'pizza margherita',  // czƒôsty b≈ÇƒÖd STT
+  'margarita': 'pizza margherita',  // czƒôsty b≈ÇƒÖd STT
+  'margheritƒÖ': 'pizza margherita',
   'pepperoni': 'pizza pepperoni',
   'hawajska': 'pizza hawajska',
   'hawajskiej': 'pizza hawajska',
   'diavola': 'pizza diavola',
-  'diabolo': 'pizza diavola',       // czÍsty b≥πd STT/pronunciation
-  'diabola': 'pizza diavola',       // czÍsty b≥πd STT/pronunciation
-  'pizza diabolo': 'pizza diavola', // pe≥na nazwa z b≥Ídem
+  'diabolo': 'pizza diavola',       // czƒôsty b≈ÇƒÖd STT/pronunciation
+  'diabola': 'pizza diavola',       // czƒôsty b≈ÇƒÖd STT/pronunciation
+  'pizza diabolo': 'pizza diavola', // pe≈Çna nazwa z b≈Çƒôdem
   'capricciosa': 'pizza capricciosa',
 
-  // MiÍsa
+  // Miƒôsa
   'schabowy': 'kotlet schabowy',
   'schabowe': 'kotlet schabowy',
   'schabowego': 'kotlet schabowy',
@@ -132,58 +133,61 @@ const NAME_ALIASES = {
   'gulasz': 'gulasz wieprzowy',
   'gulasza': 'gulasz wieprzowy',
   'gulaszem': 'gulasz wieprzowy',
-  'rolada': 'rolada úlπska',
-  'rolade': 'rolada úlπska',
-  'rolady': 'rolada úlπska',
+  'rolada': 'rolada ≈õlƒÖska',
+  'rolade': 'rolada ≈õlƒÖska',
+  'rolady': 'rolada ≈õlƒÖska',
 
   // Pierogi
-  'pierogi': 'pierogi z miÍsem',
-  'pierogÛw': 'pierogi z miÍsem',
-  'pierogami': 'pierogi z miÍsem',
+  'pierogi': 'pierogi z miƒôsem',
+  'pierog√≥w': 'pierogi z miƒôsem',
+  'pierogami': 'pierogi z miƒôsem',
 
-  // W≥oskie
+  // W≈Çoskie
   'lasagne': 'lasagne bolognese',
-  'lasania': 'lasagne bolognese',  // czÍsty b≥πd STT
+  'lasania': 'lasagne bolognese',  // czƒôsty b≈ÇƒÖd STT
   'lasanie': 'lasagne bolognese',
   'tiramisu': 'tiramisu',
-  'caprese': 'sa≥atka caprese',
+  'caprese': 'sa≈Çatka caprese',
 
   // Azjatyckie
   'pad thai': 'pad thai z krewetkami',
-  'pad taj': 'pad thai z krewetkami',  // czÍsty b≥πd STT
+  'pad taj': 'pad thai z krewetkami',  // czƒôsty b≈ÇƒÖd STT
   'padthai': 'pad thai z krewetkami',
-  'sajgonki': 'sajgonki z miÍsem',
-  'sajgonek': 'sajgonki z miÍsem',
-  'sajgonkami': 'sajgonki z miÍsem',
+  'sajgonki': 'sajgonki z miƒôsem',
+  'sajgonek': 'sajgonki z miƒôsem',
+  'sajgonkami': 'sajgonki z miƒôsem',
+
+  // Napoje
+  'kolƒô': 'coca-cola',
 
   // Inne
   'burger': 'burger',
   'burgera': 'burger',
   'placki': 'placki ziemniaczane',
-  'plackÛw': 'placki ziemniaczane',
+  'plack√≥w': 'placki ziemniaczane',
   'frytki': 'frytki belgijskie',
   'frytek': 'frytki belgijskie',
 
-  // Specjalny wyjπtek: G≥odzilla (Klaps Burgers) ó ≥ap takøe przekrÍcenia Ñgodzillaî
-  'g≥odzilla': 'g≥odzilla',
-  'glodzilla': 'g≥odzilla',
-  'godzilla': 'g≥odzilla',
-  // krÛtsze rdzenie, aby z≥apaÊ odmiany (np. Ñg≥odzillÍî, Ñgodzilliî, Ñglodzilleî)
-  'g≥odzil': 'g≥odzilla',
-  'glodzil': 'g≥odzilla',
-  'godzil': 'g≥odzilla',
+  // Specjalny wyjƒÖtek: G≈Çodzilla (Klaps Burgers) ‚Äî ≈Çap tak≈ºe przekrƒôcenia ‚Äûgodzilla‚Äù
+  'g≈Çodzilla': 'g≈Çodzilla',
+  'glodzilla': 'g≈Çodzilla',
+  'godzilla': 'g≈Çodzilla',
+  // kr√≥tsze rdzenie, aby z≈Çapaƒá odmiany (np. ‚Äûg≈Çodzillƒô‚Äù, ‚Äûgodzilli‚Äù, ‚Äûglodzille‚Äù)
+  'g≈Çodzil': 'g≈Çodzilla',
+  'glodzil': 'g≈Çodzilla',
+  'godzil': 'g≈Çodzilla',
 };
 
 /**
- * Deterministyczna mapa aliasÛw (zgodnie z wymaganiami)
- * Jeúli alias nie znaleziony õ zwraca unknown_item, nie failuje
+ * Deterministyczna mapa alias√≥w (zgodnie z wymaganiami)
+ * Je≈õli alias nie znaleziony ‚Ä∫ zwraca unknown_item, nie failuje
  */
 const DETERMINISTIC_ALIAS_MAP = {
   // Napoje
   'cola': 'coca-cola',
   'kola': 'coca-cola',
   'kole': 'coca-cola',
-  'kolÍ': 'coca-cola',
+  'kolƒô': 'coca-cola',
   'pepsi max': 'pepsi-max',
   'pepsi': 'pepsi',
 
@@ -191,8 +195,8 @@ const DETERMINISTIC_ALIAS_MAP = {
   'frytki': 'fries',
   'frytek': 'fries',
   'frytkami': 'fries',
-  'ma≥e frytki': 'fries_small',
-  'duøe frytki': 'fries_large',
+  'ma≈Çe frytki': 'fries_small',
+  'du≈ºe frytki': 'fries_large',
 
   // Burgery
   'burger': 'burger',
@@ -200,10 +204,10 @@ const DETERMINISTIC_ALIAS_MAP = {
   'burgery': 'burger',
   'vegas': 'smak vegas',
 
-  // Pizza (zachowane z NAME_ALIASES dla kompatybilnoúci)
+  // Pizza (zachowane z NAME_ALIASES dla kompatybilno≈õci)
   'margherita': 'pizza margherita',
   'margherite': 'pizza margherita',
-  'margheritÍ': 'pizza margherita',
+  'margheritƒô': 'pizza margherita',
   'margerita': 'pizza margherita',
   'margarita': 'pizza margherita',
   'pepperoni': 'pizza pepperoni',
@@ -217,31 +221,31 @@ const DETERMINISTIC_ALIAS_MAP = {
   'burgera': 'burger',
   'burgery': 'burger',
   'czosnkowa': 'zupa czosnkowa',
-  'zurek': 'øurek úlπski',
+  'zurek': '≈ºurek ≈õlƒÖski',
   'schabowy': 'kotlet schabowy',
   'kotlet': 'kotlet schabowy',
-  'pierogi': 'pierogi z miÍsem',
+  'pierogi': 'pierogi z miƒôsem',
   'gulasz': 'gulasz wieprzowy',
-  'rolada': 'rolada úlπska',
+  'rolada': 'rolada ≈õlƒÖska',
   'lasagne': 'lasagne bolognese',
   'pad thai': 'pad thai z krewetkami',
-  'sajgonki': 'sajgonki z miÍsem',
+  'sajgonki': 'sajgonki z miƒôsem',
   'frytki': 'frytki belgijskie',
-  'g≥odzilla': 'g≥odzilla',
-  'glodzilla': 'g≥odzilla',
-  'godzilla': 'g≥odzilla'
+  'g≈Çodzilla': 'g≈Çodzilla',
+  'glodzilla': 'g≈Çodzilla',
+  'godzilla': 'g≈Çodzilla'
 };
 
 /**
- * applyAliases - deterministyczna mapa aliasÛw z bezpiecznym fallbackiem
+ * applyAliases - deterministyczna mapa alias√≥w z bezpiecznym fallbackiem
  * 
  * ZMIANA ZACHOWANIA:
- * - Uøywa deterministycznej mapy aliasÛw (nie fuzzy-match)
- * - Jeúli alias nie znaleziony õ zwraca oryginalny tekst (nie failuje)
+ * - U≈ºywa deterministycznej mapy alias√≥w (nie fuzzy-match)
+ * - Je≈õli alias nie znaleziony ‚Ä∫ zwraca oryginalny tekst (nie failuje)
  * - NIE throw, NIE failuj, zawsze zwraca string
  * 
  * @param {string} text - Tekst do przetworzenia
- * @returns {string} - Tekst z zastosowanymi aliasami lub orygina≥
+ * @returns {string} - Tekst z zastosowanymi aliasami lub orygina≈Ç
  */
 export function applyAliases(text) {
   // Bezpieczny fallback dla pustego/null/undefined
@@ -258,20 +262,20 @@ export function applyAliases(text) {
   let output = original;
   let anyReplacement = false;
 
-  // Przeszukaj deterministycznπ mapÍ aliasÛw
+  // Przeszukaj deterministycznƒÖ mapƒô alias√≥w
   for (const [alias, fullName] of Object.entries(DETERMINISTIC_ALIAS_MAP)) {
     const aliasNorm = normalizeTxt(alias);
     const fullNorm = normalizeTxt(fullName);
 
-    // Sprawdü czy znormalizowany tekst zawiera alias
+    // Sprawd≈∫ czy znormalizowany tekst zawiera alias
     if (normalized.includes(aliasNorm) && !normalized.includes(fullNorm)) {
-      // SprÛbuj podmieniÊ w oryginalnym tekúcie (zachowaj diakrytyki)
+      // Spr√≥buj podmieniƒá w oryginalnym tek≈õcie (zachowaj diakrytyki)
       const origRegex = new RegExp(alias.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
       if (origRegex.test(output)) {
         output = output.replace(origRegex, fullName);
         anyReplacement = true;
       } else {
-        // Fallback: zamieÒ w wersji znormalizowanej
+        // Fallback: zamie≈Ñ w wersji znormalizowanej
         normalized = normalized.replace(new RegExp(aliasNorm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), fullNorm);
         output = normalized;
         anyReplacement = true;
@@ -282,7 +286,7 @@ export function applyAliases(text) {
     }
   }
 
-  // Zawsze zwrÛÊ string (nawet jeúli brak zamian)
+  // Zawsze zwr√≥ƒá string (nawet je≈õli brak zamian)
   return anyReplacement ? output : original;
 }
 
@@ -296,9 +300,9 @@ function fuzzyMatch(a, b) {
   return dist <= 2;
 }
 
-// óóó Menu catalog & order parsing óóó
+// ‚Äî‚Äî‚Äî Menu catalog & order parsing ‚Äî‚Äî‚Äî
 async function loadMenuCatalog(session) {
-  // preferuj ostatniπ restauracjÍ z kontekstu, jeúli jest
+  // preferuj ostatniƒÖ restauracjƒô z kontekstu, je≈õli jest
   const lastId = session?.currentRestaurant?.id || session?.lastRestaurant?.id || session?.restaurant?.id || session?.id;
 
   console.log(`[loadMenuCatalog] ?? Session:`, session);
@@ -390,11 +394,11 @@ async function loadMenuCatalog(session) {
 }
 
 function extractRequestedItems(text) {
-  // WyodrÍbnij øπdane pozycje z tekstu (proste rozpoznawanie po aliasach i nazwach)
+  // Wyodrƒôbnij ≈ºƒÖdane pozycje z tekstu (proste rozpoznawanie po aliasach i nazwach)
   const normalized = normalizeTxt(text);
   const requestedSet = new Set();
 
-  // Sprawdü aliasy
+  // Sprawd≈∫ aliasy
   for (const [alias, fullName] of Object.entries(NAME_ALIASES)) {
     if (normalized.includes(alias)) {
       requestedSet.add(fullName);
@@ -404,17 +408,17 @@ function extractRequestedItems(text) {
   return Array.from(requestedSet).map(name => ({ name }));
 }
 
-// Rozpoznaj wiele daÒ w jednym tekúcie (split by "i", "oraz", ",")
+// Rozpoznaj wiele da≈Ñ w jednym tek≈õcie (split by "i", "oraz", ",")
 function splitMultipleItems(text) {
-  // UsuÒ s≥owa kluczowe zamÛwienia
+  // Usu≈Ñ s≈Çowa kluczowe zam√≥wienia
   let cleaned = text
-    .replace(/\b(zamÛw|zamÛwiÊ|poproszÍ|chcÍ|wezmÍ|chcia≥bym|chcia≥abym)\b/gi, '')
+    .replace(/\b(zam√≥w|zam√≥wiƒá|poproszƒô|chcƒô|wezmƒô|chcia≈Çbym|chcia≈Çabym)\b/gi, '')
     .trim();
 
   // Split by separators
   const parts = cleaned.split(/\s+(i|oraz|,)\s+/i).filter(p => p && !['i', 'oraz', ','].includes(p.toLowerCase()));
 
-  // Jeúli nie ma separatorÛw, zwrÛÊ ca≥y tekst
+  // Je≈õli nie ma separator√≥w, zwr√≥ƒá ca≈Çy tekst
   if (parts.length <= 1) {
     return [text];
   }
@@ -437,17 +441,17 @@ export function parseOrderItems(text, catalog) {
     };
   }
 
-  // 1. Strip courtesy/order prefixes EARLY to prevent "PoproszÍ X" becoming an unknown item
-  const PREFIXES = /^(poproszÍ|zamawiam|wezmÍ|dodaj|chcia≥bym|chcia≥abym|proszÍ|biorÍ|dla\s+mnie)\s+/i;
+  // 1. Strip courtesy/order prefixes EARLY to prevent "Poproszƒô X" becoming an unknown item
+  const PREFIXES = /^(poproszƒô|zamawiam|wezmƒô|dodaj|chcia≈Çbym|chcia≈Çabym|proszƒô|biorƒô|dla\s+mnie)\s+/i;
   let cleanText = text.replace(PREFIXES, '').trim();
 
   // 2. STOP PHRASES: Menu/exploratory questions are NOT dish items
-  // "co oferujπ", "jakie macie", "menu" should not be parsed as order items
+  // "co oferujƒÖ", "jakie macie", "menu" should not be parsed as order items
   const STOP_PHRASES = [
-    'co oferujπ', 'co oferujecie', 'co macie', 'jakie macie',
-    'menu', 'pokaø menu', 'pokaz menu', 'oferta', 'karta',
+    'co oferujƒÖ', 'co oferujecie', 'co macie', 'jakie macie',
+    'menu', 'poka≈º menu', 'pokaz menu', 'oferta', 'karta',
     'co polecasz', 'co polecacie', 'polecisz', 'polecicie',
-    'co jest', 'jakie sπ', 'jakie sa', 'co majπ', 'co maja'
+    'co jest', 'jakie sƒÖ', 'jakie sa', 'co majƒÖ', 'co maja'
   ];
 
   const normalizedClean = normalizeTxt(cleanText);
@@ -473,29 +477,29 @@ export function parseOrderItems(text, catalog) {
 
   try {
     textAliased = applyAliases(cleanText);
-    // Jeúli applyAliases zwrÛci≥o orygina≥ i nie znalaz≥o aliasu,
-    // sprawdü czy to moøe byÊ unknown_item
+    // Je≈õli applyAliases zwr√≥ci≈Ço orygina≈Ç i nie znalaz≈Ço aliasu,
+    // sprawd≈∫ czy to mo≈ºe byƒá unknown_item
     if (textAliased === cleanText) {
-      // Sprawdü czy tekst nie pasuje do øadnego aliasu
+      // Sprawd≈∫ czy tekst nie pasuje do ≈ºadnego aliasu
       const normalized = normalizeTxt(cleanText);
       const hasKnownAlias = Object.keys(DETERMINISTIC_ALIAS_MAP).some(alias =>
         normalized.includes(normalizeTxt(alias))
       );
       if (!hasKnownAlias && cleanText.trim().length > 0) {
-        // Moøe byÊ unknown_item - zapisz do pÛüniejszej weryfikacji
+        // Mo≈ºe byƒá unknown_item - zapisz do p√≥≈∫niejszej weryfikacji
         unknownItems.push({ name: cleanText, reason: 'no_alias_match' });
       }
     }
   } catch (err) {
     console.warn('[parseOrderItems] applyAliases error:', err.message);
-    textAliased = cleanText; // Fallback do orygina≥u
+    textAliased = cleanText; // Fallback do orygina≈Çu
     unknownItems.push({ name: cleanText, reason: 'alias_error' });
   }
 
   const preferredSize = extractSize(textAliased);
   const requestedItems = extractRequestedItems(cleanText);
 
-  // Obs≥uga pustego menu lub braku katalogu
+  // Obs≈Çuga pustego menu lub braku katalogu
   if (!catalog || !Array.isArray(catalog) || catalog.length === 0) {
     console.warn('[parseOrderItems] Invalid or empty catalog:', catalog);
     return {
@@ -504,7 +508,7 @@ export function parseOrderItems(text, catalog) {
       clarify: [],
       available: [],
       unavailable: requestedItems?.map(i => i.name).filter(Boolean) || [],
-      needsClarification: true, // Wymaga wyjaúnienia (brak katalogu)
+      needsClarification: true, // Wymaga wyja≈õnienia (brak katalogu)
       missingAll: true,
       unknownItems: unknownItems
     };
@@ -517,7 +521,7 @@ export function parseOrderItems(text, catalog) {
     itemTexts = splitMultipleItems(textAliased);
   } catch (err) {
     console.warn('[parseOrderItems] splitMultipleItems error:', err.message);
-    itemTexts = [textAliased]; // Fallback do ca≥ego tekstu
+    itemTexts = [textAliased]; // Fallback do ca≈Çego tekstu
   }
 
   const allHits = [];
@@ -527,7 +531,7 @@ export function parseOrderItems(text, catalog) {
     return String(word)
       .replace(/i$/, '')
       .replace(/y$/, '')
-      .replace(/Ûw$/, '')
+      .replace(/√≥w$/, '')
       .replace(/ami$/, '')
       .replace(/ach$/, '');
   }
@@ -536,13 +540,13 @@ export function parseOrderItems(text, catalog) {
     if (!itemText || typeof itemText !== 'string') continue;
 
     try {
-      const qty = extractQuantity(itemText) || 1; // Domyúlnie 1 jeúli brak iloúci
+      const qty = extractQuantity(itemText) || 1; // Domy≈õlnie 1 je≈õli brak ilo≈õci
       const hits = catalog
         .filter(it => {
           try {
             if (!it || !it.name) return false;
 
-            // 1. SprÛbuj exact/fuzzy
+            // 1. Spr√≥buj exact/fuzzy
             if (fuzzyIncludes(it.name, itemText)) return true;
 
             // 2. Fallback plural
@@ -556,7 +560,7 @@ export function parseOrderItems(text, catalog) {
             return false;
           } catch (err) {
             console.warn('[parseOrderItems] processing error:', err.message);
-            return false; // Bezpieczne - nie dopasuj jeúli b≥πd
+            return false; // Bezpieczne - nie dopasuj je≈õli b≈ÇƒÖd
           }
         })
         .map(it => ({
@@ -571,7 +575,7 @@ export function parseOrderItems(text, catalog) {
       allHits.push(...hits);
     } catch (err) {
       console.warn('[parseOrderItems] Error processing item:', itemText, err.message);
-      // Kontynuuj z nastÍpnym itemem - nie failuj ca≥ego parsowania
+      // Kontynuuj z nastƒôpnym itemem - nie failuj ca≈Çego parsowania
       unknownItems.push({ name: itemText, reason: `processing_error: ${err.message}` });
     }
   }
@@ -585,11 +589,11 @@ export function parseOrderItems(text, catalog) {
     clarifications = dedupResult.clarifications || [];
   } catch (err) {
     console.warn('[parseOrderItems] dedupHitsByBase error:', err.message);
-    selected = allHits; // Fallback - uøyj wszystkich hitÛw
+    selected = allHits; // Fallback - u≈ºyj wszystkich hit√≥w
     clarifications = [];
   }
 
-  // Sprawdü czy sπ niedostÍpne pozycje (fallback) ñ nie psuj g≥Ûwnego dopasowania
+  // Sprawd≈∫ czy sƒÖ niedostƒôpne pozycje (fallback) ‚Äì nie psuj g≈Ç√≥wnego dopasowania
   // Bezpieczne filtrowanie - nie throw
   const matched = (selected || []).filter(h => {
     try {
@@ -615,7 +619,7 @@ export function parseOrderItems(text, catalog) {
     }
   }).filter(Boolean);
 
-  // Helper do bezpiecznego fuzzy porÛwnania nazwy dania (nie throw)
+  // Helper do bezpiecznego fuzzy por√≥wnania nazwy dania (nie throw)
   const fuzzyNameHit = (needle, haystackName) => {
     try {
       if (!needle || !haystackName) return false;
@@ -623,23 +627,23 @@ export function parseOrderItems(text, catalog) {
       const h = normalizeTxt(haystackName);
       if (!n || !h) return false;
       if (h.includes(n) || n.includes(h)) return true;
-      // løejszy prÛg: przynajmniej 1 wspÛlny token >2 znakÛw
+      // l≈ºejszy pr√≥g: przynajmniej 1 wsp√≥lny token >2 znak√≥w
       const toks = n.split(' ').filter(Boolean).filter(t => t.length > 2);
       return toks.some(t => h.includes(t));
     } catch {
-      return false; // Bezpieczne - nie dopasuj jeúli b≥πd
+      return false; // Bezpieczne - nie dopasuj je≈õli b≈ÇƒÖd
     }
   };
 
-  // PozycjÍ uznajemy za ÑdostÍpnπî, jeúli:
+  // Pozycjƒô uznajemy za ‚ÄûdostƒôpnƒÖ‚Äù, je≈õli:
   // - jest w matched (availableNames) ORAZ fuzzy pasuje, LUB
-  // - nie jest w matched (np. wymaga doprecyzowania rozmiaru), ale wystÍpuje w ca≥ym katalogu (teø fuzzy)
+  // - nie jest w matched (np. wymaga doprecyzowania rozmiaru), ale wystƒôpuje w ca≈Çym katalogu (te≈º fuzzy)
   const unavailableNames = requestedNames.filter(requestedName => {
-    // 1) Sprawdü na liúcie juø dopasowanych
+    // 1) Sprawd≈∫ na li≈õcie ju≈º dopasowanych
     const inMatched = availableNames.some(an => fuzzyNameHit(requestedName, an));
     if (inMatched) return false;
 
-    // 2) Sprawdü w ca≥ym katalogu (by nie oznaczaÊ jako unavailable, gdy sπ warianty wymagajπce clarify)
+    // 2) Sprawd≈∫ w ca≈Çym katalogu (by nie oznaczaƒá jako unavailable, gdy sƒÖ warianty wymagajƒÖce clarify)
     const existsInCatalog = catalog.some(it => fuzzyNameHit(requestedName, it?.name));
     return !existsInCatalog;
   });
@@ -655,7 +659,7 @@ export function parseOrderItems(text, catalog) {
   const byR = {};
   for (const h of matched) {
     try {
-      if (!h || !h.restaurant_id) continue; // PomiÒ nieprawid≥owe hitÛw
+      if (!h || !h.restaurant_id) continue; // Pomi≈Ñ nieprawid≈Çowe hit√≥w
       const restaurantId = h.restaurant_id;
       if (!byR[restaurantId]) {
         byR[restaurantId] = {
@@ -672,11 +676,11 @@ export function parseOrderItems(text, catalog) {
       });
     } catch (err) {
       console.warn('[parseOrderItems] Error grouping item:', err.message);
-      // Kontynuuj z nastÍpnym itemem
+      // Kontynuuj z nastƒôpnym itemem
     }
   }
 
-  // Jeúli sπ unknown items i nie znaleziono dopasowaÒ, dodaj je do unavailable
+  // Je≈õli sƒÖ unknown items i nie znaleziono dopasowa≈Ñ, dodaj je do unavailable
   const finalUnavailable = [...unavailableNames];
   if (unknownItems.length > 0 && matched.length === 0 && allHits.length === 0) {
     unknownItems.forEach(item => {
@@ -725,7 +729,7 @@ async function withTimeout(promise, timeoutMs, operationName) {
 }
 
 /**
- * Bezpieczny fallback - zawsze zwraca jakiú intent
+ * Bezpieczny fallback - zawsze zwraca jaki≈õ intent
  */
 function safeFallbackIntent(text, reason = 'unknown_error') {
   return {
@@ -738,12 +742,12 @@ function safeFallbackIntent(text, reason = 'unknown_error') {
   };
 }
 
-// Helper do wykrywania intencji eksploracyjnej (pytania o menu/ofertÍ)
+// Helper do wykrywania intencji eksploracyjnej (pytania o menu/ofertƒô)
 function isExploratory(text) {
   const t = normalizeTxt(text);
-  if (/^(co|jakie)\s+(jest|s[aπ]|macie|oferujecie|polecasz)/.test(t)) return true;
+  if (/^(co|jakie)\s+(jest|s[aƒÖ]|macie|oferujecie|polecasz)/.test(t)) return true;
   if (/\b(menu|karta|oferta|cennik)\b/.test(t)) return true;
-  if (/^poka[zø]/.test(t) && !/\b(zamawiam|bior[Íe]|poprosz[Íe])\b/.test(t)) return true;
+  if (/^poka[z≈º]/.test(t) && !/\b(zamawiam|bior[ƒôe]|poprosz[ƒôe])\b/.test(t)) return true;
   return false;
 }
 
@@ -765,15 +769,15 @@ export async function detectIntent(text, session = null, entities = {}) {
     // ==========================================
     // ETAP 1: DETEKCJA INTENCJI FUNKCJONALNEJ
     // ==========================================
-    // Wykryj intencjÍ NA PODSTAWIE ZAMIARU, nie frazy
+    // Wykryj intencjƒô NA PODSTAWIE ZAMIARU, nie frazy
     const functionalIntent = detectFunctionalIntent(text, session);
 
-    // Jeúli wykryto funkcjonalny intent (ADD_ITEM, CONTINUE_ORDER, etc.)
-    // i ma wysokπ pewnoúÊ, zwrÛÊ go od razu (bez parsowania treúci)
+    // Je≈õli wykryto funkcjonalny intent (ADD_ITEM, CONTINUE_ORDER, etc.)
+    // i ma wysokƒÖ pewno≈õƒá, zwr√≥ƒá go od razu (bez parsowania tre≈õci)
     if (isFunctionalIntent(functionalIntent.intent) && functionalIntent.confidence >= 0.85) {
       console.log(`[intent-router] ? Functional intent detected: ${functionalIntent.intent} (confidence: ${functionalIntent.confidence})`);
 
-      // Mapuj funkcjonalne intenty na intenty uøywane w systemie
+      // Mapuj funkcjonalne intenty na intenty u≈ºywane w systemie
       let mappedIntent = functionalIntent.intent;
       if (functionalIntent.intent === FUNCTIONAL_INTENTS.CONFIRM_ORDER) {
         mappedIntent = 'confirm_order';
@@ -781,7 +785,7 @@ export async function detectIntent(text, session = null, entities = {}) {
         mappedIntent = 'cancel_order';
       } else if (functionalIntent.intent === FUNCTIONAL_INTENTS.ADD_ITEM ||
         functionalIntent.intent === FUNCTIONAL_INTENTS.CONTINUE_ORDER) {
-        mappedIntent = 'create_order'; // ADD_ITEM i CONTINUE_ORDER õ create_order
+        mappedIntent = 'create_order'; // ADD_ITEM i CONTINUE_ORDER ‚Ä∫ create_order
       }
 
       updateDebugSession({
@@ -802,9 +806,9 @@ export async function detectIntent(text, session = null, entities = {}) {
     }
 
     // ==========================================
-    // ETAP 2: PARSOWANIE TREåCI (CO KONKRETNIE)
+    // ETAP 2: PARSOWANIE TRE≈öCI (CO KONKRETNIE)
     // ==========================================
-    // Dopiero po wykryciu intentu parsuj produkty, iloúci, warianty
+    // Dopiero po wykryciu intentu parsuj produkty, ilo≈õci, warianty
 
     // --- Korekta STT / lokalizacji ---
     let normalizedText = text.toLowerCase()
@@ -816,20 +820,20 @@ export async function detectIntent(text, session = null, entities = {}) {
 
     const lower = normalizeTxt(normalizedText);
 
-    // ?? SUPER-EARLY EXIT: Pytania "gdzie zjeúÊ Ö" zawsze traktuj jako find_nearby
-    // niezaleønie od kontekstu sesji (øeby nie przechodzi≥o w create_order gdy jest "pizza")
+    // ?? SUPER-EARLY EXIT: Pytania "gdzie zje≈õƒá ‚Ä¶" zawsze traktuj jako find_nearby
+    // niezale≈ºnie od kontekstu sesji (≈ºeby nie przechodzi≈Ço w create_order gdy jest "pizza")
     if (/\bgdzie\b/.test(lower)) {
       updateDebugSession({ intent: 'find_nearby', restaurant: null, sessionId: session?.id || null, confidence: 0.85 });
       return { intent: 'find_nearby', restaurant: null };
     }
 
     // ======================================================================
-    // GREETING GATE ó EARLY EXIT (prevents catalog load on neutral input)
+    // GREETING GATE ‚Äî EARLY EXIT (prevents catalog load on neutral input)
     // Must run BEFORE any catalog/menu/parseOrderItems calls.
     // ======================================================================
-    const GREETING_PATTERNS = /^(cze[sú][cÊ]|hej|hej\s|witaj|dzieÒ\s+dobry|dzien\s+dobry|siema|siemanko|yo|hi|hello|dobry\s+wieczÛr|dobry\s+wieczor|dobranoc|serwus|moro|hejka|elo|czeúÊ|czesc)([!.,?\s].*)?$/i;
+    const GREETING_PATTERNS = /^(cze[s≈õ][cƒá]|hej|hej\s|witaj|dzie≈Ñ\s+dobry|dzien\s+dobry|siema|siemanko|yo|hi|hello|dobry\s+wiecz√≥r|dobry\s+wieczor|dobranoc|serwus|moro|hejka|elo|cze≈õƒá|czesc)([!.,?\s].*)?$/i;
     if (GREETING_PATTERNS.test(text.trim())) {
-      console.log('[intent-router] ?? GREETING GATE: Detected greeting ñ skipping catalog load.');
+      console.log('[intent-router] ?? GREETING GATE: Detected greeting ‚Äì skipping catalog load.');
       updateDebugSession({ intent: 'greeting', restaurant: null, sessionId: session?.id || null, confidence: 1.0 });
       return { intent: 'greeting', confidence: 1.0, source: 'greeting_gate', restaurant: null };
     }
@@ -838,7 +842,7 @@ export async function detectIntent(text, session = null, entities = {}) {
     // HOURS INTENT (FAQ)
     // ===========================================
     const hoursPatterns = [
-      /do ktÛrej/i,
+      /do kt√≥rej/i,
       /godzin/i,
       /czynne/i,
       /zamykacie/i,
@@ -855,31 +859,31 @@ export async function detectIntent(text, session = null, entities = {}) {
       };
     }
 
-    // óóó CONFIRM FLOW - DELEGATED TO boostIntent() in brainRouter.js óóó
-    // Logika potwierdzania zamÛwieÒ jest teraz obs≥ugiwana przez:
+    // ‚Äî‚Äî‚Äî CONFIRM FLOW - DELEGATED TO boostIntent() in brainRouter.js ‚Äî‚Äî‚Äî
+    // Logika potwierdzania zam√≥wie≈Ñ jest teraz obs≈Çugiwana przez:
     // 1. boostIntent() w brainRouter.js (wykrywa confirm_order/cancel_order)
     // 2. case "confirm_order" i "cancel_order" w brainRouter.js
-    // Ta sekcja zosta≥a usuniÍta, aby uniknπÊ konfliktÛw z session.pendingOrder
+    // Ta sekcja zosta≈Ça usuniƒôta, aby uniknƒÖƒá konflikt√≥w z session.pendingOrder
 
-    // óóó EARLY DISH DETECTION (PRIORITY 1) óóó
+    // ‚Äî‚Äî‚Äî EARLY DISH DETECTION (PRIORITY 1) ‚Äî‚Äî‚Äî
     console.log('[intent-router] ?? Starting early dish detection for text:', text);
     console.log('[intent-router] ?? Normalized text:', normalizedText);
 
     // ?? KROK 1: Priorytetyzuj kontekst sesji
-    // Sprawdü czy uøytkownik ma juø restauracjÍ w sesji
+    // Sprawd≈∫ czy u≈ºytkownik ma ju≈º restauracjƒô w sesji
     let targetRestaurant = null;
-    let restaurantsList = null; // ?? Cache dla pÛüniejszego uøycia
+    let restaurantsList = null; // ?? Cache dla p√≥≈∫niejszego u≈ºycia
     const hasSessionRestaurant = session?.currentRestaurant?.id || session?.lastRestaurant?.id;
 
     console.log(`[intent-router] ?? Session restaurant: ${hasSessionRestaurant ? session.lastRestaurant.name : 'NONE'}`);
 
-    // ?? Sprawdü czy tekst zawiera silne wskaüniki nowej restauracji
+    // ?? Sprawd≈∫ czy tekst zawiera silne wska≈∫niki nowej restauracji
     const hasRestaurantIndicators = /\b(w|z|restauracja|restauracji|pizzeria|pizzerii|menu\s+w|menu\s+z)\b/i.test(normalizedText);
     console.log(`[intent-router] ?? Restaurant indicators in text: ${hasRestaurantIndicators}`);
 
-    // ?? Uruchom agresywne wykrywanie restauracji TYLKO jeúli:
+    // ?? Uruchom agresywne wykrywanie restauracji TYLKO je≈õli:
     // 1. NIE MA restauracji w sesji, LUB
-    // 2. Tekst zawiera silne wskaüniki nowej restauracji
+    // 2. Tekst zawiera silne wska≈∫niki nowej restauracji
     const shouldSearchRestaurants = !hasSessionRestaurant || hasRestaurantIndicators;
 
     if (shouldSearchRestaurants) {
@@ -910,7 +914,7 @@ export async function detectIntent(text, session = null, entities = {}) {
         if (restaurantsList?.length) {
           console.log(`[intent-router] ?? Checking ${restaurantsList.length} restaurants for fuzzy match`);
 
-          // ?? Early exit: sprawdü najpierw exact match (szybkie)
+          // ?? Early exit: sprawd≈∫ najpierw exact match (szybkie)
           for (const r of restaurantsList) {
             const normalizedName = normalizeTxt(r.name);
             if (normalizedText.includes(normalizedName)) {
@@ -920,7 +924,7 @@ export async function detectIntent(text, session = null, entities = {}) {
             }
           }
 
-          // ?? Fuzzy match tylko jeúli exact match nie zadzia≥a≥
+          // ?? Fuzzy match tylko je≈õli exact match nie zadzia≈Ça≈Ç
           if (!targetRestaurant) {
             const textWords = normalizedText.split(' ');
 
@@ -930,17 +934,17 @@ export async function detectIntent(text, session = null, entities = {}) {
               let matchedWords = 0;
 
               for (const nameWord of nameWords) {
-                // ?? Optymalizacja: sprawdü najpierw exact match s≥owa (szybkie)
+                // ?? Optymalizacja: sprawd≈∫ najpierw exact match s≈Çowa (szybkie)
                 if (textWords.includes(nameWord)) {
                   matchedWords++;
                   continue;
                 }
 
-                // ?? Levenshtein alleen voor woorden >= 7 znakÛw (krÛtkie s≥owa õ exact match)
-                // Dit voorkomt "testy"õ"tasty" false positive
+                // ?? Levenshtein alleen voor woorden >= 7 znak√≥w (kr√≥tkie s≈Çowa ‚Ä∫ exact match)
+                // Dit voorkomt "testy"‚Ä∫"tasty" false positive
                 if (nameWord.length >= 7) {
                   for (const textWord of textWords) {
-                    // Only compare if lengths are similar (±2 chars)
+                    // Only compare if lengths are similar (¬±2 chars)
                     if (Math.abs(textWord.length - nameWord.length) <= 2 && textWord.length >= 7) {
                       const dist = levenshteinHelper(textWord, nameWord);
                       if (dist <= 1) {
@@ -952,7 +956,7 @@ export async function detectIntent(text, session = null, entities = {}) {
                 }
               }
 
-              // ?? Stricter threshold: require 3/4 of words to match (by≥o 1/2)
+              // ?? Stricter threshold: require 3/4 of words to match (by≈Ço 1/2)
               const threshold = Math.ceil(nameWords.length * 0.75);
               if (matchedWords >= threshold) {
                 targetRestaurant = r;
@@ -966,13 +970,13 @@ export async function detectIntent(text, session = null, entities = {}) {
         }
       } catch (err) {
         console.error('[intent-router] ? Error searching restaurants:', err.message);
-        // ?? Nie rzucaj b≥Ídu - kontynuuj z session restaurant
+        // ?? Nie rzucaj b≈Çƒôdu - kontynuuj z session restaurant
       }
     } else {
       console.log(`[intent-router] ?? Skipping restaurant search - using session restaurant: ${session.lastRestaurant.name}`);
     }
 
-    // ?? KROK 2: Za≥aduj katalog menu
+    // ?? KROK 2: Za≈Çaduj katalog menu
     // Priorytet: targetRestaurant (z tekstu) > session.lastRestaurant
     try {
       const sessionWithRestaurant = targetRestaurant
@@ -991,17 +995,17 @@ export async function detectIntent(text, session = null, entities = {}) {
       console.log(`[intent-router] Catalog loaded: ${catalog.length} items`);
 
       // ======================================================================
-      // ORDER PARSING GATE ó only call parseOrderItems when there is evidence
+      // ORDER PARSING GATE ‚Äî only call parseOrderItems when there is evidence
       // of an actual order intent. This prevents neutral/greeting inputs from
       // cascading into choose_restaurant via fuzzy catalog matching.
       // Conditions (any one sufficient):
       //   a) text contains a known dish alias
-      //   b) text contains a quantity indicator ("2x", "trzy", Ö)
+      //   b) text contains a quantity indicator ("2x", "trzy", ‚Ä¶)
       //   c) text contains an explicit order verb
       //   d) session already has a currentRestaurant/lastRestaurant context
       // ======================================================================
-      const ORDER_VERB_GATE = /\b(zamawiam|zamÛw|zamow|poproszÍ|proszÍ|poprosz[Íe]|chcÍ|chce|wezmÍ|wezm[Íe]|biore|bior[Íe]|dodaj|dla\s+mnie|chcia≥(bym|abym)|skusz[Íe]|zdecyduj[Íe]|lec[Íe]\s+na)\b/i;
-      const QUANTITY_GATE = /\b(\d+\s*(x|razy|sztuk)?|dwa|dwie|trzy|cztery|piÍÊ|jeden|jedna)\b/i;
+      const ORDER_VERB_GATE = /\b(zamawiam|zam√≥w|zamow|poproszƒô|proszƒô|poprosz[ƒôe]|chcƒô|chce|wezmƒô|wezm[ƒôe]|biore|bior[ƒôe]|dodaj|dla\s+mnie|chcia≈Ç(bym|abym)|skusz[ƒôe]|zdecyduj[ƒôe]|lec[ƒôe]\s+na)\b/i;
+      const QUANTITY_GATE = /\b(\d+\s*(x|razy|sztuk)?|dwa|dwie|trzy|cztery|piƒôƒá|jeden|jedna)\b/i;
       const DISH_ALIAS_GATE = new RegExp(
         Object.keys(DETERMINISTIC_ALIAS_MAP)
           .sort((a, b) => b.length - a.length) // longest first
@@ -1018,7 +1022,7 @@ export async function detectIntent(text, session = null, entities = {}) {
         hasSessionRestaurantCtx;
 
       if (!passesOrderGate) {
-        console.log(`[intent-router] ??? ORDER PARSING GATE: No order evidence in "${text}" ñ skipping parseOrderItems.`);
+        console.log(`[intent-router] ??? ORDER PARSING GATE: No order evidence in "${text}" ‚Äì skipping parseOrderItems.`);
       } else if (catalog.length && !isExploratory(normalizedText)) {
         console.log('[intent-router] ?? Calling parseOrderItems...');
         console.log('[intent-router] ?? Catalog items:', catalog.map(c => c.name).join(', '));
@@ -1027,7 +1031,7 @@ export async function detectIntent(text, session = null, entities = {}) {
         console.log(`[intent-router] ?? parsed.any = ${parsed.any}`);
         console.log(`[intent-router] ?? parsed.groups.length = ${parsed.groups?.length || 0}`);
 
-        // Obs≥uga pustego menu
+        // Obs≈Çuga pustego menu
         if (parsed.missingAll) {
           console.log('?? No menu items found in catalog');
           updateDebugSession({
@@ -1038,17 +1042,17 @@ export async function detectIntent(text, session = null, entities = {}) {
           });
           return {
             intent: 'no_menu_items',
-            reply: 'Nie znalaz≥am øadnych pozycji w menu tej restauracji. Moøe chcesz sprawdziÊ coú innego?',
+            reply: 'Nie znalaz≈Çam ≈ºadnych pozycji w menu tej restauracji. Mo≈ºe chcesz sprawdziƒá co≈õ innego?',
             confidence: 0.8,
             fallback: true
           };
         }
 
-        // Sprawdü czy sπ niedostÍpne pozycje (nawet jeúli parsed.any === false)
-        // ?? ALE: jeúli tekst zawiera nazwÍ restauracji, to nie zwracaj clarify_order
-        // (user moøe mÛwiÊ np. "klaps burger" = nazwa restauracji, a nie zamÛwienie)
+        // Sprawd≈∫ czy sƒÖ niedostƒôpne pozycje (nawet je≈õli parsed.any === false)
+        // ?? ALE: je≈õli tekst zawiera nazwƒô restauracji, to nie zwracaj clarify_order
+        // (user mo≈ºe m√≥wiƒá np. "klaps burger" = nazwa restauracji, a nie zam√≥wienie)
         if (parsed.unavailable && parsed.unavailable.length > 0 && parsed.needsClarification) {
-          // Jeúli parser i tak coú znalaz≥ (available), preferuj create_order zamiast clarify
+          // Je≈õli parser i tak co≈õ znalaz≈Ç (available), preferuj create_order zamiast clarify
           if ((parsed.available && parsed.available.length > 0) || (parsed.groups && parsed.groups.length > 0)) {
             updateDebugSession({
               intent: 'create_order',
@@ -1061,7 +1065,7 @@ export async function detectIntent(text, session = null, entities = {}) {
           const missing = parsed.unavailable.join(', ');
 
           // ?? PRIORITY CHECK: Before returning clarify_order, check if this is actually a "find_nearby" intent
-          // (e.g. user said "pokaø restauracje w okolicy", parser thought "restauracje w okolicy" is an item)
+          // (e.g. user said "poka≈º restauracje w okolicy", parser thought "restauracje w okolicy" is an item)
           const strongNearbyKeywords = ['w okolicy', 'w poblizu', 'blisko', 'restauracje', 'gdzie zjem', 'szukam'];
           if (strongNearbyKeywords.some(k => lower.includes(k))) {
             console.log(`[intent-router] ?? Unavailable items detected, BUT text contains strong "find_nearby" keywords. Prioritizing find_nearby.`);
@@ -1077,7 +1081,7 @@ export async function detectIntent(text, session = null, entities = {}) {
           const restaurantName = session?.lastRestaurant?.name || 'tym menu';
           console.log(`?? Unavailable items detected: ${missing} in ${restaurantName}`);
 
-          // ?? OPTIMIZATION: Uøyj cache z KROK 1 zamiast robiÊ nowy query
+          // ?? OPTIMIZATION: U≈ºyj cache z KROK 1 zamiast robiƒá nowy query
           let containsRestaurantName = false;
 
           if (restaurantsList?.length) {
@@ -1094,7 +1098,7 @@ export async function detectIntent(text, session = null, entities = {}) {
                 if (textWords.includes(nameWord)) {
                   matchedWords++;
                 } else {
-                  // Levenshtein tylko jeúli exact match nie zadzia≥a≥
+                  // Levenshtein tylko je≈õli exact match nie zadzia≈Ça≈Ç
                   for (const textWord of textWords) {
                     const dist = levenshteinHelper(textWord, nameWord);
                     if (dist <= 1) {
@@ -1108,7 +1112,7 @@ export async function detectIntent(text, session = null, entities = {}) {
               const threshold = Math.ceil(nameWords.length / 2);
               if (matchedWords >= threshold) {
                 containsRestaurantName = true;
-                console.log(`? Text contains restaurant name: ${r.name} ó skipping clarify_order`);
+                console.log(`? Text contains restaurant name: ${r.name} ‚Äî skipping clarify_order`);
                 break;
               }
             }
@@ -1116,7 +1120,7 @@ export async function detectIntent(text, session = null, entities = {}) {
             console.log(`?? No cached restaurants list - skipping restaurant name check`);
           }
 
-          // Jeúli tekst NIE zawiera nazwy restauracji, to zwrÛÊ clarify_order
+          // Je≈õli tekst NIE zawiera nazwy restauracji, to zwr√≥ƒá clarify_order
           if (!containsRestaurantName) {
             updateDebugSession({
               intent: 'clarify_order',
@@ -1127,7 +1131,7 @@ export async function detectIntent(text, session = null, entities = {}) {
             return {
               intent: 'clarify_order',
               parsedOrder: parsed,
-              reply: `Nie znalaz≥am aktualnie ${missing} w menu ${restaurantName}, moøe chcia≥byú coú innego?`,
+              reply: `Nie znalaz≈Çam aktualnie ${missing} w menu ${restaurantName}, mo≈ºe chcia≈Çby≈õ co≈õ innego?`,
               confidence: 0.9,
               unavailable: parsed.unavailable
             };
@@ -1159,7 +1163,7 @@ export async function detectIntent(text, session = null, entities = {}) {
             return {
               intent: 'choose_restaurant',
               entities: { ...entities, parsedOrder: parsed, options, ambiguous: true },
-              reply: `TÍ pozycjÍ serwuje kilka restauracji: ${parsed.groups.map(g => g.restaurant_name).join(', ')}. Z ktÛrej mam zamÛwiÊ?`,
+              reply: `Tƒô pozycjƒô serwuje kilka restauracji: ${parsed.groups.map(g => g.restaurant_name).join(', ')}. Z kt√≥rej mam zam√≥wiƒá?`,
               confidence: 0.95
             };
           }
@@ -1191,8 +1195,8 @@ export async function detectIntent(text, session = null, entities = {}) {
       console.error('[intent-router] dish parse error:', e);
     }
 
-    // ?? KROK 3: Przygotuj s≥owa kluczowe (przed sprawdzeniem targetRestaurant)
-    // Bazowe s≥owa kluczowe (BEZ polskich znakÛw - znormalizowane przez normalizeTxt)
+    // ?? KROK 3: Przygotuj s≈Çowa kluczowe (przed sprawdzeniem targetRestaurant)
+    // Bazowe s≈Çowa kluczowe (BEZ polskich znak√≥w - znormalizowane przez normalizeTxt)
     const findNearbyKeywords = [
       'zjesc', 'restaurac', 'restauracje', 'pokaz restauracje', 'pizza', 'pizze', 'kebab', 'burger', 'zjesc cos', 'gdzie',
       'w okolicy', 'blisko', 'cos do jedzenia', 'posilek', 'obiad',
@@ -1205,14 +1209,14 @@ export async function detectIntent(text, session = null, entities = {}) {
     ];
 
     const menuKeywords = [
-      'menu', 'co moge zjesc', 'co maja', 'pokaz menu', 'pokaø menu', 'co jest w menu',
-      'dania', 'potrawy', 'co serwuja', 'co podaja', 'karta dan', 'karta daÒ',
+      'menu', 'co moge zjesc', 'co maja', 'pokaz menu', 'poka≈º menu', 'co jest w menu',
+      'dania', 'potrawy', 'co serwuja', 'co podaja', 'karta dan', 'karta da≈Ñ',
       'co jest dostepne', 'co dostepne', 'co maja w menu'
     ];
 
     const orderKeywords = [
       'zamow', 'poprosze', 'prosze', 'chce zamowic', 'zloz zamowienie', 'zamowic cos',
-      'dodaj do zamowienia', 'zloz', 'wybieram', 'biore', 'wezme', 'chce', 'chcÍ'
+      'dodaj do zamowienia', 'zloz', 'wybieram', 'biore', 'wezme', 'chce', 'chcƒô'
     ];
 
     // Pobierz nauczone frazy z bazy
@@ -1228,13 +1232,13 @@ export async function detectIntent(text, session = null, entities = {}) {
     const dynamicMenuKeywords = learnedMenu.map(p => normalizeTxt(p.text));
     const dynamicOrderKeywords = learnedOrder.map(p => normalizeTxt(p.text));
 
-    // Deduplikacja ó usuÒ duplikaty miÍdzy bazowymi a dynamicznymi
+    // Deduplikacja ‚Äî usu≈Ñ duplikaty miƒôdzy bazowymi a dynamicznymi
     const allNearbyKeywords = [...new Set([...findNearbyKeywords, ...dynamicNearbyKeywords])];
     const allMenuKeywords = [...new Set([...menuKeywords, ...dynamicMenuKeywords])];
     const allOrderKeywords = [...new Set([...orderKeywords, ...dynamicOrderKeywords])];
 
-    // ?? KROK 4: Jeúli w early dish detection znaleziono restauracjÍ, ale nie znaleziono daÒ
-    // to zwrÛÊ odpowiedni intent na podstawie s≥Ûw kluczowych
+    // ?? KROK 4: Je≈õli w early dish detection znaleziono restauracjƒô, ale nie znaleziono da≈Ñ
+    // to zwr√≥ƒá odpowiedni intent na podstawie s≈Ç√≥w kluczowych
     console.log(`[intent-router] ?? KROK 4: Checking targetRestaurant:`, targetRestaurant);
     if (targetRestaurant) {
       console.log(`[intent-router] ?? KROK 4: Restaurant found in early detection: ${targetRestaurant.name}, checking keywords...`);
@@ -1242,7 +1246,7 @@ export async function detectIntent(text, session = null, entities = {}) {
       console.log(`[intent-router] ?? KROK 4: Menu keywords:`, allMenuKeywords);
       console.log(`[intent-router] ?? KROK 4: Order keywords:`, allOrderKeywords);
 
-      // Sprawdü s≥owa kluczowe
+      // Sprawd≈∫ s≈Çowa kluczowe
       if (allMenuKeywords.some(k => lower.includes(k))) {
         console.log(`[intent-router] ?? KROK 4: Menu keyword found, returning menu_request`);
         console.log(`[intent-router] ?? KROK 4: This may override create_order from KROK 2!`);
@@ -1267,7 +1271,7 @@ export async function detectIntent(text, session = null, entities = {}) {
         return { intent: 'create_order', restaurant: targetRestaurant };
       }
 
-      // W przeciwnym razie õ select_restaurant
+      // W przeciwnym razie ‚Ä∫ select_restaurant
       console.log(`[intent-router] ? No specific keywords, returning select_restaurant`);
       updateDebugSession({
         intent: 'select_restaurant',
@@ -1280,10 +1284,10 @@ export async function detectIntent(text, session = null, entities = {}) {
       console.log(`[intent-router] ? No targetRestaurant found, continuing to keyword detection`);
     }
 
-    // S≥owa kluczowe juø zdefiniowane wczeúniej
+    // S≈Çowa kluczowe ju≈º zdefiniowane wcze≈õniej
 
-    // ?? Szybka regu≥a: Ñw okolicy / w pobliøu / bliskoî õ preferuj find_nearby
-    if (/\b(w pobliøu|w poblizu|w okolicy|blisko)\b/i.test(lower)) {
+    // ?? Szybka regu≈Ça: ‚Äûw okolicy / w pobli≈ºu / blisko‚Äù ‚Ä∫ preferuj find_nearby
+    if (/\b(w pobli≈ºu|w poblizu|w okolicy|blisko)\b/i.test(lower)) {
       updateDebugSession({
         intent: 'find_nearby',
         restaurant: null,
@@ -1293,33 +1297,33 @@ export async function detectIntent(text, session = null, entities = {}) {
       return { intent: 'find_nearby', restaurant: null };
     }
 
-    // ?? PRIORYTET 0: Sprawdü czy w tekúcie jest iloúÊ (2x, 3x, "dwa razy", etc.)
-    // Jeúli tak, to najprawdopodobniej user chce zamÛwiÊ, nie wybieraÊ restauracji
+    // ?? PRIORYTET 0: Sprawd≈∫ czy w tek≈õcie jest ilo≈õƒá (2x, 3x, "dwa razy", etc.)
+    // Je≈õli tak, to najprawdopodobniej user chce zam√≥wiƒá, nie wybieraƒá restauracji
     const quantityPattern = /(\d+\s*x|\d+\s+razy|dwa\s+razy|trzy\s+razy|kilka)/i;
     if (quantityPattern.test(text)) {
-      console.log('?? Quantity detected õ create_order');
+      console.log('?? Quantity detected ‚Ä∫ create_order');
       return { intent: 'create_order', restaurant: null };
     }
 
-    // ?? PRIORYTET 1: Sprawdü czy w tekúcie jest nazwa restauracji (fuzzy matching)
-    // ?? WAØNE: Jeúli session.lastRestaurant istnieje i tekst zawiera s≥owa kluczowe zamÛwienia,
-    // NIE szukaj innych restauracji - user prawdopodobnie zamawia z juø wybranej restauracji
+    // ?? PRIORYTET 1: Sprawd≈∫ czy w tek≈õcie jest nazwa restauracji (fuzzy matching)
+    // ?? WA≈ªNE: Je≈õli session.lastRestaurant istnieje i tekst zawiera s≈Çowa kluczowe zam√≥wienia,
+    // NIE szukaj innych restauracji - user prawdopodobnie zamawia z ju≈º wybranej restauracji
     const hasLastRestaurant = session?.lastRestaurant;
     const hasOrderKeyword = allOrderKeywords.some(k => lower.includes(k));
-    const hasPizzaKeyword = /\bpizz/i.test(lower); // pizza/pizze/pizzy/pizzÍ etc.
+    const hasPizzaKeyword = /\bpizz/i.test(lower); // pizza/pizze/pizzy/pizzƒô etc.
     const hasDishKeyword = /(margher|margarit|capric|diavol|hawaj|hawai|funghi|prosciut|salami|pepperoni|quattro|formagg|stagioni|parma|tonno|romana|vege|wegetar|carbonar)/i.test(lower);
 
     if (hasLastRestaurant && (hasOrderKeyword || hasPizzaKeyword || hasDishKeyword)) {
-      console.log('?? PRIORYTET 0.5: lastRestaurant exists + order keyword detected õ skip restaurant search');
+      console.log('?? PRIORYTET 0.5: lastRestaurant exists + order keyword detected ‚Ä∫ skip restaurant search');
       console.log(`   Using session restaurant: ${session.lastRestaurant.name}`);
-      // Nie szukaj innych restauracji - zwrÛÊ create_order z restauracjπ z sesji
+      // Nie szukaj innych restauracji - zwr√≥ƒá create_order z restauracjƒÖ z sesji
       return { intent: 'create_order', restaurant: session.lastRestaurant };
     }
 
-    // Jeúli tak, to najprawdopodobniej user chce wybraÊ restauracjÍ lub zobaczyÊ menu
-    console.log('?? PRIORYTET 1: Sprawdzam restauracje w tekúcie:', text);
+    // Je≈õli tak, to najprawdopodobniej user chce wybraƒá restauracjƒô lub zobaczyƒá menu
+    console.log('?? PRIORYTET 1: Sprawdzam restauracje w tek≈õcie:', text);
 
-    // ?? Uøyj cache z KROK 1 jeúli dostÍpny, w przeciwnym razie pobierz
+    // ?? U≈ºyj cache z KROK 1 je≈õli dostƒôpny, w przeciwnym razie pobierz
     if (!restaurantsList) {
       const { data } = await supabase
         .from('restaurants')
@@ -1340,25 +1344,25 @@ export async function detectIntent(text, session = null, entities = {}) {
       console.log('?? Normalizowany tekst:', normalizedText);
       for (const r of restaurantsList) {
         const normalizedName = normalizeTxt(r.name);
-        console.log('?? Sprawdzam restauracjÍ:', r.name, '->', normalizedName);
+        console.log('?? Sprawdzam restauracjƒô:', r.name, '->', normalizedName);
 
-        // Sprawdü czy nazwa restauracji jest w tekúcie (fuzzy match)
+        // Sprawd≈∫ czy nazwa restauracji jest w tek≈õcie (fuzzy match)
         // 1. Exact substring match
         if (normalizedText.includes(normalizedName)) {
           console.log('? Exact match found:', r.name);
-          // Jeúli jest "menu" õ menu_request
+          // Je≈õli jest "menu" ‚Ä∫ menu_request
           if (allMenuKeywords.some(k => lower.includes(k))) {
             return { intent: 'menu_request', restaurant: r };
           }
-          // Jeúli jest "zamÛw"/"wybieram" õ create_order
+          // Je≈õli jest "zam√≥w"/"wybieram" ‚Ä∫ create_order
           if (allOrderKeywords.some(k => lower.includes(k))) {
             return { intent: 'create_order', restaurant: r };
           }
-          // W przeciwnym razie õ select_restaurant
+          // W przeciwnym razie ‚Ä∫ select_restaurant
           return { intent: 'select_restaurant', restaurant: r };
         }
 
-        // 2. Fuzzy match ó sprawdü czy s≥owa z nazwy restauracji sπ w tekúcie
+        // 2. Fuzzy match ‚Äî sprawd≈∫ czy s≈Çowa z nazwy restauracji sƒÖ w tek≈õcie
         const nameWords = normalizedName.split(' ');
         const textWords = normalizedText.split(' ');
         let matchedWords = 0;
@@ -1372,7 +1376,7 @@ export async function detectIntent(text, session = null, entities = {}) {
             continue;
           }
 
-          // ?? Fuzzy tylko dla s≥Ûw >= 7 znakÛw (zapobiega "testy"õ"tasty")
+          // ?? Fuzzy tylko dla s≈Ç√≥w >= 7 znak√≥w (zapobiega "testy"‚Ä∫"tasty")
           if (nameWord.length >= 7) {
             for (const textWord of textWords) {
               if (textWord.length >= 7 && Math.abs(textWord.length - nameWord.length) <= 2) {
@@ -1388,13 +1392,13 @@ export async function detectIntent(text, session = null, entities = {}) {
           }
         }
 
-        // ?? Stricter threshold: require 75% of words to match (by≥o 50%)
+        // ?? Stricter threshold: require 75% of words to match (by≈Ço 50%)
         const threshold = Math.ceil(nameWords.length * 0.75);
         console.log('?? Matched words:', matchedWords, 'out of', nameWords.length, 'threshold:', threshold);
-        // Jeúli ?75% s≥Ûw z nazwy restauracji pasuje õ uznaj za match
+        // Je≈õli ?75% s≈Ç√≥w z nazwy restauracji pasuje ‚Ä∫ uznaj za match
         if (matchedWords >= threshold) {
           console.log('? Fuzzy match found:', r.name);
-          // Jeúli jest "menu" õ menu_request
+          // Je≈õli jest "menu" ‚Ä∫ menu_request
           if (allMenuKeywords.some(k => lower.includes(k))) {
             updateDebugSession({
               intent: 'menu_request',
@@ -1404,7 +1408,7 @@ export async function detectIntent(text, session = null, entities = {}) {
             });
             return { intent: 'menu_request', restaurant: r };
           }
-          // Jeúli jest "zamÛw"/"wybieram" õ create_order
+          // Je≈õli jest "zam√≥w"/"wybieram" ‚Ä∫ create_order
           if (allOrderKeywords.some(k => lower.includes(k))) {
             updateDebugSession({
               intent: 'create_order',
@@ -1414,7 +1418,7 @@ export async function detectIntent(text, session = null, entities = {}) {
             });
             return { intent: 'create_order', restaurant: r };
           }
-          // W przeciwnym razie õ select_restaurant
+          // W przeciwnym razie ‚Ä∫ select_restaurant
           updateDebugSession({
             intent: 'select_restaurant',
             restaurant: r.name,
@@ -1426,7 +1430,7 @@ export async function detectIntent(text, session = null, entities = {}) {
       }
     }
 
-    // ?? PRIORYTET 2: Sprawdü menu keywords (bardziej specyficzne niø order)
+    // ?? PRIORYTET 2: Sprawd≈∫ menu keywords (bardziej specyficzne ni≈º order)
     if (allMenuKeywords.some(k => lower.includes(k))) {
       updateDebugSession({
         intent: 'menu_request',
@@ -1437,7 +1441,7 @@ export async function detectIntent(text, session = null, entities = {}) {
       return { intent: 'menu_request', restaurant: null };
     }
 
-    // ?? PRIORYTET 3: Sprawdü order keywords
+    // ?? PRIORYTET 3: Sprawd≈∫ order keywords
     if (allOrderKeywords.some(k => lower.includes(k))) {
       updateDebugSession({
         intent: 'create_order',
@@ -1448,7 +1452,7 @@ export async function detectIntent(text, session = null, entities = {}) {
       return { intent: 'create_order', restaurant: null };
     }
 
-    // ?? PRIORYTET 4: Sprawdü nearby keywords
+    // ?? PRIORYTET 4: Sprawd≈∫ nearby keywords
     console.log('[intent-router] Checking nearby keywords...');
     console.log('[intent-router] Text:', text);
     console.log('[intent-router] Normalized:', lower);
@@ -1468,14 +1472,14 @@ export async function detectIntent(text, session = null, entities = {}) {
       return { intent: 'find_nearby', restaurant: null };
     }
 
-    // Jeúli Amber nie zna frazy ó zapisuje jπ do bazy do przysz≥ego uczenia
+    // Je≈õli Amber nie zna frazy ‚Äî zapisuje jƒÖ do bazy do przysz≈Çego uczenia
     try {
       await supabase.from('phrases').insert({ text: text, intent: 'none' });
     } catch (err) {
       console.warn('?? Phrase insert skipped:', err.message);
     }
 
-    // Bezpieczny fallback - zawsze zwrÛÊ jakiú intent (NIE 'none')
+    // Bezpieczny fallback - zawsze zwr√≥ƒá jaki≈õ intent (NIE 'none')
     const fallback = safeFallbackIntent(text, 'no_keywords_matched');
     updateDebugSession({
       intent: fallback.intent,
@@ -1486,7 +1490,7 @@ export async function detectIntent(text, session = null, entities = {}) {
     return fallback;
   } catch (err) {
     console.error('?? detectIntent error:', err.message);
-    // Bezpieczny fallback - zawsze zwrÛÊ jakiú intent (NIE throw, NIE crash)
+    // Bezpieczny fallback - zawsze zwr√≥ƒá jaki≈õ intent (NIE throw, NIE crash)
     const fallback = safeFallbackIntent(text, `error_in_detection: ${err.message}`);
     updateDebugSession({
       intent: fallback.intent,
@@ -1502,32 +1506,32 @@ export async function handleIntent(intent, text, session) {
   try {
     switch (intent) {
       case "select_restaurant": {
-        // Ten case jest obs≥ugiwany w brainRouter.js
-        return { reply: "Restauracja wybrana, przechodzÍ do brainRouter..." };
+        // Ten case jest obs≈Çugiwany w brainRouter.js
+        return { reply: "Restauracja wybrana, przechodzƒô do brainRouter..." };
       }
 
       case "create_order": {
         const restaurant = session?.lastRestaurant;
         if (!restaurant) {
-          return { reply: "Najpierw wybierz restauracjÍ, zanim z≥oøysz zamÛwienie." };
+          return { reply: "Najpierw wybierz restauracjƒô, zanim z≈Ço≈ºysz zam√≥wienie." };
         }
 
         try {
           const order = await createOrder(restaurant.id, session?.userId || "guest");
           return {
-            reply: `ZamÛwienie utworzone w ${restaurant.name}. Numer: ${order?.id || "brak danych"}.`,
+            reply: `Zam√≥wienie utworzone w ${restaurant.name}. Numer: ${order?.id || "brak danych"}.`,
             order,
           };
         } catch (err) {
           console.error("?? createOrder error:", err.message);
-          return { reply: "Nie uda≥o siÍ utworzyÊ zamÛwienia. SprÛbuj ponownie." };
+          return { reply: "Nie uda≈Ço siƒô utworzyƒá zam√≥wienia. Spr√≥buj ponownie." };
         }
       }
 
       case "menu_request": {
         const restaurant = session?.lastRestaurant;
         if (!restaurant) {
-          return { reply: "Najpierw wybierz restauracjÍ, øebym mog≥a pobraÊ menu." };
+          return { reply: "Najpierw wybierz restauracjƒô, ≈ºebym mog≈Ça pobraƒá menu." };
         }
 
         try {
@@ -1544,7 +1548,7 @@ export async function handleIntent(intent, text, session) {
               ok: false,
               intent: "menu_request",
               restaurant,
-              reply: "Nie mogÍ pobraÊ danych z bazy. Sprawdü po≥πczenie z serwerem.",
+              reply: "Nie mogƒô pobraƒá danych z bazy. Sprawd≈∫ po≈ÇƒÖczenie z serwerem.",
             };
           }
 
@@ -1553,13 +1557,13 @@ export async function handleIntent(intent, text, session) {
           }
 
           return {
-            reply: `W ${restaurant.name} dostÍpne: ${menu
-              .map((m) => `${m.name} (${Number(m.price_pln).toFixed(2)} z≥)`)
+            reply: `W ${restaurant.name} dostƒôpne: ${menu
+              .map((m) => `${m.name} (${Number(m.price_pln).toFixed(2)} z≈Ç)`)
               .join(", ")}.`,
           };
         } catch (err) {
           console.error("?? menu_request error:", err.message);
-          return { reply: "Nie mogÍ pobraÊ menu. Sprawdü po≥πczenie z bazπ." };
+          return { reply: "Nie mogƒô pobraƒá menu. Sprawd≈∫ po≈ÇƒÖczenie z bazƒÖ." };
         }
       }
 
@@ -1576,35 +1580,35 @@ export async function handleIntent(intent, text, session) {
               ok: false,
               intent: "find_nearby",
               restaurant: null,
-              reply: "Nie mogÍ pobraÊ danych z bazy. Sprawdü po≥πczenie z serwerem.",
+              reply: "Nie mogƒô pobraƒá danych z bazy. Sprawd≈∫ po≈ÇƒÖczenie z serwerem.",
             };
           }
 
           if (!data?.length) {
-            return { reply: "Nie znalaz≥am restauracji w pobliøu." };
+            return { reply: "Nie znalaz≈Çam restauracji w pobli≈ºu." };
           }
 
           return {
             reply:
-              "W pobliøu moøesz zjeúÊ w: " +
+              "W pobli≈ºu mo≈ºesz zje≈õƒá w: " +
               data.map((r) => `${r.name} (${r.city || r.address})`).join(", "),
           };
         } catch (err) {
           console.error("?? find_nearby error:", err.message);
-          return { reply: "Nie mogÍ pobraÊ listy restauracji. Sprawdü po≥πczenie." };
+          return { reply: "Nie mogƒô pobraƒá listy restauracji. Sprawd≈∫ po≈ÇƒÖczenie." };
         }
       }
 
       case "none":
-        return { reply: "Nie jestem pewna, co masz na myúli ó sprÛbuj inaczej." };
+        return { reply: "Nie jestem pewna, co masz na my≈õli ‚Äî spr√≥buj inaczej." };
 
       default:
         console.warn(`?? Unknown intent: ${intent}`);
-        return { reply: "Nie jestem pewna, co masz na myúli ó sprÛbuj inaczej." };
+        return { reply: "Nie jestem pewna, co masz na my≈õli ‚Äî spr√≥buj inaczej." };
     }
   } catch (err) {
     console.error("?? handleIntent error:", err.message);
-    return { reply: "Wystπpi≥ b≥πd podczas przetwarzania. SprÛbuj ponownie." };
+    return { reply: "WystƒÖpi≈Ç b≈ÇƒÖd podczas przetwarzania. Spr√≥buj ponownie." };
   }
 }
 
@@ -1632,7 +1636,7 @@ export async function trainIntent(phrase, correctIntent) {
         return { ok: false, error: updateError.message };
       }
 
-      console.log(`? Updated phrase "${phrase}" õ ${correctIntent}`);
+      console.log(`? Updated phrase "${phrase}" ‚Ä∫ ${correctIntent}`);
       return { ok: true, action: 'updated' };
     } else {
       const { error: insertError } = await supabase
@@ -1644,7 +1648,7 @@ export async function trainIntent(phrase, correctIntent) {
         return { ok: false, error: insertError.message };
       }
 
-      console.log(`? Inserted phrase "${phrase}" õ ${correctIntent}`);
+      console.log(`? Inserted phrase "${phrase}" ‚Ä∫ ${correctIntent}`);
       return { ok: true, action: 'inserted' };
     }
   } catch (err) {

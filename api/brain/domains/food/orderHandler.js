@@ -611,7 +611,11 @@ function resolveMainItemStrict({ menu = [], rawRequestedDish = '', requestedDish
     }
 
     const mainItems = menu.filter(isMainMenuItem);
-    const candidatePool = mainItems.length > 0 ? mainItems : menu;
+    // Only search MAIN items — do NOT fall back to full menu.
+    // When menu has only ADDONs, returning null here lets canPromoteSingleAddon
+    // evaluate the item properly in the caller (execute()).
+    const candidatePool = mainItems;
+    if (candidatePool.length === 0) return null;
 
     const exactAttempts = [rawRequestedDish, canonicalDish, requestedDish]
         .map((value) => normalizeDish(value || ''))

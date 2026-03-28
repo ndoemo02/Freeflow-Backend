@@ -83,7 +83,7 @@ describe('NLU regression matrix', () => {
     });
 
     expect(result.intent).toBe('create_order');
-    expect(result.source).toBe('dish_guard');
+    expect(result.source).toBe('compound_parser'); // dish_guard renamed to compound_parser for this path
     expect(result.entities?.dish).toBe('Vege Burger');
     expect(result.entities?.quantity).toBe(2);
   });

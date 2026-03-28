@@ -527,7 +527,7 @@ export class NLURouter {
                         compoundSource: 'compound_parser',
                         skipCategoryClarify: allowSingleCompound,
                         skipGenericTokenBlock: allowSingleCompound,
-                        quantity: null,
+                        quantity: canonicalizedItems.length === 1 ? (Number(canonicalizedItems[0]?.quantity) || null) : null,
                         hasExplicitNumber: canonicalizedItems.some((item) => Number(item?.quantity || 1) > 1),
                     }
                 };
@@ -708,6 +708,7 @@ export class NLURouter {
                 return {
                     intent: 'find_nearby',
                     confidence: 0.99,
+                    source: 'discovery_guard_block',
                     entities
                 };
             }
@@ -846,6 +847,20 @@ export class NLURouter {
                 source: 'regex_v2',
                 entities
             };
+        }
+
+        // --- SOFT_MENU_REQUEST_GUARD: Vague menu-browsing phrases inside restaurant context ---
+        // Must run BEFORE smart intent / LLM layers to prevent LLM from returning show_menu
+        if (session?.currentRestaurant) {
+            const isSoftMenuQuery = /^(co\s+(maj[a]|serwuj[a]|polecasz|poleca|proponuj[a]?)|cos\s+smacznego)$/i.test(normalized);
+            if (isSoftMenuQuery) {
+                return {
+                    intent: 'menu_request',
+                    confidence: 0.85,
+                    source: 'soft_menu_request_guard',
+                    entities
+                };
+            }
         }
 
         // 2. Smart Intent Layer (Hybrid: LLM Fallback)

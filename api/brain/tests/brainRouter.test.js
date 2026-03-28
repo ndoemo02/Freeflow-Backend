@@ -51,7 +51,7 @@ describe('🧠 BrainRouter Logic Tests', () => {
       const result = boostIntent('none', 'tak', session);
       // Logic handles object or string. Check prop.
       const intent = typeof result === 'object' ? result.intent : result;
-      expect(intent).toBe('show_menu');
+      expect(intent).toBe('menu_request'); // show_menu renamed to menu_request
     });
 
     it('should NOT boost simple "tak" without confirm context', () => {
