@@ -5,7 +5,8 @@ export default defineConfig({
   test: {
     include: [
       'tests/**/*.test.{js,ts}',
-      'api/brain/tests/**/*.test.{js,ts}'
+      'api/brain/tests/**/*.test.{js,ts}',
+      'api/voice/live/tests/**/*.test.{js,ts}'
     ],
     globals: true,
     environment: 'node',
