@@ -16,6 +16,7 @@ import { canonicalizeDish } from './dishCanon.js';
 
 function isExplicitRestaurantSearch(text = '') {
     const t = String(text || '').toLowerCase();
+    const loose = toLooseAscii(text);
     return [
         'restaurac',
         'pokaÄąÄ˝ restauracje',
@@ -33,7 +34,17 @@ function isExplicitRestaurantSearch(text = '') {
         'gdzie mogÄ™ zamĂłwiÄ‡',
         'gdzie mogĂ„â„˘ zjeÄąâ€şĂ„â€ˇ',
         'gdzie moge zjesc'
-    ].some(k => t.includes(k));
+    ].some(k => t.includes(k) || loose.includes(toLooseAscii(k)));
+}
+
+function toLooseAscii(value = '') {
+    return String(value || '')
+        .toLowerCase()
+        .normalize('NFKD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9\s]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
 }
 
 function isAliasBundleText(value = '') {
@@ -188,6 +199,7 @@ export class NLURouter {
     async _detectInternal(ctx) {
         const { text, session } = ctx;
         const normalized = normalizeTxt(text);
+        const normalizedLoose = toLooseAscii(text);
 
         BrainLogger.nlu('Detecting intent for:', text);
 
@@ -257,8 +269,12 @@ export class NLURouter {
         const isExplicitCheckoutRequest =
             /\b(checkout\w*|kasa|platnosc\w*|zaplac\w*|finaliz\w*|zloz(?:yc)?\s+zamowienie|przejdz\s+do\s+platnosci)\b/i
                 .test(normalized) ||
-            /\b(pokaz|przejdz(?:my)?|otworz|idz)\b.*\bkoszyk/i.test(normalized) ||
-            /^\s*koszyk\s*$/i.test(normalized);
+            /\b(pokaz|przejdz(?:my)?|otworz|idz|podejrz(?:ec|yc)|podejrzyj|podglad|zobacz|sprawdz)\b.*\b(koszyk|zamowienie)\b/i.test(normalized) ||
+            /\b(chcialbym|chcialabym|chce)\b.*\b(podejrz(?:ec|yc)|podejrzyj|zobacz|sprawdz)\b.*\b(koszyk|zamowienie)\b/i.test(normalized) ||
+            /^\s*(koszyk|zamowienie)\s*$/i.test(normalized) ||
+            /\b(pokaz|przejdz(?:my)?|otworz|idz|podejrzec|podejrzyj|podglad|zobacz|sprawdz)\b.*\b(koszyk|zamowienie)\b/i.test(normalizedLoose) ||
+            /\b(chce|chcialbym|chcialabym|chcial bym)\b.*\b(podejrzec|podejrzyj|zobacz|sprawdz)\b.*\b(koszyk|zamowienie)\b/i.test(normalizedLoose) ||
+            /^\s*(koszyk|zamowienie)\s*$/i.test(normalizedLoose);
 
         if (isExplicitCheckoutRequest) {
             console.log('[CHECKOUT_BRIDGE_TRACE]', JSON.stringify({
