@@ -64,6 +64,13 @@ export const RESTAURANT_CATALOG = [
         cuisine: 'Kebab'
     },
     {
+        id: '222d1e64-5d87-4f78-a0ca-f92da4f76d65',
+        name: 'LAWASZ KEBAB',
+        aliases: ['lawasz', 'lawasz kebab', 'lawasz kebs', 'lawaszkebab'],
+        city: 'Piekary Śląskie',
+        cuisine: 'Kebab'
+    },
+    {
         id: '83566974-1017-4408-90ee-2571ccc06978',
         name: 'Pizzeria Monte Carlo',
         aliases: ['monte carlo', 'monte', 'carlo', 'monte carlo'],

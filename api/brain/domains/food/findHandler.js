@@ -190,6 +190,31 @@ export class FindRestaurantHandler {
                 return { reply: "Nie udało mi się pobrać lokalizacji.", error: 'db_error' };
             }
 
+            // If GPS+cuisine returns too few hits, enrich with city+cuisine candidates from
+            // session context. This helps include restaurants missing valid lat/lng.
+            if (cuisine && Array.isArray(restaurants) && restaurants.length < 2) {
+                const cityHint = normalizeLocation(ctx?.session?.last_location || null);
+                if (cityHint) {
+                    try {
+                        const cityCandidates = await this.repo.searchRestaurants(cityHint, cuisine);
+                        const knownIds = new Set(restaurants.map(r => r.id));
+                        for (const candidate of cityCandidates || []) {
+                            if (!knownIds.has(candidate.id)) {
+                                restaurants.push(candidate);
+                                knownIds.add(candidate.id);
+                            }
+                        }
+                        console.log('[GPS_CITY_ENRICH_TRACE]', JSON.stringify({
+                            cuisine,
+                            cityHint,
+                            resultCount: restaurants.length
+                        }));
+                    } catch (enrichErr) {
+                        console.warn('GPS->CITY enrichment failed:', enrichErr?.message || enrichErr);
+                    }
+                }
+            }
+
             if (!restaurants || restaurants.length === 0) {
                 return {
                     reply: cuisine
