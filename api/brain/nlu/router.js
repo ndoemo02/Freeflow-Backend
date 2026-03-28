@@ -198,8 +198,9 @@ export class NLURouter {
 
     async _detectInternal(ctx) {
         const { text, session } = ctx;
-        const normalized = normalizeTxt(text);
-        const normalizedLoose = toLooseAscii(text);
+        const safeText = text.replace(/\uFFFD/g, '');
+        const normalized = normalizeTxt(safeText);
+        const normalizedLoose = toLooseAscii(safeText);
 
         BrainLogger.nlu('Detecting intent for:', text);
 
@@ -269,11 +270,11 @@ export class NLURouter {
         const isExplicitCheckoutRequest =
             /\b(checkout\w*|kasa|platnosc\w*|zaplac\w*|finaliz\w*|zloz(?:yc)?\s+zamowienie|przejdz\s+do\s+platnosci)\b/i
                 .test(normalized) ||
-            /\b(pokaz|przejdz(?:my)?|otworz|idz|podejrz(?:ec|yc)|podejrzyj|podglad|zobacz|sprawdz)\b.*\b(koszyk|zamowienie)\b/i.test(normalized) ||
-            /\b(chcialbym|chcialabym|chce)\b.*\b(podejrz(?:ec|yc)|podejrzyj|zobacz|sprawdz)\b.*\b(koszyk|zamowienie)\b/i.test(normalized) ||
+            /\b(pokaz|przejd[zź](?:my)?|otworz|idz|podejrze\w*|podejrzyj|podglad|zobacz|sprawdz)\b.*\b(koszyk\w*|zam\w*ienie)\b/i.test(normalized) ||
+            /\b(chcial?bym|chcialabym|chce)\b.*\b(podejrze\w*|podejrzyj|zobacz|sprawdz)\b.*\b(koszyk\w*|zam\w*ienie)\b/i.test(normalized) ||
             /^\s*(koszyk|zamowienie)\s*$/i.test(normalized) ||
-            /\b(pokaz|przejdz(?:my)?|otworz|idz|podejrzec|podejrzyj|podglad|zobacz|sprawdz)\b.*\b(koszyk|zamowienie)\b/i.test(normalizedLoose) ||
-            /\b(chce|chcialbym|chcialabym|chcial bym)\b.*\b(podejrzec|podejrzyj|zobacz|sprawdz)\b.*\b(koszyk|zamowienie)\b/i.test(normalizedLoose) ||
+            /\b(pokaz|przejd[zź](?:my)?|otworz|idz|podejrze\w*|podejrzyj|podglad|zobacz|sprawdz)\b.*\b(koszyk\w*|zam\w*ienie)\b/i.test(normalizedLoose) ||
+            /\b(chce|chcial?bym|chcialabym|chcial bym)\b.*\b(podejrze\w*|podejrzyj|zobacz|sprawdz)\b.*\b(koszyk\w*|zam\w*ienie)\b/i.test(normalizedLoose) ||
             /^\s*(koszyk|zamowienie)\s*$/i.test(normalizedLoose);
 
         if (isExplicitCheckoutRequest) {
