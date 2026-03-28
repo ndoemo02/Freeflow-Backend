@@ -13,6 +13,20 @@
  *   BrainLogger.nlu("Matched intent:", "food.find");
  */
 
+/**
+ * Sanitize a log argument for safe UTF-8 terminal output.
+ * Strips C1 control characters (U+0080–U+009F) — the artefact of
+ * CP1252→UTF-8 double-encoding of emoji in source string literals.
+ * Polish characters (U+00A0–U+024F) pass through unchanged.
+ * Non-string values are returned as-is.
+ * Exported so the sanity script and unit tests can use it directly.
+ */
+export function safeLogStr(val) {
+    if (typeof val !== 'string') return val;
+    // eslint-disable-next-line no-control-regex
+    return val.replace(/[\u0080-\u009F]/g, '?');
+}
+
 const LOG_TAGS = {
     NLU: '[NLU]',
     PIPELINE: '[PIPELINE]',
@@ -35,7 +49,7 @@ export const BrainLogger = {
      */
     _log: (tag, ...args) => {
         if (shouldLog()) {
-            console.log(tag, ...args);
+            console.log(safeLogStr(tag), ...args.map(safeLogStr));
         }
     },
 
@@ -66,7 +80,7 @@ export const BrainLogger = {
      */
     debug: (...args) => {
         if (shouldLog()) {
-            console.log('[BRAIN]', ...args);
+            console.log('[BRAIN]', ...args.map(safeLogStr));
         }
     },
 
@@ -74,6 +88,6 @@ export const BrainLogger = {
      * Always logs — for strict mode violations and critical errors
      */
     critical: (...args) => {
-        console.error('[BRAIN:CRITICAL]', ...args);
+        console.error('[BRAIN:CRITICAL]', ...args.map(safeLogStr));
     }
 };
