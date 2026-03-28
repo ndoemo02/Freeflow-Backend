@@ -314,6 +314,7 @@ export async function playTTS(text, options = {}) {
   console.time('tts_total');
   try {
     text = normalizeForTTS(text);
+    if (process.env.NODE_ENV === 'test') { console.timeEnd('tts_total'); return null; }
     let cfg;
     try {
       cfg = await getConfig();

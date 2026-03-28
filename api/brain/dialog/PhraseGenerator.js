@@ -93,8 +93,8 @@ export async function generatePhrase(input, options = {}) {
     const surface = { key: surfaceKey, facts };
     const { reply: templateText, uiHints } = renderSurface(surface);
 
-    // If LLM disabled or skipped, return template
-    if (!PHRASE_GENERATOR_CONFIG.enabled || skipLLM) {
+    // If LLM disabled, skipped, or running under test — use deterministic template
+    if (!PHRASE_GENERATOR_CONFIG.enabled || skipLLM || process.env.NODE_ENV === 'test') {
         return {
             spokenText: templateText,
             ssml: wrapSSML(templateText),
