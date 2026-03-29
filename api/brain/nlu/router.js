@@ -21,7 +21,7 @@ function isExplicitRestaurantSearch(text = '') {
         'restaurac',
         'pokaż restauracje',
         'pokaz restauracje',
-        'znajdÄąĹź restauracje',
+        'znajdz restauracje',
         'znajdz restauracje',
         'dostępne restauracje',
         'dostepne restauracje',
@@ -31,10 +31,17 @@ function isExplicitRestaurantSearch(text = '') {
         'gdzie zamowie',
         'gdzie zamówię',
         'gdzie moge zamowic',
-        'gdzie mogÄ™ zamĂłwiÄ‡',
+        'gdzie moge zamowic',
         'gdzie mogę zjeść',
         'gdzie moge zjesc'
     ].some(k => t.includes(k) || loose.includes(toLooseAscii(k)));
+}
+
+function hasDiscoverySignal(text = '', normalizedLoose = '', location = null) {
+    const loose = normalizedLoose || toLooseAscii(text);
+    const hasQueryVerb = /\b(gdzie|pokaz|szukam|znajdz|restaurac)\b/.test(loose);
+    const hasDiscoveryContext = /\b(zjem|zamowie|zamowic|w okolicy|w poblizu|restaurac)\b/.test(loose);
+    return isExplicitRestaurantSearch(text) || (Boolean(location) && hasQueryVerb) || (hasQueryVerb && hasDiscoveryContext);
 }
 
 function toLooseAscii(value = '') {
@@ -191,7 +198,7 @@ export class NLURouter {
         // Enrich with domain
         result.domain = this._mapDomain(result.intent);
 
-        console.log('Ä‘ĹşÂ§Â  NLURouter Result:', JSON.stringify(result, null, 2));
+        console.log('[NLU_ROUTER_RESULT]', JSON.stringify(result, null, 2));
         BrainLogger.nlu('Result:', result);
         return result;
     }
@@ -213,9 +220,9 @@ export class NLURouter {
         // 2. Static Catalog Lookup (Fast Match)
         // Instant 0ms check against known 9 restaurants
         const matchedRestaurant = findRestaurantInText(text);
-        const explicitRestaurantSearch = isExplicitRestaurantSearch(text);
+        const explicitDiscoverySignal = hasDiscoverySignal(text, normalizedLoose, location);
 
-        if (session?.currentRestaurant && explicitRestaurantSearch) {
+        if (session?.currentRestaurant && explicitDiscoverySignal) {
             console.log('[DISCOVERY_CONTEXT_OVERRIDE_TRACE]', JSON.stringify({
                 source: 'restaurant_navigation_override',
                 text,
@@ -255,7 +262,7 @@ export class NLURouter {
         // --- PRIORITY: Explicit Intent Commands Override Awaiting State ---
         // If user says "Pokaż menu", that's menu_request even if system was awaiting location
         const isExplicitMenuRequest = /^(poka[zż]\s+)?(menu|karta|karte|kartę|oferta|oferte|ofertę|list[ae])(\s+da[ńn])?$/i.test(normalized) ||
-            /\b(poka[zż]|zobacz|sprawdz|sprawdÄąĹź|co)\b.*\b(menu|karta|karte|kartę|oferta|oferte|ofertę|list[ae]|cennik|macie)\b/i.test(normalized);
+            /\b(poka[zż]|zobacz|sprawdz|co)\b.*\b(menu|karta|karte|kartę|oferta|oferte|ofertę|list[ae]|cennik|macie)\b/i.test(normalized);
 
         if (isExplicitMenuRequest && session?.currentRestaurant) {
             return {
@@ -329,7 +336,7 @@ export class NLURouter {
             }
         }
 
-        if (session?.conversationPhase === 'ordering' && /\b(anuluj|stop|rezygnuj[eÄ™]|niewazne|niewaĹĽne)\b/i.test(normalized)) {
+        if (session?.conversationPhase === 'ordering' && /\b(anuluj|stop|rezygnuj[eę]|niewazne)\b/i.test(normalized)) {
             return { intent: 'cancel_order', confidence: 1.0, source: 'ordering_escape_guard', entities };
         }
         // Guard for confirm_restaurant context (fuzzy confirmation)
@@ -350,7 +357,7 @@ export class NLURouter {
         }
 
         if (session?.expectedContext === 'select_restaurant' || session?.expectedContext === 'show_more_options') {
-            const isIntentLike = /(menu|zamawiam|zamów|poproszę|poprosze|wezmę|wezme|chcę|chce|pokaż|pokaz|znajdÄąĹź|znajdz|gdzie|health|checkout|kasa|platnosc)/i.test(normalized);
+            const isIntentLike = /(menu|zamawiam|zamów|poproszę|poprosze|wezmę|wezme|chcę|chce|pokaż|pokaz|znajdz|gdzie|health|checkout|kasa|platnosc)/i.test(normalized);
             const isManualSelection = /\b(numer|nr|opcja|opcje)\s+\d+\b/i.test(normalized);
             // If it's just a number or simple phrase, it's selection
             if (!isIntentLike || /^[0-9]\b/.test(normalized.trim()) || isManualSelection) {
@@ -612,14 +619,14 @@ export class NLURouter {
 
                     if (matchedWord) {
                         dishMatch = item;
-                        BrainLogger.nlu(`Ä‘Ĺşâ€ťÂ¤ DISH_ALIAS: "${matchedWord}" Ă˘â€ â€™ "${item.name}"`);
+                        BrainLogger.nlu(`[DISH_ALIAS] "${matchedWord}" -> "${item.name}"`);
                         break;
                     }
                 }
             }
 
             if (dishMatch) {
-                BrainLogger.nlu(`Ä‘ĹşĹ¤ËťÄŹÂ¸Ĺą DISH_GUARD: Matched "${dishMatch.name}" from menu in restaurant ${session.currentRestaurant.name}`);
+                BrainLogger.nlu(`[DISH_GUARD] Matched "${dishMatch.name}" from menu in restaurant ${session.currentRestaurant.name}`);
                 const amountMatches = text.match(/\d+/g);
                 const hasExplicitNumber = Boolean(amountMatches);
 
@@ -642,7 +649,7 @@ export class NLURouter {
         // --- Patch 3: Quantity + Dish merge (simplified, entities-level) ---
         // If NLU extracted quantity + dish, and we have any ordering context, force create_order.
         if (entities.quantity && entities.quantity > 1 && entities.dish) {
-            BrainLogger.nlu(`Ä‘Ĺşâ€ťË QTY_DISH_MERGE: qty=${entities.quantity} dish="${entities.dish}"`);
+            BrainLogger.nlu(`[QTY_DISH_MERGE] qty=${entities.quantity} dish="${entities.dish}"`);
             return {
                 intent: 'create_order',
                 domain: 'ordering',
@@ -658,7 +665,7 @@ export class NLURouter {
 
         // 0. Explicit Discovery Keywords (includes location-relative phrases)
         // NOTE: Include both Polish and ASCII versions since normalizeTxt strips diacritics
-        const DISCOVERY_KEYWORDS = ['miejsca', 'restauracje', 'lokale', 'pizzerie', 'gdzie', 'szukam', 'znajdz', 'znajdÄąĹź',
+        const DISCOVERY_KEYWORDS = ['miejsca', 'restauracje', 'lokale', 'pizzerie', 'gdzie', 'szukam', 'znajdz',
             'kolo mnie', 'koło mnie', 'w poblizu', 'w pobliżu', 'blisko', 'niedaleko', 'w okolicy'];
         // 0.25 Uncertainty markers (e.g., "kfc chyba" = user is exploring, not ordering)
         const UNCERTAINTY_KEYWORDS = ['chyba', 'może', 'jakiś', 'jakieś', 'coś'];
@@ -676,7 +683,7 @@ export class NLURouter {
 
         if (isRecommend) {
             if (session?.currentRestaurant) {
-                BrainLogger.nlu('Ä‘Ĺşâ€şË‡ÄŹÂ¸Ĺą IN_RESTAURANT_GUARD: blocked recommend/find_nearby inside restaurant context');
+                BrainLogger.nlu('[IN_RESTAURANT_GUARD] blocked recommend/find_nearby inside restaurant context');
             } else {
             // If recommend + location Ă˘â€ â€™ treat as find_nearby (implicit discovery)
                 if (location) {
@@ -821,7 +828,7 @@ export class NLURouter {
         // A. Menu Request (Simple only OR complex with "pokaż menu")
         // Relaxed: if "pokaż/zobacz" + "menu/karta/oferta" anywhere in text OR "co macie"
         if (/^(poka[zż]\s+)?(menu|karta|karte|kartę|oferta|oferte|ofertę|list[ae])(\s+da[ńn])?$/i.test(normalized) ||
-            /\b(poka[zż]|zobacz|sprawdz|sprawdÄąĹź|co)\b.*\b(menu|karta|karte|kartę|oferta|oferte|ofertę|list[ae]|cennik|macie|oferte|ofertę)\b/i.test(normalized)) {
+            /\b(poka[zż]|zobacz|sprawdz|co)\b.*\b(menu|karta|karte|kartę|oferta|oferte|ofertę|list[ae]|cennik|macie|oferte|ofertę)\b/i.test(normalized)) {
             return {
                 intent: 'menu_request',
                 confidence: 0.95,
@@ -834,7 +841,7 @@ export class NLURouter {
         // NOTE: Also triggers for standalone food words when no order context (exploration mode)
         // B. Find Nearby / Discovery (Fallback Regex)
         // NOTE: Also triggers for standalone food words when no order context (exploration mode)
-        const findRegex = /(co|gdzie).*(zje[sś][ćc]|poleca|poleci|masz|macie|jedzenia|jedzenie)|(szukam|znajd[ÄąĹźz]).*|(chc[ęe]|głodny|glodny|ochote|ochotę|co[śs]).*(co[śs]|zje[sś][ćc]|jedzenie|kuchni)|(lokale|restauracje|knajpy|pizzeri[ae]|kebaby|kebab|bary|pizza|burger|jedzenie|głodny|glodny)/i;
+        const findRegex = /(co|gdzie).*(zje[sś][ćc]|poleca|poleci|masz|macie|jedzenia|jedzenie)|(szukam|znajd[zź]).*|(chc[ęe]|głodny|glodny|ochote|ochotę|co[śs]).*(co[śs]|zje[sś][ćc]|jedzenie|kuchni)|(lokale|restauracje|knajpy|pizzeri[ae]|kebaby|kebab|bary|pizza|burger|jedzenie|głodny|glodny)/i;
 
         // Guard: don't trigger findRegex if we have strong ordering verbs like "poproszę" or "zamawiam"
         // UPDATED: Syncing verbs
@@ -887,8 +894,8 @@ export class NLURouter {
                 });
 
                 if (smartResult && smartResult.intent && smartResult.intent !== 'unknown') {
-                    if (session?.currentRestaurant && ['find_nearby', 'choose_restaurant', 'select_restaurant'].includes(smartResult.intent) && !isExplicitRestaurantSearch(text)) {
-                        BrainLogger.nlu(`Ä‘Ĺşâ€şË‡ÄŹÂ¸Ĺą SMART_DISCOVERY_GUARD: blocked "${smartResult.intent}" while in restaurant context`);
+                    if (session?.currentRestaurant && ['find_nearby', 'choose_restaurant', 'select_restaurant'].includes(smartResult.intent) && !explicitDiscoverySignal) {
+                        BrainLogger.nlu(`[SMART_DISCOVERY_GUARD] blocked "${smartResult.intent}" while in restaurant context`);
                     } else {
                     return {
                         intent: smartResult.intent,
@@ -936,13 +943,13 @@ export class NLURouter {
 
                 if (llmResult && llmResult.intent !== 'unknown' && llmResult.source === 'llm_translator') {
                     if (session?.currentRestaurant && ['find_nearby', 'choose_restaurant', 'select_restaurant'].includes(llmResult.intent) && !isExplicitRestaurantSearch(text)) {
-                        BrainLogger.nlu(`Ä‘Ĺşâ€şË‡ÄŹÂ¸Ĺą LLM_DISCOVERY_GUARD: blocked "${llmResult.intent}" while in restaurant context`);
+                        BrainLogger.nlu(`[LLM_DISCOVERY_GUARD] blocked "${llmResult.intent}" while in restaurant context`);
                     } else {
                     // Ă˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘Â
                     // HARD BLOCK: LLM cannot execute ordering intents
                     // Ă˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘Â
                     if (llmResult.intent === 'create_order' || llmResult.intent === 'confirm_order') {
-                        console.warn('Ä‘Ĺşâ€şË‡ÄŹÂ¸Ĺą LLM tried ordering intent - blocked, downgrading to find_nearby');
+                        console.warn('[LLM_DISCOVERY_GUARD] LLM tried ordering intent - blocked, downgrading to find_nearby');
                         return {
                             intent: 'find_nearby',
                             confidence: 0.7,
@@ -967,7 +974,7 @@ export class NLURouter {
                     }
                 }
             } catch (e) {
-                console.warn('Ä‘Ĺşâ€şË‡ÄŹÂ¸Ĺą LLM Translator failed:', e.message);
+                console.warn('[LLM_TRANSLATOR_FAILED]', e.message);
                 // Continue to final fallback
             }
         }
@@ -982,7 +989,7 @@ export class NLURouter {
                     : [];
 
             if (!isControlIntent) {
-                if (explicitRestaurantSearch) {
+                if (explicitDiscoverySignal) {
                     return {
                         intent: 'find_nearby',
                         confidence: 0.9,

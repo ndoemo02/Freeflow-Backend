@@ -21,10 +21,35 @@
  * Non-string values are returned as-is.
  * Exported so the sanity script and unit tests can use it directly.
  */
+function mojibakeScore(str) {
+    if (!str) return 0;
+    const suspicious = (str.match(/[ÃÂâÄĹĂ]/g) || []).length;
+    const replacement = (str.match(/\uFFFD/g) || []).length;
+    const controls = (str.match(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g) || []).length;
+    return suspicious + (replacement * 3) + (controls * 4);
+}
+
+function tryRepairMojibake(str) {
+    // Fast path: no mojibake markers detected.
+    if (!/[ÃÂâÄĹĂ]/.test(str)) return str;
+
+    try {
+        const repaired = Buffer.from(str, 'latin1').toString('utf8');
+        if (!repaired) return str;
+        return mojibakeScore(repaired) < mojibakeScore(str) ? repaired : str;
+    } catch {
+        return str;
+    }
+}
+
 export function safeLogStr(val) {
     if (typeof val !== 'string') return val;
+
+    let repaired = tryRepairMojibake(val);
+    // Remove legacy mojibake prefixes before readable tags/text, e.g. "Ä‘ĹşÂ§Â  [NLU] ..."
+    repaired = repaired.replace(/^[^\x00-\x7F]{2,}\s+(?=[A-Za-z\[])/u, '');
     // eslint-disable-next-line no-control-regex
-    return val.replace(/[\u0080-\u009F]/g, '?');
+    return repaired.replace(/[\u0080-\u009F]/g, '?');
 }
 
 const LOG_TAGS = {
