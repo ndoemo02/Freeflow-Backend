@@ -163,20 +163,19 @@ function buildMenuSummaryForTTSV2(menuItems) {
 
 function isExplicitRestaurantNavigation(text = '') {
     const normalized = String(text || '').toLowerCase();
+    const ascii = normalized
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/ł/g, 'l');
     return [
         'restaurac',
         'pokaz restauracje',
-        'pokaďż˝ restauracje',
         'znajdz restauracje',
-        'znajdďż˝ restauracje',
         'dostepne restauracje',
-        'dostďż˝pne restauracje',
         'w poblizu',
-        'w pobliďż˝u',
         'gdzie moge zjesc',
-        'gdzie mogďż˝ zjeďż˝ďż˝',
         'gdzie zjem'
-    ].some((phrase) => normalized.includes(phrase));
+    ].some((phrase) => ascii.includes(phrase));
 }
 
 function mapOrderModeEvent({ intent = '', preState = ORDER_MODE_STATE.NEUTRAL, domainResponse = null }) {

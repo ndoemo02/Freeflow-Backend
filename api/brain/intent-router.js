@@ -784,6 +784,22 @@ function isExploratory(text) {
   return false;
 }
 
+function isExplicitCheckoutBridge(text = '') {
+  const raw = String(text || '').trim();
+  const t = normalizeTxt(raw);
+
+  if (!t) return false;
+
+  const hasCheckoutAction =
+    /\b(checkout\w*|kasa|platnosc\w*|zaplac\w*|finaliz\w*|zloz(?:yc)?\s+zamowienie|przejd[zź](?:my)?\s+do\s+platnosci)\b/i.test(t) ||
+    /\b(pokaz|podejrze\w*|podejrzyj|podglad\w*|zobacz|sprawdz|otworz|idz|przejd[zź](?:my)?)\b.*\b(koszyk\w*|zam[oó]wienie\w*)\b/i.test(t) ||
+    /\b(chcial?bym|chcialabym|chce)\b.*\b(podejrze\w*|podejrzyj|zobacz|sprawdz)\b.*\b(koszyk\w*|zam[oó]wienie\w*)\b/i.test(t) ||
+    /^\s*(koszyk|zam[oó]wienie)\s*$/i.test(t);
+
+  const isAddToCartCommand = /\b(dodaj|dorzuc|wrzuc)\b.*\bdo\b.*\bkoszyk\w*\b/i.test(t);
+  return hasCheckoutAction && !isAddToCartCommand;
+}
+
 export async function detectIntent(text, session = null, entities = {}) {
   console.log('[intent-router] ?? detectIntent called with:', { text, sessionId: session?.id });
 
@@ -852,6 +868,21 @@ export async function detectIntent(text, session = null, entities = {}) {
       .trim();
 
     const lower = normalizeTxt(normalizedText);
+
+    if (isExplicitCheckoutBridge(text)) {
+      updateDebugSession({
+        intent: 'open_checkout',
+        restaurant: session?.lastRestaurant?.name || null,
+        sessionId: session?.id || null,
+        confidence: 0.98
+      });
+      return {
+        intent: 'open_checkout',
+        confidence: 0.98,
+        source: 'explicit_checkout_bridge_classic',
+        restaurant: session?.lastRestaurant || session?.currentRestaurant || null
+      };
+    }
 
     // ?? SUPER-EARLY EXIT: Pytania "gdzie zjeść …" zawsze traktuj jako find_nearby
     // niezależnie od kontekstu sesji (żeby nie przechodziło w create_order gdy jest "pizza")
