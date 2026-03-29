@@ -1,6 +1,6 @@
 /**
  * Core Pipeline Orchestrator (V2)
- * Odpowiada za przepÄąâ€šyw danych: Request -> Hydration -> NLU -> Domain -> Response
+ * Odpowiada za przepływ danych: Request -> Hydration -> NLU -> Domain -> Response
  */
 
 import { getEngineMode, isDev, isStrict, devLog, devWarn, devError, strictAssert, strictRequireSession, sanitizeResponse } from './engineMode.js';
@@ -82,7 +82,7 @@ function buildRestaurantSummaryForTTS(restaurants, location) {
         .map(r => r.name)
         .join(', ');
 
-    return `ZnalazÄąâ€šam ${count} miejsc${location ? ' w ' + location : ''}. MiĂ„â„˘dzy innymi: ${sample}. KtÄ‚Ĺ‚rĂ„â€¦ wybierasz?`;
+    return `Znalazłam ${count} miejsc${location ? ' w ' + location : ''}. Między innymi: ${sample}. Którą wybierasz?`;
 }
 
 function buildMenuSummaryForTTS(menuItems) {
@@ -93,13 +93,13 @@ function buildMenuSummaryForTTS(menuItems) {
     const hasVege = menuItems.some(i => i.is_vege);
     const hasSpicy = menuItems.some(i => i.spicy);
 
-    let summary = "W karcie sĂ„â€¦ m.in. ";
+    let summary = "W karcie są m.in. ";
 
     if (categories.length > 0) {
         summary += categories.join(', ');
     }
 
-    if (hasVege && !summary.includes('wegetariaÄąâ€žskie')) summary += ", opcje wegetariaÄąâ€žskie";
+    if (hasVege && !summary.includes('wegetariańskie')) summary += ", opcje wegetariańskie";
     if (hasSpicy && !summary.includes('ostre')) summary += ", dania ostre";
 
     // Deduplicate base_name and use it for examples
@@ -107,7 +107,7 @@ function buildMenuSummaryForTTS(menuItems) {
     const sample = baseNames.slice(0, 3).join(', ');
 
     if (sample) {
-        summary += `. Na przykÄąâ€šad: ${sample}. Co wybierasz?`;
+        summary += `. Na przykład: ${sample}. Co wybierasz?`;
     } else {
         summary += `. Co wybierasz?`;
     }
@@ -289,8 +289,8 @@ function resolveRecoContextPolicy({
         cooldownRemainingMs: 0,
     };
 }
-// Mapa handlerÄ‚Ĺ‚w domenowych (BezpoÄąâ€şrednie mapowanie)
-// Kluczem jest "domain", a wewnĂ„â€¦trz "intent"
+// Mapa handlerów domenowych (Bezpośrednie mapowanie)
+// Kluczem jest "domain", a wewnątrz "intent"
 
 // Default Handlers Map
 import { SupabaseRestaurantRepository } from './repository.js';
@@ -320,7 +320,7 @@ export class BrainPipeline {
                 find_nearby_confirmation: new FindRestaurantHandler(repository),
                 recommend: {
                     execute: async (ctx) => ({
-                        reply: 'Co polecam? W okolicy masz Äąâ€şwietne opcje! Powiedz gdzie szukaĂ„â€ˇ.',
+                        reply: 'Co polecam? W okolicy masz świetne opcje! Powiedz gdzie szukać.',
                         intent: 'recommend',
                         contextUpdates: { expectedContext: 'find_nearby' }
                     })
@@ -414,7 +414,7 @@ export class BrainPipeline {
                 }
             },
             system: {
-                health_check: { execute: async () => ({ reply: 'System dziaÄąâ€ša', meta: {} }) },
+                health_check: { execute: async () => ({ reply: 'System działa', meta: {} }) },
                 fallback: { execute: async () => ({ reply: 'Nie rozumiem tego polecenia.', fallback: true }) }
             },
         };
@@ -429,7 +429,7 @@ export class BrainPipeline {
     }
 
     /**
-     * GÄąâ€šÄ‚Ĺ‚wny punkt wejÄąâ€şcia dla kaÄąÄ˝dego zapytania
+     * Główny punkt wejścia dla każdego zapytania
      *
      * SINGLE-ROUTING INVARIANT:
      * Only one process() per sessionId may run at a time.
@@ -466,7 +466,7 @@ export class BrainPipeline {
         // 1. Hydration & Validation
         if (!text || !text.trim()) {
             if (!IS_SHADOW) BrainPipeline._inFlight.delete(inflightKey);
-            return this.createErrorResponse('brak_tekstu', 'Nie usÄąâ€šyszaÄąâ€šam, moÄąÄ˝esz powtÄ‚Ĺ‚rzyĂ„â€ˇ?');
+            return this.createErrorResponse('brak_tekstu', 'Nie usłyszałam, możesz powtórzyć?');
         }
 
         const ENGINE_MODE = getEngineMode();
@@ -886,7 +886,7 @@ export class BrainPipeline {
             // Ă˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘Â
             if (intentResult?.intent === 'greeting') {
                 BrainLogger.pipeline(`Ä‘Ĺşâ€â€ą GREETING DETECTED: Returning friendly greeting`);
-                const replyText = 'CzeÄąâ€şĂ„â€ˇ! W czym mogĂ„â„˘ pomÄ‚Ĺ‚c?';
+                const replyText = 'Cześć! W czym mogę pomóc?';
                 let audioContent = null;
                 const wantsTTS = options?.includeTTS === true;
                 const EX_MODE = process.env.EXPERT_MODE === 'true'; // Pipeline constant
@@ -928,7 +928,7 @@ export class BrainPipeline {
                         ok: true,
                         session_id: activeSessionId,
                         intent: 'restaurant_hours',
-                        reply: 'KtÄ‚Ĺ‚rej restauracji mam sprawdziĂ„â€ˇ godziny?',
+                        reply: 'Której restauracji mam sprawdzić godziny?',
                         should_reply: true,
                         stopTTS: false,
                         context: getSession(activeSessionId) || sessionContext
@@ -959,11 +959,11 @@ export class BrainPipeline {
                 let reply;
 
                 if (phase === 'ordering') {
-                    reply = 'Nie jestem pewna, o co chodzi. Kontynuujemy zamÄ‚Ĺ‚wienie czy chcesz coÄąâ€ş zmieniĂ„â€ˇ?';
+                    reply = 'Nie jestem pewna, o co chodzi. Kontynuujemy zamówienie czy chcesz coś zmienić?';
                 } else if (phase === 'restaurant_selected') {
-                    reply = 'MoÄąÄ˝esz wybraĂ„â€ˇ coÄąâ€ş z menu albo zapytaĂ„â€ˇ o szczegÄ‚Ĺ‚Äąâ€šy.';
+                    reply = 'Możesz wybrać coś z menu albo zapytać o szczegóły.';
                 } else {
-                    reply = 'MogĂ„â„˘ pokazaĂ„â€ˇ restauracje w pobliÄąÄ˝u albo pomÄ‚Ĺ‚c w wyborze dania.';
+                    reply = 'Mogę pokazać restauracje w pobliżu albo pomóc w wyborze dania.';
                 }
 
                 return {
@@ -1020,8 +1020,8 @@ export class BrainPipeline {
             ) {
                 const hasRestaurant = !!(sessionContext?.currentRestaurant);
                 const disambiguationReply = hasRestaurant
-                    ? `Nie jestem pewna, o co chodzi. Czy chcesz zamÄ‚Ĺ‚wiĂ„â€ˇ coÄąâ€ş z menu ${sessionContext.currentRestaurant.name}?`
-                    : 'Nie bardzo rozumiem. MogĂ„â„˘ pokazaĂ„â€ˇ restauracje w pobliÄąÄ˝u albo pomÄ‚Ĺ‚c w zamÄ‚Ĺ‚wieniu.';
+                    ? `Nie jestem pewna, o co chodzi. Czy chcesz zamówić coś z menu ${sessionContext.currentRestaurant.name}?`
+                    : 'Nie bardzo rozumiem. Mogę pokazać restauracje w pobliżu albo pomóc w zamówieniu.';
 
                 BrainLogger.pipeline(`Ä‘ĹşÂ¤â€ť CONFIDENCE_FLOOR: ${intent} (${(confidence * 100).toFixed(0)}%) Ă˘â€ â€™ disambiguation`);
 
@@ -1276,7 +1276,7 @@ export class BrainPipeline {
             // Ă˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘Â
             // FIX A3: STRONG ORDERING CONTINUITY GUARD
             // If user has a locked restaurant AND uses ordering phrases, NEVER drop to find_nearby
-            // This runs AFTER FIX 3 to catch cases with explicit ordering verbs (skuszĂ„â„˘, poprosĂ„â„˘, etc.)
+            // This runs AFTER FIX 3 to catch cases with explicit ordering verbs (skuszę, poprosę, etc.)
             // SAFETY: Does NOT override confirm_order
             // Ă˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘Â
             if (
@@ -1483,7 +1483,7 @@ export class BrainPipeline {
                     BrainLogger.pipeline(`Ă˘Ĺ›Â¨ UX Guard 2: Fuzzy match detected. Asking confirmation for ${session.currentRestaurant.name}`);
                     return {
                         session_id: activeSessionId,
-                        reply: `Czy chodziÄąâ€šo Ci o ${session.currentRestaurant.name}?`,
+                        reply: `Czy chodziło Ci o ${session.currentRestaurant.name}?`,
                         should_reply: true,
                         intent: 'confirm_restaurant',
                         contextUpdates: {
@@ -1562,7 +1562,7 @@ export class BrainPipeline {
             // Rule: Confirm Guard (General confirmation words handler)
             if (CONFIRMATION_CONTEXTS.includes(session?.expectedContext)) {
                 const normalized = (text || "").toLowerCase();
-                const confirmWords = /\b(tak|potwierdzam|ok|dobra|moÄąÄ˝e byĂ„â€ˇ|dawaj|pewnie|jasne|super|Äąâ€şwietnie)\b/i;
+                const confirmWords = /\b(tak|potwierdzam|ok|dobra|może być|dawaj|pewnie|jasne|super|świetnie)\b/i;
                 if (confirmWords.test(normalized)) {
                     const targetIntent = session.expectedContext; // Dynamically use the context name as intent name
                     BrainLogger.pipeline(`Ä‘Ĺşâ€şË‡ÄŹÂ¸Ĺą Guard: Context is ${targetIntent} and confirmation word detected. Forcing ${targetIntent}.`);
@@ -1573,8 +1573,8 @@ export class BrainPipeline {
             // Rule: Restaurant Switch Confirmation
             if (session?.expectedContext === 'confirm_restaurant_switch') {
                 const normalized = (text || "").toLowerCase();
-                const confirmWords = /\b(tak|potwierdzam|ok|dobra|moÄąÄ˝e byĂ„â€ˇ|dawaj|pewnie|jasne|super|Äąâ€şwietnie|zmieniaj|wyczyÄąâ€şĂ„â€ˇ)\b/i;
-                const negateWords = /\b(nie|pocz[eĂ„â„˘]kaj|stop|anuluj|nie\s+chc[eĂ„â„˘]|zostaw)\b/i;
+                const confirmWords = /\b(tak|potwierdzam|ok|dobra|może być|dawaj|pewnie|jasne|super|świetnie|zmieniaj|wyczyść)\b/i;
+                const negateWords = /\b(nie|pocz[eę]kaj|stop|anuluj|nie\s+chc[eę]|zostaw)\b/i;
 
                 if (confirmWords.test(normalized)) {
                     BrainLogger.pipeline('Ä‘Ĺşâ€şË‡ÄŹÂ¸Ĺą Guard: Context is confirm_restaurant_switch and confirmation word detected. Executing clear + switch.');
@@ -1604,7 +1604,7 @@ export class BrainPipeline {
                     return {
                         ok: true,
                         session_id: activeSessionId,
-                        reply: "Dobrze, zostajemy przy obecnym zamÄ‚Ĺ‚wieniu. Co jeszcze chcesz dodaĂ„â€ˇ?",
+                        reply: "Dobrze, zostajemy przy obecnym zamówieniu. Co jeszcze chcesz dodać?",
                         should_reply: true,
                         intent: 'cancel_switch',
                         contextUpdates: {
@@ -1620,8 +1620,8 @@ export class BrainPipeline {
             // Rule 4: Auto Menu
             if (context.intent === 'select_restaurant') {
                 const normalized = (text || "").toLowerCase();
-                const wantsToSee = /\b(pokaz|pokaÄąÄ˝|zobacz|jakie|co)\b/i.test(normalized);
-                const wantsChange = /\b(inn[ea]|zmieÄąâ€ž|wybierz\s+inne)\b/i.test(normalized);
+                const wantsToSee = /\b(pokaz|pokaż|zobacz|jakie|co)\b/i.test(normalized);
+                const wantsChange = /\b(inn[ea]|zmień|wybierz\s+inne)\b/i.test(normalized);
 
                 if (wantsToSee && !wantsChange) {
                     BrainLogger.pipeline('Ä‘Ĺşâ€şË‡ÄŹÂ¸Ĺą Guard Rule 4: "Show" verb detected. Upgrading select_restaurant -> menu_request');
@@ -1633,7 +1633,7 @@ export class BrainPipeline {
             if (context.intent === 'create_order') {
                 const ent = context.entities || {};
                 const normalized = (text || "").toLowerCase();
-                const strictOrderVerbs = /\b(zamawiam|wezm[Ă„â„˘e]|dodaj|poprosz[Ă„â„˘e]|chc[Ă„â„˘e])\b/i;
+                const strictOrderVerbs = /\b(zamawiam|wezm[ęe]|dodaj|poprosz[ęe]|chc[ęe])\b/i;
                 const hasOrderVerb = strictOrderVerbs.test(normalized);
                 const isAffirmationRepeat = context.source === 'ordering_affirmation_repeat';
 
@@ -1644,7 +1644,7 @@ export class BrainPipeline {
                     } else {
                         return {
                             session_id: activeSessionId,
-                            reply: "Co chciaÄąâ€šbyÄąâ€ş zamÄ‚Ĺ‚wiĂ„â€ˇ?",
+                            reply: "Co chciałbyś zamówić?",
                             should_reply: true,
                             intent: 'create_order',
                             meta: { source: 'guard_rule_2_explicit_prompt' },
@@ -1671,7 +1671,7 @@ export class BrainPipeline {
                             BrainLogger.pipeline('Ä‘Ĺşâ€şË‡ÄŹÂ¸Ĺą Guard Rule 6: Order intent with no explicit dish. Asking for details.');
                             return {
                                 session_id: activeSessionId,
-                                reply: "Co dokÄąâ€šadnie chciaÄąâ€šbyÄąâ€ş zamÄ‚Ĺ‚wiĂ„â€ˇ?",
+                                reply: "Co dokładnie chciałbyś zamówić?",
                                 should_reply: true,
                                 intent: 'create_order',
                                 meta: { source: 'guard_rule_6_no_dish' },
@@ -1688,7 +1688,7 @@ export class BrainPipeline {
                     return {
                         ok: true,
                         intent: 'session_locked',
-                        reply: "Twoje zamÄ‚Ĺ‚wienie zostaÄąâ€šo juÄąÄ˝ zakoÄąâ€žczone. Powiedz 'nowe zamÄ‚Ĺ‚wienie', aby zaczĂ„â€¦Ă„â€ˇ od poczĂ„â€¦tku.",
+                        reply: "Twoje zamówienie zostało już zakończone. Powiedz 'nowe zamówienie', aby zacząć od początku.",
                         meta: { source: 'guard_lock' },
                         context: getSession(activeSessionId) || sessionContext
                     };
@@ -1704,7 +1704,7 @@ export class BrainPipeline {
 
             // 3. Domain Dispatching
             if (!this.handlers[context.domain]) {
-                return this.createErrorResponse('unknown_domain', 'Nie wiem jak to obsÄąâ€šuÄąÄ˝yĂ„â€ˇ (bÄąâ€šĂ„â€¦d domeny).');
+                return this.createErrorResponse('unknown_domain', 'Nie wiem jak to obsłużyć (błąd domeny).');
             }
 
             // FIX A4: SANITIZE LOCATION before find_nearby dispatch
@@ -1925,7 +1925,7 @@ export class BrainPipeline {
                     source
                 );
 
-                // Ä‘Ĺşâ€Â¨Ă˘â‚¬Ĺ¤Ä‘Ĺşâ€ťÂ§ BACKEND-SIDED CART INSPECTION (Fix "Dodatkowo: JeÄąâ€şli restauracja nie istnieje w session, wyciĂ„â€¦gnĂ„â€¦Ă„â€ˇ z cart[0]")
+                // Ä‘Ĺşâ€Â¨Ă˘â‚¬Ĺ¤Ä‘Ĺşâ€ťÂ§ BACKEND-SIDED CART INSPECTION (Fix "Dodatkowo: Jeśli restauracja nie istnieje w session, wyciągnąć z cart[0]")
                 const requestBody = options?.requestBody || {};
                 const cartMeta = requestBody.meta?.state?.cart;
 
@@ -1935,7 +1935,7 @@ export class BrainPipeline {
                         const fallbackName = cartMeta.restaurantName || cartMeta.items[0].restaurantName || cartMeta.items[0].restaurant?.name || 'Nieznana restauracja';
 
                         if (fallbackId || fallbackName) {
-                            BrainLogger.pipeline(`Ä‘Ĺşâ€şË‡ÄŹÂ¸Ĺą PHASE_SAFETY_GUARD: ordering z koszykiem > 0, przywrÄ‚Ĺ‚cono currentRestaurant z koszyka (${fallbackName})`);
+                            BrainLogger.pipeline(`Ä‘Ĺşâ€şË‡ÄŹÂ¸Ĺą PHASE_SAFETY_GUARD: ordering z koszykiem > 0, przywrócono currentRestaurant z koszyka (${fallbackName})`);
                             updatedSessionContext.currentRestaurant = { id: fallbackId, name: fallbackName };
                         }
                     }
@@ -2025,7 +2025,7 @@ export class BrainPipeline {
             if (hasReply && (wantsTTS || EXPERT_MODE) && ttsEnabled) {
                 if (speechPartForTTS) {
                     try {
-                        // Ä‘Ĺşâ€ťĹ  TTS: Odtwarzamy caÄąâ€še wygenerowane streszczenie (celowo wyÄąâ€šĂ„â€¦czone chunkowanie)
+                        // Ä‘Ĺşâ€ťĹ  TTS: Odtwarzamy całe wygenerowane streszczenie (celowo wyłączone chunkowanie)
                         const ttsText = speechPartForTTS;
 
                         const t0 = Date.now();
@@ -2317,7 +2317,7 @@ export class BrainPipeline {
         } catch (error) {
             BrainLogger.pipeline('Error:', error.message);
             if (!IS_SHADOW) BrainPipeline._inFlight.delete(inflightKey);
-            return this.createErrorResponse('internal_error', 'CoÄąâ€ş poszÄąâ€šo nie tak w moich obwodach.');
+            return this.createErrorResponse('internal_error', 'Coś poszło nie tak w moich obwodach.');
         }
     }
 
