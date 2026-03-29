@@ -192,9 +192,9 @@ const DETERMINISTIC_ALIAS_MAP = {
   'pepsi': 'pepsi',
 
   // Frytki
-  'frytki': 'fries',
-  'frytek': 'fries',
-  'frytkami': 'fries',
+  'frytki': 'frytki belgijskie',
+  'frytek': 'frytki belgijskie',
+  'frytkami': 'frytki belgijskie',
   'małe frytki': 'fries_small',
   'duże frytki': 'fries_large',
 
@@ -204,33 +204,66 @@ const DETERMINISTIC_ALIAS_MAP = {
   'burgery': 'burger',
   'vegas': 'smak vegas',
 
-  // Pizza (zachowane z NAME_ALIASES dla kompatybilności)
+  // Pizza
   'margherita': 'pizza margherita',
   'margherite': 'pizza margherita',
   'margheritę': 'pizza margherita',
+  'margheritą': 'pizza margherita',
   'margerita': 'pizza margherita',
   'margarita': 'pizza margherita',
   'pepperoni': 'pizza pepperoni',
   'hawajska': 'pizza hawajska',
+  'hawajskiej': 'pizza hawajska',
   'diavola': 'pizza diavola',
   'diabolo': 'pizza diavola',
   'diabola': 'pizza diavola',
+  'capricciosa': 'pizza capricciosa',
 
-  // Inne (zachowane z NAME_ALIASES)
-  'burger': 'burger',
-  'burgera': 'burger',
-  'burgery': 'burger',
+  // Zupy
   'czosnkowa': 'zupa czosnkowa',
+  'czosnkowe': 'zupa czosnkowa',
+  'czosnkowej': 'zupa czosnkowa',
   'zurek': 'żurek śląski',
+  'zurku': 'żurek śląski',
+  'zurkiem': 'żurek śląski',
+  'pho': 'zupa pho bo',
+
+  // Mięsa
   'schabowy': 'kotlet schabowy',
+  'schabowe': 'kotlet schabowy',
+  'schabowego': 'kotlet schabowy',
   'kotlet': 'kotlet schabowy',
-  'pierogi': 'pierogi z mięsem',
+  'kotleta': 'kotlet schabowy',
   'gulasz': 'gulasz wieprzowy',
+  'gulasza': 'gulasz wieprzowy',
+  'gulaszem': 'gulasz wieprzowy',
   'rolada': 'rolada śląska',
+  'rolade': 'rolada śląska',
+  'rolady': 'rolada śląska',
+
+  // Pierogi
+  'pierogi': 'pierogi z mięsem',
+  'pierogów': 'pierogi z mięsem',
+  'pierogami': 'pierogi z mięsem',
+
+  // Włoskie
   'lasagne': 'lasagne bolognese',
+  'lasania': 'lasagne bolognese',
+  'lasanie': 'lasagne bolognese',
+  'tiramisu': 'tiramisu',
+  'caprese': 'sałatka caprese',
+
+  // Azjatyckie
   'pad thai': 'pad thai z krewetkami',
+  'pad taj': 'pad thai z krewetkami',
+  'padthai': 'pad thai z krewetkami',
   'sajgonki': 'sajgonki z mięsem',
-  'frytki': 'frytki belgijskie',
+  'sajgonek': 'sajgonki z mięsem',
+  'sajgonkami': 'sajgonki z mięsem',
+
+  // Inne
+  'placki': 'placki ziemniaczane',
+  'placków': 'placki ziemniaczane',
   'głodzilla': 'głodzilla',
   'glodzilla': 'głodzilla',
   'godzilla': 'głodzilla'
