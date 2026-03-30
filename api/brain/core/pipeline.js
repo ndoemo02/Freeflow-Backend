@@ -401,12 +401,16 @@ export class BrainPipeline {
                             restaurantName: ctx?.session?.currentRestaurant?.name || ctx?.session?.lastRestaurant?.name || null,
                         }));
 
+                        const hasRestaurant = !!(ctx?.session?.currentRestaurant || ctx?.session?.lastRestaurant);
                         return {
                             reply: buildClarifyOrderMessage(clarifyMeta),
                             intent: 'clarify_order',
                             meta: { clarify: clarifyMeta },
                             contextUpdates: {
-                                expectedContext: expectedContext === 'order_addon' ? 'order_addon' : 'create_order'
+                                // Without restaurant context, guide to discovery instead of looping on create_order
+                                expectedContext: expectedContext === 'order_addon'
+                                    ? 'order_addon'
+                                    : hasRestaurant ? 'create_order' : 'find_nearby'
                             }
                         };
                     }
@@ -885,7 +889,12 @@ export class BrainPipeline {
             // Ă˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘ÂĂ˘â€˘Â
             if (intentResult?.intent === 'greeting') {
                 BrainLogger.pipeline(`Ä‘Ĺşâ€â€ą GREETING DETECTED: Returning friendly greeting`);
-                const replyText = 'Cześć! W czym mogę pomóc?';
+                // Detect capabilities questions: "co potrafisz?", "co umiesz?", "co mozesz?"
+                const CAPABILITIES_PATTERN = /co\s+(potrafisz|umiesz|mo[żz]esz|robisz|oferujesz)|jakie\s+masz\s+(funkcje|opcje|mo[żz]liwo[śs]ci)|czym\s+mo[żz]esz\s+(mi\s+)?pom[oó][cg]/i;
+                const isCapabilitiesQuery = CAPABILITIES_PATTERN.test(text);
+                const replyText = isCapabilitiesQuery
+                    ? 'Cześć! Jestem Amber — Twój asystent do zamawiania jedzenia. Mogę: znajdować restauracje w okolicy, pokazywać menu, przyjmować zamówienia głosowo i tekstowo. Powiedz np. "Znajdź pizzerię w Katowicach" albo "Chcę burgera".'
+                    : 'Cześć! W czym mogę pomóc?';
                 let audioContent = null;
                 const wantsTTS = options?.includeTTS === true;
                 const EX_MODE = process.env.EXPERT_MODE === 'true'; // Pipeline constant
@@ -1230,6 +1239,7 @@ export class BrainPipeline {
                 }
 
                 intent = fallbackIntent;
+                domain = getIntentDomain(fallbackIntent) || 'food';
                 source = 'icm_fallback';
             }
 

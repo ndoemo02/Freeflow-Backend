@@ -163,7 +163,10 @@ export class SelectRestaurantHandler {
 
         if (!selected) {
             return {
-                reply: `Nie wiem którą restaurację z listy masz na myśli. Wybierz numer od 1 do ${list.length}.`,
+                reply: `Nie wiem którą restaurację z listy masz na myśli. Wybierz numer od 1 do ${list.length} lub powiedz "cofnij".`,
+                contextUpdates: {
+                    expectedContext: null,
+                },
             };
         }
 
@@ -204,6 +207,7 @@ export class SelectRestaurantHandler {
                     awaiting: null,
                     cart: { items: [], total: 0, restaurantId: selected.id },
                     pendingOrder: null,
+                    pendingDish: null,
                 },
                 meta: { source: 'selection_auto_order' }
             };

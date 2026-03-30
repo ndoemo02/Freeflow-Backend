@@ -357,6 +357,16 @@ export class NLURouter {
         }
 
         if (session?.expectedContext === 'select_restaurant' || session?.expectedContext === 'show_more_options') {
+            // ESCAPE GUARD: cancel/reset/find_nearby bypass context_lock unconditionally
+            const isCancelEscape = /\b(anuluj|stop|rezygnuj[eę]|cofnij|wstecz|nie|reset|zacznij\s+od\s+nowa|zapomnij)\b/i.test(normalized);
+            const isFindEscape = /\b(szukaj|znajd[zź]|pokaż\s+inne|inne\s+restauracje|zmień\s+restauracj|zmien\s+restauracj|poszukaj)\b/i.test(normalized);
+            if (isCancelEscape) {
+                return { intent: 'cancel_order', confidence: 1.0, source: 'select_restaurant_escape', entities };
+            }
+            if (isFindEscape) {
+                return { intent: 'find_nearby', confidence: 1.0, source: 'select_restaurant_escape', entities };
+            }
+
             const isIntentLike = /(menu|zamawiam|zamów|poproszę|poprosze|wezmę|wezme|chcę|chce|pokaż|pokaz|znajdz|gdzie|health|checkout|kasa|platnosc)/i.test(normalized);
             const isManualSelection = /\b(numer|nr|opcja|opcje)\s+\d+\b/i.test(normalized);
             // If it's just a number or simple phrase, it's selection

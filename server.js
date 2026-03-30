@@ -311,9 +311,26 @@ app.use('/api/admin', adminRouter);
 // === [9] WATCHDOG SYSTEM ===
 import { runWatchdog } from "./api/watchdog/core.js";
 
-// === [7] WebSocket STT ===
+// === [8] GEMINI LIVE ROUTES ===
+import { registerLiveRoutes, attachLiveGateway } from "./api/voice/live/index.js";
+registerLiveRoutes(app);
+
+// === [7] WebSocket STT + Live Gateway ===
+// Two WSS on same httpServer requires noServer:true + manual upgrade routing.
+// Gateway handles /api/voice/live/ws, STT handles everything else.
 const httpServer = createServer(app);
-const wss = new WebSocketServer({ server: httpServer });
+const wss = new WebSocketServer({ noServer: true });
+attachLiveGateway(httpServer);
+
+httpServer.on('upgrade', (req, socket, head) => {
+  const pathname = req.url?.split('?')[0];
+  if (pathname !== '/api/voice/live/ws') {
+    wss.handleUpgrade(req, socket, head, (ws) => {
+      wss.emit('connection', ws, req);
+    });
+  }
+  // /api/voice/live/ws is handled by GeminiLiveGateway's own listener
+});
 
 wss.on("connection", (ws) => {
   console.log("🔗 WebSocket connected");

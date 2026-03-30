@@ -75,7 +75,11 @@ const SURFACE_TEMPLATES = {
      * ASK_RESTAURANT_FOR_ORDER: User wants to order but no restaurant selected
      */
     ASK_RESTAURANT_FOR_ORDER: (facts) => {
-        const dish = facts?.dishNames?.[0];
+        const rawDish = facts?.dishNames?.[0];
+        // Strip leading ordering verbs the LLM may include in the dish entity
+        // e.g. "zamówić pizzę" → "pizzę", "chcę burgera" → "burgera"
+        const ORDER_VERB_PREFIX = /^(zamówi[cć]|zamow(i[cć])?|chc[ęe]|poprosz[ęe]|wezm[ęe]|bior[ęe]|chciał(bym|abym)|dodaj|spr[oó]buj[ęe])\s+/i;
+        const dish = rawDish ? rawDish.replace(ORDER_VERB_PREFIX, '').trim() || null : null;
         const restaurants = facts?.restaurants || [];
 
         if (restaurants.length === 0) {
@@ -85,7 +89,7 @@ const SURFACE_TEMPLATES = {
         }
 
         const list = restaurants.slice(0, 5).map((r, i) => `${i + 1}. ${r.name}`).join(', ');
-        const dishText = dish ? ` "${dish}"` : '';
+        const dishText = dish ? ` ${dish}` : '';
         return `Chcesz zamówić${dishText} — z której restauracji? ${list}`;
     },
 

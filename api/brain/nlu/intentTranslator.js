@@ -68,7 +68,8 @@ CRITICAL RULES:
 3. NEVER output actions or cart data
 4. NEVER output reply text
 5. If unsure, use "unknown" with low confidence (0.3)
-6. Polish inflections: Piekarach → Piekary, Bytomiu → Bytom, Katowicach → Katowice`;
+6. Polish inflections: Piekarach → Piekary, Bytomiu → Bytom, Katowicach → Katowice
+7. dish: ONLY the food item name (e.g., "pizza bez glutenu", "kurczak"), NEVER ordering verbs — strip "zamówić", "chcę", "poproszę", "wezmę" etc.`;
 
 /**
  * Translate user text to structured intent
