@@ -176,7 +176,6 @@ export default async function handler(req, res) {
   if (req.method === 'GET') {
     try {
       const { user_email, user_id, restaurant_id } = req.query;
-      console.log('📋 Pobieram zamówienia dla:', { user_email, user_id, restaurant_id });
 
       let query = supabase
         .from('orders')
@@ -206,7 +205,6 @@ export default async function handler(req, res) {
         return res.status(500).json({ error: error.message });
       }
 
-      console.log(`✅ Znaleziono ${orders?.length || 0} zamówień`);
       return res.json({ orders: orders || [] });
 
     } catch (err) {

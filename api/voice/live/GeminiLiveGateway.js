@@ -76,9 +76,15 @@ export class GeminiLiveGateway {
                 const toolName = parsed.tool;
                 const requestId = parsed.request_id || null;
 
+                // ── DIAG-B: WS gateway received tool_call ─────────────
+                console.log(`[LiveDiag-BE] 📩 WS tool_call received: ${toolName}  req:${requestId}  session:${sessionId}`);
+                console.log(`[LiveDiag-BE]    args:`, JSON.stringify(parsed.args || {}));
+                // ──────────────────────────────────────────────────────
+
                 // 1. Validate + sanitize args before touching ToolRouter
                 const validation = validateAndSanitize(toolName, parsed.args || {});
                 if (!validation.valid) {
+                    console.warn(`[LiveDiag-BE] ❌ Validation failed: ${toolName}  error:${validation.error}  field:${validation.field}`);
                     liveLog.toolFail({ sessionId, toolName, requestId, error: validation.error, field: validation.field });
                     socket.send(JSON.stringify({
                         type: 'tool_error',
@@ -104,6 +110,17 @@ export class GeminiLiveGateway {
                         TOOL_EXECUTION_TIMEOUT_MS,
                     );
 
+                    // ── DIAG-C: ToolRouter finished, sending tool_result ──
+                    const reply = result.response?.reply || result.response?.text || '(empty)';
+                    const rCount = result.response?.restaurants?.length ?? null;
+                    const mCount = result.response?.menuItems?.length ?? null;
+                    console.log(`[LiveDiag-BE] ✅ ToolRouter done: ${toolName}  ok:${result.ok}`);
+                    console.log(`[LiveDiag-BE]    reply: "${reply.slice(0, 120)}"`);
+                    if (rCount !== null) console.log(`[LiveDiag-BE]    restaurants: ${rCount}`);
+                    if (mCount !== null) console.log(`[LiveDiag-BE]    menuItems: ${mCount}`);
+                    console.log(`[LiveDiag-BE]    trace: ${(result.trace || []).join(' → ')}`);
+                    // ──────────────────────────────────────────────────────
+
                     socket.send(JSON.stringify({
                         type: 'tool_result',
                         request_id: requestId,
@@ -122,6 +139,7 @@ export class GeminiLiveGateway {
                     }
                 } catch (error) {
                     const errMsg = error?.message || 'live_gateway_error';
+                    console.error(`[LiveDiag-BE] ❌ ToolRouter threw: ${toolName}  error:${errMsg}`);
                     liveLog.toolFail({ sessionId, toolName, requestId, error: errMsg });
                     socket.send(JSON.stringify({
                         type: 'tool_error',

@@ -1,9 +1,10 @@
 // api/brain/intents/llmRefiner.js
 // Gemini (default) → OpenAI (fallback) — per project LLM policy.
-import { OpenAI } from "openai";
+// Both providers use native fetch — no SDK dependency.
 import { normalize as normalizeText } from "../utils/normalizeText.js";
 
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent`;
+const OPENAI_URL = `https://api.openai.com/v1/chat/completions`;
 const TIMEOUT_MS = 6000;
 
 const SYSTEM_PROMPT = `
@@ -20,12 +21,6 @@ Dopuszczalne pola:
   "confidence": number
 }
 `.trim();
-
-function buildOpenAIClient() {
-    return process.env.OPENAI_API_KEY
-        ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
-        : null;
-}
 
 async function refineWithGemini(payload) {
     const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
@@ -73,20 +68,39 @@ async function refineWithGemini(payload) {
 }
 
 async function refineWithOpenAI(payload) {
-    const openai = buildOpenAIClient();
-    if (!openai) return null;
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) return null;
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
     try {
-        const response = await openai.chat.completions.create({
-            model: "gpt-4o-mini",
-            temperature: 0.2,
-            messages: [
-                { role: "system", content: SYSTEM_PROMPT },
-                { role: "user", content: JSON.stringify(payload) },
-            ],
+        const response = await fetch(OPENAI_URL, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${apiKey}`,
+            },
+            body: JSON.stringify({
+                model: "gpt-4o-mini",
+                temperature: 0.2,
+                messages: [
+                    { role: "system", content: SYSTEM_PROMPT },
+                    { role: "user", content: JSON.stringify(payload) },
+                ],
+            }),
+            signal: controller.signal,
         });
 
-        const raw = response.choices?.[0]?.message?.content ?? "{}";
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+            console.warn("LLM REFINER (OpenAI) HTTP error:", response.status);
+            return null;
+        }
+
+        const data = await response.json();
+        const raw = data?.choices?.[0]?.message?.content ?? "{}";
         try {
             return JSON.parse(raw);
         } catch {
@@ -94,7 +108,8 @@ async function refineWithOpenAI(payload) {
             return null;
         }
     } catch (err) {
-        console.error("LLM REFINER (OpenAI) error:", err);
+        clearTimeout(timeoutId);
+        if (err.name !== "AbortError") console.error("LLM REFINER (OpenAI) error:", err);
         return null;
     }
 }

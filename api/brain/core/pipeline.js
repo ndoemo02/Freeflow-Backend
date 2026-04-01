@@ -1413,6 +1413,8 @@ export class BrainPipeline {
                             BrainLogger.pipeline(`Ă˘ĹˇË‡ PRE-HANDLER OVERRIDE: Location found in clarify_order -> find_nearby`);
                             intent = 'find_nearby';
                             source = 'context_override_location';
+                            if (!context.trace) context.trace = [];
+                            context.trace.push('clarify_resolved:find_nearby:location_match');
                         }
                     }
                 } catch (e) {
@@ -1435,6 +1437,8 @@ export class BrainPipeline {
                         ...(entities || {}),
                         dish: entities?.dish || text
                     };
+                    if (!context.trace) context.trace = [];
+                    context.trace.push('clarify_resolved:create_order:zurek_bridge');
                 }
             }
 
@@ -1722,6 +1726,19 @@ export class BrainPipeline {
                 context.entities.location = sanitizeLocation(rawLocation, session);
                 if (context.entities.location !== rawLocation) {
                     BrainLogger.pipeline(`Ä‘ĹşÂ§Ä… LOCATION_SANITIZED: "${rawLocation}" Ă˘â€ â€™ "${context.entities.location}"`);
+                }
+            }
+
+            // CLARIFY_ORDER SAFETY GUARD: prevent clarify_order from reaching dispatch
+            // when there is no restaurant context (would dead-end the conversation).
+            // Must run BEFORE IntentFreeze so the redirect is still possible.
+            if (context.intent === 'clarify_order' && !sessionContext?.currentRestaurant && !sessionContext?.lastRestaurant) {
+                const hadResolvedClarify = (context.trace || []).some(t => t.startsWith('clarify_resolved:'));
+                if (!hadResolvedClarify) {
+                    BrainLogger.pipeline('[CLARIFY_GUARD] clarify_order with no restaurant context -> find_nearby');
+                    context.intent = 'find_nearby';
+                    context.source = 'clarify_guard_no_restaurant';
+                    context.trace.push('clarify_resolved:find_nearby:guard_no_restaurant');
                 }
             }
 
