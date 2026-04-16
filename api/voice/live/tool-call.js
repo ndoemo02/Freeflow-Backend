@@ -22,6 +22,7 @@ export default async function handler(req, res) {
   const toolName = body.tool || body.tool_name;
   const args = body.args || {};
   const requestId = body.request_id || null;
+  const turnId = body.turn_id || requestId || null;
 
   if (!isLiveModeEnabled()) {
     return res.status(409).json({
@@ -45,6 +46,7 @@ export default async function handler(req, res) {
       toolName: String(toolName),
       args,
       requestId,
+      turnId,
     });
 
     const status = result.ok ? 200 : 400;

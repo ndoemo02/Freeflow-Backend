@@ -138,8 +138,16 @@ export async function resolveMenuItemConflict(itemName, context = {}) {
         candidates = buildMenuFallbackCandidates(sessionMenu, normalizedInput, restaurantId);
     }
 
-    // If scoped search found nothing, fallback to global disambiguation
+    // If scoped search found nothing, fallback to global disambiguation —
+    // UNLESS hardLock is set (explicit restaurant mention by user).
+    // With hardLock: restaurant was explicitly specified, so a cross-restaurant
+    // fallback would add an item from the wrong restaurant.
     if (candidates.length === 0 && restaurantId) {
+        if (context?.hardLock) {
+            // Restaurant was explicitly mentioned — do not substitute from elsewhere.
+            console.log(`[DISAMBIGUATION_HARD_LOCK] Item "${itemName}" not found in restaurant ${restaurantId} — blocking global fallback.`);
+            return { status: DISAMBIGUATION_RESULT.ITEM_NOT_FOUND };
+        }
         candidates = buildCandidateSet(allItems, normalizedInput);
     }
 

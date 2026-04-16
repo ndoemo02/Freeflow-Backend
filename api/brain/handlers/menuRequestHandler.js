@@ -59,7 +59,9 @@ Co wybierasz?`;
   }
 
   updateSession(sessionId, {
-    last_menu: preview.shortlist,
+    // Keep full menu in session for reliable item resolution in order flow.
+    last_menu: preview.menu,
+    last_menu_restaurant_id: current.id,
     lastRestaurant: current,
   });
   console.log(`✅ Menu loaded: ${preview.menu.length} items (showing ${preview.shortlist.length}) from ${current.name}`);

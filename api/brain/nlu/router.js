@@ -54,6 +54,129 @@ function toLooseAscii(value = '') {
         .trim();
 }
 
+const ITEM_FAMILY_DICTIONARY = {
+    rollo: ['rollo', 'rolo', 'rollo kebab', 'kebab rollo', 'durum rollo'],
+    lawasz: ['lawasz', 'lawasz kebab', 'lawasz kebs', 'lawaszkebab'],
+    pita: ['pita', 'pita rollo', 'pita kebab'],
+    kebab: ['kebab', 'kebaba', 'kebaby', 'doner', 'doner kebab', 'döner'],
+    calzone: ['calzone', 'pizza calzone'],
+    schabowy: ['schabowy', 'kotlet schabowy', 'schab tradycyjny'],
+    nalesnik: ['nalesnik', 'nalesniki', 'naleśnik', 'naleśniki'],
+    pierogi: ['pierogi', 'pierog', 'pieróg'],
+    zurek: ['zurek', 'żurek', 'zur slaski', 'żur śląski'],
+};
+
+const ITEM_FAMILY_ALIAS_TOKENS = new Set(
+    Object.entries(ITEM_FAMILY_DICTIONARY)
+        .flatMap(([family, aliases]) => [family, ...(aliases || [])])
+        .flatMap((entry) => toLooseAscii(entry).split(/\s+/))
+        .filter((token) => token.length > 2)
+);
+
+const GENERIC_DISH_ALIAS_TOKENS = new Set([
+    ...ITEM_FAMILY_ALIAS_TOKENS,
+    'standard',
+    'double',
+    'classic',
+    'mini',
+    'mega',
+    'duzy',
+    'duza',
+    'duze',
+    'maly',
+    'mala',
+    'male',
+    'zestaw',
+    'porcja',
+    'danie',
+    'dnia',
+    'szt',
+    'sztuk',
+    'sztuki',
+    'menu'
+]);
+
+function escapeRegex(value = '') {
+    return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function includesWholePhrase(normalizedText = '', normalizedPhrase = '') {
+    if (!normalizedText || !normalizedPhrase) return false;
+    const pattern = new RegExp(`(?:^|\\s)${escapeRegex(normalizedPhrase)}(?:\\s|$)`, 'i');
+    return pattern.test(normalizedText);
+}
+
+function detectItemFamilyFromText(text = '') {
+    const normalizedText = toLooseAscii(text);
+    if (!normalizedText) return null;
+
+    const entries = Object.entries(ITEM_FAMILY_DICTIONARY)
+        .map(([family, aliases]) => [toLooseAscii(family), aliases || []])
+        .filter(([family]) => Boolean(family))
+        .sort((a, b) => b[0].length - a[0].length);
+
+    for (const [family, aliases] of entries) {
+        const normalizedAliases = [family, ...aliases.map((alias) => toLooseAscii(alias))]
+            .filter(Boolean)
+            .sort((a, b) => b.length - a.length);
+
+        for (const alias of normalizedAliases) {
+            if (includesWholePhrase(normalizedText, alias)) {
+                return family;
+            }
+        }
+    }
+
+    return null;
+}
+
+const SPICY_PREFERENCE_TOKENS = new Set([
+    'ostro', 'ostry', 'ostra', 'ostre', 'ostrego', 'ostrej',
+    'pikantny', 'pikantna', 'pikantne', 'pikantnego', 'pikantnej',
+    'spicy', 'chili', 'chilli'
+]);
+
+function isSpicyPreferenceToken(value = '') {
+    const normalized = toLooseAscii(value);
+    return SPICY_PREFERENCE_TOKENS.has(normalized);
+}
+
+function hasSpicyPreferenceSignal(text = '', normalizedLoose = '') {
+    const loose = normalizedLoose || toLooseAscii(text);
+    if (!loose) return false;
+    return /\b(na\s+ostro|ostro|ostry|ostra|ostre|ostrego|ostrej|pikantny|pikantna|pikantne|pikantnego|pikantnej|spicy|chili|chilli)\b/i.test(loose);
+}
+
+function withSpicyRefinementEntities(entities = {}) {
+    const tags = Array.isArray(entities?.tags) ? entities.tags.filter(Boolean) : [];
+    if (!tags.includes('spicy')) {
+        tags.push('spicy');
+    }
+
+    return {
+        ...entities,
+        location: isSpicyPreferenceToken(entities?.location) ? null : (entities?.location || null),
+        tag: 'spicy',
+        tags,
+    };
+}
+
+function hasRestaurantSelectionSignal(text = '', normalizedLoose = '', options = {}) {
+    const loose = normalizedLoose || toLooseAscii(text);
+    const hasRestaurantName = Boolean(options?.matchedRestaurant || options?.parsedRestaurant);
+    const isNumericOnly = /^\s*\d+\s*$/.test(loose);
+    const isManualSelection = /\b(numer|nr|opcja|opcje)\s+\d+\b/i.test(loose);
+    const hasOrdinalToken = /\b(pierwsz\w*|drug\w*|trzec\w*|czwart\w*|piat\w*|ostatn\w*)\b/i.test(loose);
+    const hasSelectionVerb = /\b(wybieram|bior[ea]?|wezm[ea]?|poprosz[ea]?|biore|wezme)\b/i.test(loose);
+    const hasDeicticSelection = /\b(ta|ten)\s+(restauracj\w*|lokal\w*|opcj\w*|pierwsz\w*|drug\w*|trzec\w*|czwart\w*|piat\w*|ostatn\w*)\b/i.test(loose);
+
+    if (hasRestaurantName) return true;
+    if (isNumericOnly || isManualSelection) return true;
+    if (hasOrdinalToken && (hasSelectionVerb || /^\s*(pierwsz\w*|drug\w*|trzec\w*|czwart\w*|piat\w*|ostatn\w*)\s*$/.test(loose))) return true;
+    if (hasDeicticSelection) return true;
+    return false;
+}
+
 function isAliasBundleText(value = '') {
     const normalized = String(value || '').trim();
     if (!normalized) return false;
@@ -205,7 +328,10 @@ export class NLURouter {
 
     async _detectInternal(ctx) {
         const { text, session } = ctx;
-        const safeText = text.replace(/\uFFFD/g, '');
+        const safeText = String(text || '')
+            .replace(/\uFFFD/g, '')
+            .replace(/\s+/g, ' ')
+            .trim();
         const normalized = normalizeTxt(safeText);
         const normalizedLoose = toLooseAscii(safeText);
 
@@ -248,6 +374,12 @@ export class NLURouter {
 
         // --- RULE 3b: Aliases & Entity Parsing (Dish Detection) ---
         const parsed = parseRestaurantAndDish(text);
+        const detectedItemFamily = detectItemFamilyFromText(safeText);
+
+        if (detectedItemFamily) {
+            console.log(`[NLU_ITEM_DETECTED] family=${detectedItemFamily}`);
+            BrainLogger.nlu(`[NLU_ITEM_DETECTED] family=${detectedItemFamily}`);
+        }
 
         const entities = {
             location,
@@ -255,9 +387,51 @@ export class NLURouter {
             quantity,
             restaurant: matchedRestaurant ? matchedRestaurant.name : null,
             restaurantId: matchedRestaurant ? matchedRestaurant.id : null,
-            dish: parsed.dish || null, // EXPOSE DISH GLOBALLY
+            dish: parsed.dish || detectedItemFamily || null, // EXPOSE DISH GLOBALLY
             items: parsed.items || null
         };
+        const hasExplicitRestaurantTarget = Boolean(
+            entities.restaurantId ||
+            matchedRestaurant?.id ||
+            parsed?.restaurant
+        );
+
+        console.log('[TEXT_ORDER_TRACE]', JSON.stringify({
+            normalizedText: normalizedLoose,
+            detectedRestaurant: entities.restaurant || parsed?.restaurant || null,
+            restaurantLocked: Boolean(session?.currentRestaurant?.id || hasExplicitRestaurantTarget),
+            location: entities.location || null,
+        }));
+
+        const hasSelectionSignal = hasRestaurantSelectionSignal(text, normalizedLoose, {
+            matchedRestaurant: Boolean(matchedRestaurant),
+            parsedRestaurant: Boolean(parsed?.restaurant),
+        });
+        const hasSpicyPreference = hasSpicyPreferenceSignal(text, normalizedLoose);
+        const shouldForceSpicyRefinement =
+            hasSpicyPreference &&
+            !session?.currentRestaurant &&
+            !hasSelectionSignal;
+
+        if (shouldForceSpicyRefinement) {
+            console.log('[NLU_SPICY_REFINEMENT]', JSON.stringify({
+                text,
+                source: 'nlu_spicy_refinement',
+                expectedContext: session?.expectedContext || null,
+                locationCandidate: location || null,
+                selectionSignal: hasSelectionSignal,
+            }));
+            BrainLogger.nlu('[NLU_SPICY_REFINEMENT]');
+            return {
+                intent: 'find_nearby',
+                confidence: 0.94,
+                source: 'nlu_spicy_refinement',
+                entities: withSpicyRefinementEntities({
+                    ...entities,
+                    dish: null,
+                }),
+            };
+        }
 
         // --- PRIORITY: Explicit Intent Commands Override Awaiting State ---
         // If user says "Pokaż menu", that's menu_request even if system was awaiting location
@@ -367,21 +541,14 @@ export class NLURouter {
                 return { intent: 'find_nearby', confidence: 1.0, source: 'select_restaurant_escape', entities };
             }
 
-            const isIntentLike = /(menu|zamawiam|zamów|poproszę|poprosze|wezmę|wezme|chcę|chce|pokaż|pokaz|znajdz|gdzie|health|checkout|kasa|platnosc)/i.test(normalized);
-            const isManualSelection = /\b(numer|nr|opcja|opcje)\s+\d+\b/i.test(normalized);
-            // If it's just a number or simple phrase, it's selection
-            if (!isIntentLike || /^[0-9]\b/.test(normalized.trim()) || isManualSelection) {
-                // If it contains "inne" or "wiecej", it might be show_more_options
-                if (/\b(wiecej|więcej|inne|lista)\b/i.test(normalized) && !isManualSelection) {
-                    // fall through to more options block
-                } else {
-                    return {
-                        intent: 'select_restaurant',
-                        confidence: 0.95,
-                        entities: { ...entities, raw: text },
-                        source: 'context_lock'
-                    };
-                }
+            // context_lock can select restaurant ONLY with explicit selection signal
+            if (hasSelectionSignal) {
+                return {
+                    intent: 'select_restaurant',
+                    confidence: 0.95,
+                    entities: { ...entities, raw: text },
+                    source: 'context_lock'
+                };
             }
         }
 
@@ -614,17 +781,28 @@ export class NLURouter {
             // 2. Alias Layer: auto-generate aliases from dish names
             if (!dishMatch) {
                 const ALIAS_STOPWORDS = ['z', 'i', 'w', 'na', 'do', 'ze', 'the', 'a', 'an'];
-
-                for (const item of menu) {
+                const menuTokens = menu.map((item) => {
                     const dishNorm = normalizeTxt(item.base_name || item.name).toLowerCase();
-                    // Generate aliases: each significant word (>2 chars) from dish name
-                    const words = dishNorm.split(/\s+/).filter(w => w.length > 2 && !ALIAS_STOPWORDS.includes(w));
+                    const words = dishNorm
+                        .split(/\s+/)
+                        .filter((w) => w.length > 2 && !ALIAS_STOPWORDS.includes(w));
+                    return { item, words: [...new Set(words)] };
+                });
+                const tokenFrequency = new Map();
 
-                    // Check if any unique word from dish is in user input
-                    const matchedWord = words.find(w => {
-                        // Word must be distinctive (not a generic word)
-                        const isDistinctive = !['standard', 'double', 'classic', 'mini', 'mega', 'duzy', 'maly'].includes(w);
-                        return isDistinctive && normalizedForDish.includes(w);
+                for (const { words } of menuTokens) {
+                    for (const token of words) {
+                        tokenFrequency.set(token, (tokenFrequency.get(token) || 0) + 1);
+                    }
+                }
+
+                for (const { item, words } of menuTokens) {
+                    // Generate aliases only from distinctive words that identify a single item in this menu.
+                    // This blocks generic family aliases like "nalesnik" from hijacking specific requests.
+                    const matchedWord = words.find((w) => {
+                        const isGeneric = GENERIC_DISH_ALIAS_TOKENS.has(w);
+                        const isUniqueInMenu = (tokenFrequency.get(w) || 0) === 1;
+                        return !isGeneric && isUniqueInMenu && includesWholePhrase(normalizedForDish, w);
                     });
 
                     if (matchedWord) {
@@ -657,8 +835,9 @@ export class NLURouter {
         }
 
         // --- Patch 3: Quantity + Dish merge (simplified, entities-level) ---
-        // If NLU extracted quantity + dish, and we have any ordering context, force create_order.
-        if (entities.quantity && entities.quantity > 1 && entities.dish) {
+        // If NLU extracted quantity + dish, and we have a restaurant context, force create_order.
+        // Guard: without currentRestaurant, "dwa kebaby" should be discovery, not ordering.
+        if (session?.currentRestaurant && entities.quantity && entities.quantity > 1 && entities.dish) {
             BrainLogger.nlu(`[QTY_DISH_MERGE] qty=${entities.quantity} dish="${entities.dish}"`);
             return {
                 intent: 'create_order',
@@ -721,7 +900,17 @@ export class NLURouter {
 
             // If we have a Location entity AND Discovery keyword, Force find_nearby
             // (Even if 'Piekarach' loosely matches a restaurant name)
-            if ((location || !matchedRestaurant) && (!session?.currentRestaurant || isExplicitRestaurantSearch(text))) {
+            const shouldForceDiscovery =
+                !hasExplicitRestaurantTarget &&
+                (location || !matchedRestaurant);
+
+            if (shouldForceDiscovery && (!session?.currentRestaurant || isExplicitRestaurantSearch(text))) {
+                console.log('[TEXT_ORDER_DECISION]', JSON.stringify({
+                    decision: 'force_discovery_guard',
+                    reason: 'discovery_without_explicit_restaurant',
+                    hasLocation: Boolean(location),
+                    matchedRestaurant: matchedRestaurant?.name || null,
+                }));
                 return {
                     intent: 'find_nearby',
                     confidence: 0.99,
@@ -731,13 +920,37 @@ export class NLURouter {
             }
         }
 
+        const shouldForceItemDiscovery =
+            !session?.currentRestaurant &&
+            !!detectedItemFamily &&
+            !hasExplicitRestaurantTarget &&
+            (location || explicitDiscoverySignal || !matchedRestaurant);
+
+        if (shouldForceItemDiscovery) {
+            console.log('[TEXT_ORDER_DECISION]', JSON.stringify({
+                decision: 'force_discovery_item_family',
+                family: detectedItemFamily,
+                matchedRestaurant: matchedRestaurant?.name || null,
+                explicitDiscoverySignal,
+            }));
+            return {
+                intent: 'find_nearby',
+                confidence: 0.92,
+                source: 'item_family_detection',
+                entities: {
+                    ...entities,
+                    dish: detectedItemFamily,
+                }
+            };
+        }
+
         // --- RULE 3: Strict Restaurant Match (Catalog) ---
         // If we found a restaurant from our static list 
         if (matchedRestaurant) {
             // Check for ordering context FIRST
             // Fix: "Zamawiam z Bar Praha" should be create_order, not select_restaurant
             // UPDATED: Included "chciałbym/chciałabym"
-            const isOrderContext = /\b(zamawiam|zamow|zamów|poprosze|poprosz[ęe]|wezme|wezm[ęe]|biore|bior[ęe]|chce|chc[ęe]|dla mnie|poprosic|chciał(bym|abym)|skusz[ęe]|spr[oó]buj[ęe]|zdecyduj[ęe]|lec[ęe]\s+na|bior[ęe]\s+to)\b/i.test(normalized);
+            const isOrderContext = /\b(zamawiam|zamow|zamów|dodaj|dodac|dodać|poprosze|poprosz[ęe]|wezme|wezm[ęe]|biore|bior[ęe]|chce|chc[ęe]|dla mnie|poprosic|chciał(bym|abym)|chcial(bym|abym)|skusz[ęe]|spr[oó]buj[ęe]|zdecyduj[ęe]|lec[ęe]\s+na|bior[ęe]\s+to)\b/i.test(normalized);
 
             if (isOrderContext) {
                 return {
@@ -924,7 +1137,7 @@ export class NLURouter {
         }
 
         // 3. Food-word Fallback: if unknown but contains food words, assume exploration
-        const FOOD_WORDS = /\b(pizza|pizz[aeęyę]|kebab|kebaba|burger|burgera|burgery|sushi|ramen|pad\s*thai|pho|pierogi|pierog|zupy?|zup[ęka]|schabowy?|kotlet|frytki|frytek|king|kfc|mcdonald|mac|jedzenie|cos|coś|zjeść|zjesz|dania|baner|dobry|cola|colę|cole|coca|fanta|sprite|woda|wode|wodę|napój|napoje)\b/i;
+        const FOOD_WORDS = /\b(pizza|pizz[aeęyę]|kebab|kebaba|burger|burgera|burgery|sushi|ramen|pad\s*thai|pho|pierogi|pierog|zupy?|zup[ęka]|schabowy?|kotlet|frytki|frytek|rollo|rolo|lawasz|pita|king|kfc|mcdonald|mac|jedzenie|cos|coś|zjeść|zjesz|dania|baner|dobry|cola|colę|cole|coca|fanta|sprite|woda|wode|wodę|napój|napoje)\b/i;
         if (FOOD_WORDS.test(normalized) && !session?.currentRestaurant) {
             return {
                 intent: 'find_nearby',
@@ -1074,7 +1287,3 @@ export class NLURouter {
         };
     }
 }
-
-
-
-

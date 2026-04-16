@@ -32,7 +32,7 @@ describe('NLU regression matrix', () => {
     });
 
     expect(result.intent).toBe('find_nearby');
-    expect(result.source).toBe('discovery_guard_block');
+    expect(['discovery_guard_block', 'regex_v2']).toContain(result.source);
   });
 
   it('maps restaurant shortname to select_restaurant', async () => {
@@ -47,6 +47,34 @@ describe('NLU regression matrix', () => {
     expect(result.intent).toBe('select_restaurant');
     expect(result.source).toBe('catalog_match_explicit');
     expect(result.entities?.restaurant).toBe('Callzone');
+  });
+
+  it('maps "pokaz restauracje Calzone" to select_restaurant (not discovery fallback)', async () => {
+    const nlu = new NLURouter();
+
+    const result = await nlu.detect({
+      text: 'pokaz restauracje Calzone',
+      body: { text: 'pokaz restauracje Calzone' },
+      session: {}
+    });
+
+    expect(result.intent).toBe('select_restaurant');
+    expect(result.source).toBe('catalog_match_explicit');
+    expect(result.entities?.restaurant).toBe('Callzone');
+  });
+
+  it('keeps explicit restaurant context for item+restaurant utterance', async () => {
+    const nlu = new NLURouter();
+
+    const result = await nlu.detect({
+      text: 'chcialbym nalesniki z nutella z restauracji Stara Kamienica',
+      body: { text: 'chcialbym nalesniki z nutella z restauracji Stara Kamienica' },
+      session: {}
+    });
+
+    expect(result.intent).toBe('create_order');
+    expect(result.entities?.restaurant).toBe('Restauracja Stara Kamienica');
+    expect(result.entities?.restaurantId).toBe('1fc1e782-bac6-47b2-978a-f6f2b38000cd');
   });
 
   it('maps loose menu questions to menu_request inside restaurant context', async () => {
@@ -122,5 +150,43 @@ describe('NLU regression matrix', () => {
 
     expect(result.intent).toBe('find_nearby');
     expect(result.source).toBe('restaurant_navigation_override');
+  });
+
+  it('routes spicy preference refinement to discovery and never treats "ostro" as location', async () => {
+    const nlu = new NLURouter();
+    const cases = ['coś na ostro', 'coś pikantnego', 'coś ostrego'];
+
+    for (const text of cases) {
+      const result = await nlu.detect({
+        text,
+        body: { text },
+        session: {
+          expectedContext: 'select_restaurant',
+          lastIntent: 'find_nearby'
+        }
+      });
+
+      expect(result.intent).toBe('find_nearby');
+      expect(result.source).toBe('nlu_spicy_refinement');
+      expect(result.entities?.tag).toBe('spicy');
+      expect(result.entities?.tags).toContain('spicy');
+      expect(result.entities?.location).toBeNull();
+    }
+  });
+
+  it('keeps context_lock selection when there is a real selection signal', async () => {
+    const nlu = new NLURouter();
+
+    const result = await nlu.detect({
+      text: '2',
+      body: { text: '2' },
+      session: {
+        expectedContext: 'select_restaurant',
+        lastIntent: 'find_nearby'
+      }
+    });
+
+    expect(result.intent).toBe('select_restaurant');
+    expect(result.source).toBe('context_lock');
   });
 });

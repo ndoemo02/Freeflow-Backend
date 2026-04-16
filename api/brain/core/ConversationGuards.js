@@ -317,6 +317,41 @@ const LOCATION_BLACKLIST = [
     'pokaz', 'polec', 'mam ochote', 'moze byc', 'moze', 'byc'
 ];
 
+const LOCATION_ADDRESS_HINTS = [
+    'ul.', 'ul ', 'ulica', 'aleja', 'al.', 'al ',
+    'plac', 'pl.', 'rondo', 'os.', 'os ', 'osiedle',
+    'numer', ' nr '
+];
+
+const LOCATION_PLACEHOLDER_PATTERNS = [
+    /\bcurrent\s+location\b/i,
+    /\bmy\s+location\b/i,
+    /\bhere\b/i,
+    /\bnearby\b/i,
+    /\bw\s*poblizu\b/i,
+    /\bblisko\b/i,
+    /\bbiezaca\s+lokalizacja\b/i,
+];
+
+function looksLikeStreetAddress(normalizedLocation = '') {
+    const normalized = String(normalizedLocation || '').trim();
+    if (!normalized) return false;
+
+    const ascii = normalized
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/ł/g, 'l')
+        .replace(/[^a-z0-9\s.-]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    const hasStreetHint = LOCATION_ADDRESS_HINTS.some((hint) => ascii.includes(hint));
+    const hasStreetNumber = /\b\d+[a-z]?\b/i.test(ascii);
+    const endsWithStreetNumber = /^[a-z\s.-]{3,}\s+\d+[a-z]?$/i.test(ascii);
+
+    return hasStreetHint || (hasStreetNumber && endsWithStreetNumber);
+}
+
 /**
  * Sanitize NLU-extracted location.
  * If location has >2 words and contains non-location terms → use session fallback.
@@ -332,9 +367,15 @@ export function sanitizeLocation(location, session) {
         .normalize('NFD')
         .replace(/[\u0300-\u036f]/g, '');
 
-    const wordCount = normalized.trim().split(/\s+/).length;
+    if (LOCATION_PLACEHOLDER_PATTERNS.some((pattern) => pattern.test(normalized))) {
+        BrainLogger.pipeline?.(`🧹 SANITIZE_LOCATION: placeholder "${location}" → null`);
+        return null;
+    }
 
-    if (wordCount > 2 && LOCATION_BLACKLIST.some(word => normalized.includes(word))) {
+    const wordCount = normalized.trim().split(/\s+/).length;
+    const addressLike = looksLikeStreetAddress(normalized);
+
+    if ((wordCount > 2 && LOCATION_BLACKLIST.some(word => normalized.includes(word))) || addressLike) {
         BrainLogger.pipeline?.(`🧹 SANITIZE_LOCATION: rejected "${location}" → fallback`);
         return session?.last_location || session?.default_city || null;
     }

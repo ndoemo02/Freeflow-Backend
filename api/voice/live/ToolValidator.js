@@ -9,6 +9,8 @@ const ITEMS_MAX = 20;
 
 const STRING_LIMITS = {
     dish:            { minLen: 1, maxLen: 200 },
+    from_dish:       { minLen: 1, maxLen: 200 },
+    to_dish:         { minLen: 1, maxLen: 200 },
     location:        { maxLen: 200 },
     cuisine:         { maxLen: 100 },
     restaurant_name: { maxLen: 200 },

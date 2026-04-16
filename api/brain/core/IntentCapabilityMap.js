@@ -37,7 +37,13 @@ export const INTENT_CAPS = {
 
     show_more_options: {
         domain: 'food',
-        requiredState: { last_restaurants_list: 'non_empty' },
+        requiredState: {
+            OR: [
+                { last_restaurants_list: 'non_empty' },
+                { currentRestaurant: 'any' },
+                { lastRestaurant: 'any' }
+            ]
+        },
         allowedTransitions: ['select_restaurant', 'find_nearby'],
         setsState: [],
         fallbackIntent: 'find_nearby',
@@ -240,7 +246,10 @@ function checkSingleCondition(cond, session, entities = {}) {
  * Get fallback intent when requirements not met
  */
 export function getFallbackIntent(intent) {
-    return INTENT_CAPS[intent]?.fallbackIntent || 'find_nearby';
+    const caps = INTENT_CAPS[intent];
+    if (!caps) return 'find_nearby';
+    // Fix #5: respect explicit null (e.g. confirm_order must NOT fall back to find_nearby)
+    return caps.fallbackIntent === undefined ? 'find_nearby' : caps.fallbackIntent;
 }
 
 /**

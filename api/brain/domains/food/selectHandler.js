@@ -1,6 +1,7 @@
 
 import { getSession, updateSession } from '../../session/sessionStore.js';
 import { fuzzyMatch } from '../../helpers.js';
+import { resolveRestaurantByName } from '../../services/restaurantResolver.js';
 
 export class SelectRestaurantHandler {
 
@@ -81,6 +82,65 @@ export class SelectRestaurantHandler {
                 },
                 meta: { source: 'entity_direct_selection_auto_menu' }
             };
+        }
+
+        // NAME-ONLY RESOLUTION: Gemini passed restaurant_name but no restaurant_id.
+        // Try to resolve to {id, name} via entity cache or DB before falling to list lookup.
+        if (entities?.restaurant && !entities?.restaurantId) {
+            const resolved = await resolveRestaurantByName(
+                entities.restaurant,
+                session?.entityCache?.restaurants
+            );
+            if (resolved?.id) {
+                console.log(`[SELECT_NAME_RESOLVE] resolved "${entities.restaurant}" → id=${resolved.id}`);
+                // Re-enter the direct entity path with the resolved ID
+                const currentRestaurant = {
+                    id: resolved.id,
+                    name: resolved.name,
+                    city: entities.location || null,
+                };
+
+                const conflict = this._checkCartConflict(session, currentRestaurant, ctx);
+                if (conflict) return conflict;
+
+                ctx.session = {
+                    ...ctx.session,
+                    lastRestaurant: currentRestaurant,
+                    currentRestaurant: currentRestaurant,
+                    last_menu: null,
+                    last_menu_restaurant_id: null,
+                };
+
+                const { MenuHandler } = await import('./menuHandler.js');
+                const menuHandler = new MenuHandler();
+                const menuResponse = await menuHandler.execute(ctx);
+
+                let finalReply = `Wybrano ${resolved.name}. `;
+                if (menuResponse.reply) {
+                    finalReply += menuResponse.reply
+                        .replace(`Wybrano restaurację ${resolved.name}. `, '')
+                        .replace(`Wybrano restaurację ${resolved.name}.`, '');
+                }
+
+                return {
+                    ...menuResponse,
+                    reply: finalReply,
+                    contextUpdates: {
+                        ...menuResponse.contextUpdates,
+                        currentRestaurant,
+                        lastRestaurant: currentRestaurant,
+                        lockedRestaurantId: resolved.id,
+                        awaiting: null,
+                        cart: { items: [], total: 0, restaurantId: resolved.id },
+                        pendingOrder: null,
+                        conversationPhase: 'ordering',
+                        expectedContext: 'create_order',
+                    },
+                    meta: { source: 'select_name_resolved_auto_menu' },
+                };
+            }
+            // Name could not be resolved — fall through to list / ask
+            console.log(`[SELECT_NAME_RESOLVE] unresolved name="${entities.restaurant}" — falling through to list`);
         }
 
         const list = session?.last_restaurants_list || [];
@@ -177,11 +237,12 @@ export class SelectRestaurantHandler {
         }
 
         // 3. Selection Success
-        // Build currentRestaurant object for persistence
+        // Build currentRestaurant object for persistence — keep full data (image_url, photo_gallery etc.)
         const currentRestaurant = {
+            ...selected,
             id: selected.id,
             name: selected.name,
-            city: selected.city || null
+            city: selected.city || null,
         };
 
         // Feature: Auto-convert to order if we have a pending dish remembered

@@ -1,18 +1,18 @@
-/**
+﻿/**
  * api/orders.js
- * ═══════════════════════════════════════════════════════════════════════════
+ * â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
  * @DEPRECATED dla Voice/Brain V2 flow
  * 
- * Zamówienia głosowe są teraz zapisywane w:
- *   api/brain/domains/food/confirmHandler.js → persistOrderToDB()
+ * ZamĂłwienia gĹ‚osowe sÄ… teraz zapisywane w:
+ *   api/brain/domains/food/confirmHandler.js â†’ persistOrderToDB()
  * 
  * Ten plik pozostaje TYLKO dla:
  *   - Manual UI checkout (CartContext.jsx)
  *   - Legacy voice commands (starszy flow)
- *   - GET/PATCH operacje na zamówieniach
+ *   - GET/PATCH operacje na zamĂłwieniach
  * 
- * NIE używaj tych endpointów dla nowych integracji Voice.
- * ═══════════════════════════════════════════════════════════════════════════
+ * NIE uĹĽywaj tych endpointĂłw dla nowych integracji Voice.
+ * â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
  */
 
 import { supabase } from "./_supabase.js";
@@ -20,7 +20,7 @@ import { applyCORS } from "./_cors.js";
 import { normalizeTxt, levenshtein } from "./brain/helpers.js";
 
 /**
- * @DEPRECATED - Używaj ConfirmOrderHandler dla Voice flow
+ * @DEPRECATED - UĹĽywaj ConfirmOrderHandler dla Voice flow
  */
 export async function createOrderEndpoint(req, res) {
   if (req.method !== "POST")
@@ -63,12 +63,12 @@ export async function createOrderEndpoint(req, res) {
 
     return res.status(200).json({ ok: true, id: data.id, items: data.items || [] });
   } catch (err) {
-    console.error("❌ Order error:", err);
+    console.error("âťŚ Order error:", err);
     return res.status(500).json({ ok: false, error: err.message });
   }
 }
 
-// ✅ Funkcje normalize i levenshtein zaimportowane z helpers.js (deduplikacja)
+// âś… Funkcje normalize i levenshtein zaimportowane z helpers.js (deduplikacja)
 
 function findBestMatch(list, query, field = "name") {
   const safeString = (v) => {
@@ -76,7 +76,7 @@ function findBestMatch(list, query, field = "name") {
     if (typeof v === "string") return v;
     if (typeof v === "number") return String(v);
     if (typeof v === "object") {
-      // Preferuj .name jeśli istnieje (np. restauracja)
+      // Preferuj .name jeĹ›li istnieje (np. restauracja)
       if (v.name) return String(v.name);
       try { return JSON.stringify(v); } catch { return String(v); }
     }
@@ -88,21 +88,21 @@ function findBestMatch(list, query, field = "name") {
   let bestScore = Infinity;
   let exactMatch = null;
 
-  console.log(`🔍 Szukam "${query}" (znormalizowane: "${normQuery}") w ${list.length} pozycjach`);
+  console.log(`đź”Ť Szukam "${query}" (znormalizowane: "${normQuery}") w ${list.length} pozycjach`);
 
   for (const el of list) {
     const name = normalizeTxt(safeString(el[field]));
 
-    // Sprawdź dokładne dopasowanie (includes)
+    // SprawdĹş dokĹ‚adne dopasowanie (includes)
     if (name.includes(normQuery)) {
-      console.log(`✅ Dokładne dopasowanie: "${el[field]}" zawiera "${query}"`);
+      console.log(`âś… DokĹ‚adne dopasowanie: "${el[field]}" zawiera "${query}"`);
       exactMatch = el;
-      break; // Priorytet dla dokładnych dopasowań
+      break; // Priorytet dla dokĹ‚adnych dopasowaĹ„
     }
 
-    // Sprawdź podobieństwo Levenshtein
+    // SprawdĹş podobieĹ„stwo Levenshtein
     const dist = levenshtein(name, normQuery);
-    console.log(`📊 "${el[field]}" → odległość: ${dist}`);
+    console.log(`đź“Š "${el[field]}" â†’ odlegĹ‚oĹ›Ä‡: ${dist}`);
 
     if (dist < bestScore) {
       bestScore = dist;
@@ -110,25 +110,25 @@ function findBestMatch(list, query, field = "name") {
     }
   }
 
-  // Zwróć dokładne dopasowanie jeśli istnieje, w przeciwnym razie najlepsze podobieństwo
+  // ZwrĂłÄ‡ dokĹ‚adne dopasowanie jeĹ›li istnieje, w przeciwnym razie najlepsze podobieĹ„stwo
   const result = exactMatch || (bestScore <= 2 ? best : null);
 
   if (result) {
-    console.log(`🎯 WYBRANE: "${result[field]}" (typ: ${exactMatch ? 'dokładne' : 'podobieństwo'})`);
+    console.log(`đźŽŻ WYBRANE: "${result[field]}" (typ: ${exactMatch ? 'dokĹ‚adne' : 'podobieĹ„stwo'})`);
   } else {
-    console.log(`❌ BRAK DOPASOWANIA: najlepsza odległość: ${bestScore}`);
+    console.log(`âťŚ BRAK DOPASOWANIA: najlepsza odlegĹ‚oĹ›Ä‡: ${bestScore}`);
   }
 
   return result;
 }
 
 /**
- * @DEPRECATED dla Voice/Brain V2 - używaj ConfirmOrderHandler → persistOrderToDB()
+ * @DEPRECATED dla Voice/Brain V2 - uĹĽywaj ConfirmOrderHandler â†’ persistOrderToDB()
  * Pozostawione dla legacy intent-router
  */
 export async function createOrder(restaurantId, userId = "guest") {
   try {
-    console.log(`🛒 Tworzę zamówienie dla restauracji ${restaurantId}, użytkownik: ${userId}`);
+    console.log(`đź›’ TworzÄ™ zamĂłwienie dla restauracji ${restaurantId}, uĹĽytkownik: ${userId}`);
 
     const orderData = {
       user_id: userId === "guest" ? null : userId,
@@ -144,15 +144,15 @@ export async function createOrder(restaurantId, userId = "guest") {
       .single();
 
     if (error) {
-      console.error("❌ Błąd tworzenia zamówienia:", error);
+      console.error("âťŚ BĹ‚Ä…d tworzenia zamĂłwienia:", error);
       throw error;
     }
 
-    console.log("✅ Zamówienie utworzone:", order?.id);
+    console.log("âś… ZamĂłwienie utworzone:", order?.id);
     return order;
 
   } catch (err) {
-    console.error("🔥 Błąd createOrder:", err);
+    console.error("đź”Ą BĹ‚Ä…d createOrder:", err);
     return null;
   }
 }
@@ -172,7 +172,7 @@ export default async function handler(req, res) {
     return;
   }
 
-  // GET - pobierz zamówienia
+  // GET - pobierz zamĂłwienia
   if (req.method === 'GET') {
     try {
       const { user_email, user_id, restaurant_id } = req.query;
@@ -188,37 +188,37 @@ export default async function handler(req, res) {
         `)
         .order('created_at', { ascending: false });
 
-      // Filtruj według parametrów
+      // Filtruj wedĹ‚ug parametrĂłw
       if (restaurant_id) {
         query = query.eq('restaurant_id', restaurant_id);
       } else if (user_id) {
         query = query.eq('user_id', user_id);
       } else if (user_email) {
-        // Dla kompatybilności - jeśli nie ma user_id, pobierz wszystkie zamówienia
-        console.log('⚠️ user_email nie jest obsługiwane, pobieram wszystkie zamówienia');
+        // Dla kompatybilnoĹ›ci - jeĹ›li nie ma user_id, pobierz wszystkie zamĂłwienia
+        console.log('âš ď¸Ź user_email nie jest obsĹ‚ugiwane, pobieram wszystkie zamĂłwienia');
       }
 
       const { data: orders, error } = await query;
 
       if (error) {
-        console.error('❌ Błąd pobierania zamówień:', error);
+        console.error('âťŚ BĹ‚Ä…d pobierania zamĂłwieĹ„:', error);
         return res.status(500).json({ error: error.message });
       }
 
       return res.json({ orders: orders || [] });
 
     } catch (err) {
-      console.error('🔥 Błąd GET orders:', err);
+      console.error('đź”Ą BĹ‚Ä…d GET orders:', err);
       return res.status(500).json({ error: err.message });
     }
   }
 
-  // POST - utwórz zamówienie
+  // POST - utwĂłrz zamĂłwienie
   if (req.method === 'POST') {
     try {
-      // 🔥 Check if this is a cart order (from frontend)
+      // đź”Ą Check if this is a cart order (from frontend)
       if (req.body.restaurant_id && req.body.items && Array.isArray(req.body.items)) {
-        console.log('🛒 Cart order detected:', req.body);
+        console.log('đź›’ Cart order detected:', req.body);
 
         const { restaurant_id, items, user_id, restaurant_name, customer_name, customer_phone, delivery_address, notes } = req.body;
 
@@ -231,9 +231,9 @@ export default async function handler(req, res) {
         // Validate UUID format for restaurant_id
         const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
         if (!uuidRegex.test(restaurant_id)) {
-          console.error('❌ Invalid restaurant_id format:', restaurant_id);
+          console.error('âťŚ Invalid restaurant_id format:', restaurant_id);
           return res.status(400).json({
-            error: `Nieprawidłowy identyfikator restauracji. Proszę odświeżyć stronę i spróbować ponownie.`,
+            error: `NieprawidĹ‚owy identyfikator restauracji. ProszÄ™ odĹ›wieĹĽyÄ‡ stronÄ™ i sprĂłbowaÄ‡ ponownie.`,
             code: 'INVALID_RESTAURANT_ID',
             received: restaurant_id
           });
@@ -263,6 +263,10 @@ export default async function handler(req, res) {
           finalPLN = finalCents / 100;
         }
 
+        const requestedStatus = String(req.body?.status || '').trim().toLowerCase();
+        const allowedStatuses = new Set(['pending', 'cancelled', 'confirmed']);
+        const safeStatus = allowedStatuses.has(requestedStatus) ? requestedStatus : 'pending';
+
         const orderData = {
           user_id: user_id || null,
           restaurant_id: restaurant_id,
@@ -270,7 +274,7 @@ export default async function handler(req, res) {
           items: items,
           total_price: finalPLN,   // PLN (float)
           // total_cents: finalCents, // Cents (integer) - Commented out to prevent "column does not exist" error
-          status: "pending",     // Set to 'pending' so it shows up in Business Panel for acceptance
+          status: safeStatus,
           customer_name: customer_name || null,
           customer_phone: customer_phone || null,
           delivery_address: delivery_address || null,
@@ -278,7 +282,7 @@ export default async function handler(req, res) {
           created_at: new Date().toISOString(),
         };
 
-        console.log('📝 Cart order data:', orderData);
+        console.log('đź“ť Cart order data:', orderData);
 
         const { data: order, error: orderErr } = await supabase
           .from('orders')
@@ -287,11 +291,11 @@ export default async function handler(req, res) {
           .single();
 
         if (orderErr) {
-          console.error('❌ Cart order error:', orderErr);
+          console.error('âťŚ Cart order error:', orderErr);
           return res.status(500).json({ error: orderErr.message });
         }
 
-        console.log('✅ Cart order created:', order.id);
+        console.log('âś… Cart order created:', order.id);
         return res.json({
           ok: true,
           id: order.id,
@@ -300,7 +304,7 @@ export default async function handler(req, res) {
         });
       }
 
-      // 🔥 Legacy order creation (voice commands)
+      // đź”Ą Legacy order creation (voice commands)
       let { message, restaurant_name, user_email } = req.body;
 
       // Bezpieczny fallback dla undefined values
@@ -319,7 +323,7 @@ export default async function handler(req, res) {
       restaurant_name = safeString(restaurant_name);
       user_email = user_email || "";
 
-      console.log("🟡 INPUT:", { message, restaurant_name, user_email });
+      console.log("đźźˇ INPUT:", { message, restaurant_name, user_email });
 
       // Get user_id from Supabase Auth if available
       let user_id = null;
@@ -330,68 +334,68 @@ export default async function handler(req, res) {
           const { data: { user }, error } = await supabase.auth.getUser(token);
           if (user && !error) {
             user_id = user.id;
-            console.log("✅ User authenticated:", user.email, "ID:", user_id);
+            console.log("âś… User authenticated:", user.email, "ID:", user_id);
           }
         } catch (authError) {
-          console.log("⚠️ Auth error:", authError.message);
+          console.log("âš ď¸Ź Auth error:", authError.message);
         }
       }
 
       // Pobierz restauracje
-      console.log("🏪 Pobieram listę restauracji...");
+      console.log("đźŹŞ Pobieram listÄ™ restauracji...");
       const { data: restaurants, error: restErr } = await supabase.from("restaurants").select("*");
       if (restErr) throw restErr;
-      console.log(`📋 Znaleziono ${restaurants?.length || 0} restauracji`);
+      console.log(`đź“‹ Znaleziono ${restaurants?.length || 0} restauracji`);
 
       const restMatch = findBestMatch(restaurants, restaurant_name, "name");
       if (!restMatch) {
-        console.warn("❌ Nie znaleziono restauracji:", restaurant_name);
-        return res.json({ reply: `Nie mogę znaleźć restauracji "${restaurant_name}".` });
+        console.warn("âťŚ Nie znaleziono restauracji:", restaurant_name);
+        return res.json({ reply: `Nie mogÄ™ znaleĹşÄ‡ restauracji "${restaurant_name}".` });
       }
 
-      console.log("✅ Restauracja dopasowana:", restMatch.name, "(ID:", restMatch.id, ")");
+      console.log("âś… Restauracja dopasowana:", restMatch.name, "(ID:", restMatch.id, ")");
 
       // Pobierz menu restauracji
-      console.log("🍽️ Pobieram menu dla restauracji:", restMatch.id);
+      console.log("đźŤ˝ď¸Ź Pobieram menu dla restauracji:", restMatch.id);
       const { data: menu, error: menuErr } = await supabase
         .from("menu_items")
         .select("*")
         .eq("restaurant_id", restMatch.id);
 
       if (menuErr || !menu?.length) {
-        console.warn("❌ Brak menu dla:", restMatch.name, "Błąd:", menuErr);
-        return res.json({ reply: `Nie znalazłem menu dla "${restMatch.name}".` });
+        console.warn("âťŚ Brak menu dla:", restMatch.name, "BĹ‚Ä…d:", menuErr);
+        return res.json({ reply: `Nie znalazĹ‚em menu dla "${restMatch.name}".` });
       }
 
-      console.log(`📋 Znaleziono ${menu.length} pozycji w menu:`);
+      console.log(`đź“‹ Znaleziono ${menu.length} pozycji w menu:`);
       menu.forEach((item, i) => {
-        console.log(`  ${i + 1}. "${item.name}" - ${item.price} zł`);
+        console.log(`  ${i + 1}. "${item.name}" - ${item.price} zĹ‚`);
       });
 
-      // Parsuj ilość
+      // Parsuj iloĹ›Ä‡
       let quantity = 1;
       let cleaned = message;
       const match = message.match(/(\d+)\s*x\s*(.+)/i);
       if (match) {
         quantity = parseInt(match[1]);
         cleaned = match[2];
-        console.log(`🔢 Parsowanie ilości: "${message}" → ${quantity}x "${cleaned}"`);
+        console.log(`đź”˘ Parsowanie iloĹ›ci: "${message}" â†’ ${quantity}x "${cleaned}"`);
       } else {
-        console.log(`🔢 Brak ilości w komendzie, domyślnie: 1x "${cleaned}"`);
+        console.log(`đź”˘ Brak iloĹ›ci w komendzie, domyĹ›lnie: 1x "${cleaned}"`);
       }
 
       // Szukaj pozycji
-      console.log("🔍 Szukam pozycji w menu...");
+      console.log("đź”Ť Szukam pozycji w menu...");
       const item = findBestMatch(menu, cleaned);
       if (!item) {
-        console.warn("❌ Brak pozycji:", cleaned);
-        return res.json({ reply: `Nie znalazłem "${cleaned}" w menu. Spróbuj powiedzieć np. "pizza" lub "burger".` });
+        console.warn("âťŚ Brak pozycji:", cleaned);
+        return res.json({ reply: `Nie znalazĹ‚em "${cleaned}" w menu. SprĂłbuj powiedzieÄ‡ np. "pizza" lub "burger".` });
       }
 
-      console.log("✅ Pozycja dopasowana:", item.name, "-", item.price, "zł");
+      console.log("âś… Pozycja dopasowana:", item.name, "-", item.price, "zĹ‚");
 
-      // Dodaj zamówienie
-      console.log("💾 Tworzę zamówienie w bazie danych...");
+      // Dodaj zamĂłwienie
+      console.log("đź’ľ TworzÄ™ zamĂłwienie w bazie danych...");
       const orderData = {
         user_id: user_id || null,
         restaurant_id: restMatch.id,
@@ -406,80 +410,94 @@ export default async function handler(req, res) {
         status: "pending",
       };
 
-      console.log("📝 Dane zamówienia:", orderData);
+      console.log("đź“ť Dane zamĂłwienia:", orderData);
 
       const { data: order, error: orderErr } = await supabase.from("orders").insert([orderData]).select();
 
       if (orderErr) {
-        console.error("❌ Błąd tworzenia zamówienia:", orderErr);
+        console.error("âťŚ BĹ‚Ä…d tworzenia zamĂłwienia:", orderErr);
         throw orderErr;
       }
 
-      console.log("✅ Zamówienie utworzone:", order[0]?.id);
+      console.log("âś… ZamĂłwienie utworzone:", order[0]?.id);
 
       const response = {
-        reply: `Zamówiłem ${quantity}x ${item.name} w ${restMatch.name} za ${item.price * quantity} zł.`,
+        reply: `ZamĂłwiĹ‚em ${quantity}x ${item.name} w ${restMatch.name} za ${item.price * quantity} zĹ‚.`,
         order_id: order[0]?.id,
       };
 
-      console.log("📤 Odpowiedź:", response);
+      console.log("đź“¤ OdpowiedĹş:", response);
       return res.json(response);
 
     } catch (err) {
-      console.error("🔥 Błąd POST orders:", err);
+      console.error("đź”Ą BĹ‚Ä…d POST orders:", err);
       return res.status(500).json({ error: err.message });
     }
   }
 
-  // DELETE - usuń wszystkie zamówienia (dla testów)
+  // DELETE - usuĹ„ wszystkie zamĂłwienia (dla testĂłw)
   if (req.method === 'DELETE') {
     try {
-      console.log('🗑️ Usuwam wszystkie zamówienia...');
+      console.log('đź—‘ď¸Ź Usuwam wszystkie zamĂłwienia...');
 
       const { error } = await supabase.from('orders').delete().neq('id', '00000000-0000-0000-0000-000000000000');
 
       if (error) {
-        console.error('❌ Błąd usuwania zamówień:', error);
+        console.error('âťŚ BĹ‚Ä…d usuwania zamĂłwieĹ„:', error);
         return res.status(500).json({ error: error.message });
       }
 
-      console.log('✅ Wszystkie zamówienia usunięte');
+      console.log('âś… Wszystkie zamĂłwienia usuniÄ™te');
       return res.json({ message: 'All orders deleted successfully' });
 
     } catch (err) {
-      console.error('🔥 Błąd DELETE orders:', err);
+      console.error('đź”Ą BĹ‚Ä…d DELETE orders:', err);
       return res.status(500).json({ error: err.message });
     }
   }
-
   // PATCH - update order status
   if (req.method === 'PATCH') {
     try {
       const orderId = req.url.split('/').pop();
-      const { status } = req.body;
+      const { status, notes, user_id } = req.body || {};
 
-      if (!orderId || !status) {
-        return res.status(400).json({ error: 'Missing order ID or status' });
+      if (!orderId) {
+        return res.status(400).json({ error: 'Missing order ID' });
       }
 
-      console.log(`📝 Updating order ${orderId} to status: ${status}`);
+      const updatePayload = {};
+      if (typeof status === 'string' && status.trim()) {
+        updatePayload.status = status.trim();
+      }
+      if (typeof notes === 'string') {
+        updatePayload.notes = notes;
+      }
+      if (typeof user_id === 'string' && user_id.trim()) {
+        updatePayload.user_id = user_id.trim();
+      }
+
+      if (Object.keys(updatePayload).length === 0) {
+        return res.status(400).json({ error: 'Missing update payload (status or notes or user_id)' });
+      }
+
+      console.log('[ORDERS_PATCH]', { orderId, updatePayload });
 
       const { data, error } = await supabase
         .from('orders')
-        .update({ status })
+        .update(updatePayload)
         .eq('id', orderId)
         .select()
         .single();
 
       if (error) {
-        console.error('❌ Error updating order:', error);
+        console.error('Error updating order:', error);
         return res.status(500).json({ error: error.message });
       }
 
-      console.log('✅ Order updated successfully:', data);
+      console.log('Order updated successfully:', data);
       return res.json({ ok: true, order: data });
     } catch (err) {
-      console.error('🔥 Błąd PATCH orders:', err);
+      console.error('PATCH orders error:', err);
       return res.status(500).json({ error: err.message });
     }
   }
@@ -487,3 +505,5 @@ export default async function handler(req, res) {
   // Method not allowed
   return res.status(405).json({ error: 'Method not allowed' });
 }
+
+

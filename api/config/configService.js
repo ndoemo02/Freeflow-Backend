@@ -8,6 +8,7 @@ const KEYS = [
   "tts_engine",
   "tts_voice",
   "model",
+  "live_model",
   "streaming",
   "cache_enabled",
   "amber_prompt",
@@ -28,6 +29,10 @@ const DEFAULT_CONFIG = {
   tts_engine: { engine: process.env.TTS_ENGINE || "gpt-4o-mini-tts" },
   tts_voice: { voice: process.env.TTS_VOICE || "alloy" },
   model: { name: process.env.OPENAI_MODEL || "gpt-5" },
+  live_model:
+    process.env.GEMINI_LIVE_MODEL ||
+    process.env.LIVE_MODEL ||
+    "gemini-2.5-flash-native-audio-preview-12-2025",
   streaming: { enabled: true },
   tts_enabled: true,
   cache_enabled: true,
@@ -77,6 +82,10 @@ export async function getConfig() {
       tts_engine: safeMerge(DEFAULT_CONFIG.tts_engine, map.tts_engine),
       tts_voice: safeMerge(DEFAULT_CONFIG.tts_voice, map.tts_voice),
       model: safeMerge(DEFAULT_CONFIG.model, map.model),
+      live_model:
+        typeof map.live_model === "string" && map.live_model.trim().length > 0
+          ? map.live_model.trim()
+          : DEFAULT_CONFIG.live_model,
       streaming: safeMerge(DEFAULT_CONFIG.streaming, map.streaming),
       tts_enabled: typeof map.tts_enabled === "boolean" ? map.tts_enabled : DEFAULT_CONFIG.tts_enabled,
       cache_enabled:
@@ -219,5 +228,4 @@ export async function deleteRestaurantAlias(alias) {
   await updateConfig("restaurant_aliases", updated)
   return updated
 }
-
 

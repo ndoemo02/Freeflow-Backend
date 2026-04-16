@@ -20,6 +20,7 @@
 
 import { Router } from 'express';
 import { supabase } from '../_supabase.js';
+import { buildUnifiedTurns } from './turnAdapter.js';
 
 const router = Router();
 
@@ -296,6 +297,7 @@ router.get('/conversations/:sessionId', async (req, res) => {
             payload: event.payload,
             timestamp: event.created_at
         }));
+        const turns = buildUnifiedTurns(events || []);
 
         return res.json({
             ok: true,
@@ -308,7 +310,8 @@ router.get('/conversations/:sessionId', async (req, res) => {
                 updatedAt: conv.updated_at,
                 closedAt: conv.closed_at || null,
                 closedReason: conv.closed_reason || null,
-                timeline
+                timeline,
+                turns,
             }
         });
     } catch (err) {

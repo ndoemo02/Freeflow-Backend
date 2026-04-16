@@ -7,6 +7,35 @@
 import { extractLocation, extractCuisineType } from '../../nlu/extractors.js';
 import { pluralPl } from '../../utils/formatter.js';
 import { calculateDistance } from '../../helpers.js';
+import { supabase } from '../../../_supabase.js';
+
+// ── Discovery Ranking Layer (additive, non-breaking) ──────────
+// Lazy import — jeśli moduł nie istnieje (stare środowisko), discovery po
+// prostu nie jest aktywne. Handler nie crasha.
+let _matchQueryToTaxonomy = null;
+let _runDiscovery = null;
+let _discoveryUnavailable = false;
+
+async function loadDiscoveryEngine() {
+    if (_discoveryUnavailable) return false;
+    if (_matchQueryToTaxonomy) return true; // już załadowany
+    try {
+        // Prefer JS artifact in runtime (Node), then TS source in dev/test runners.
+        let mod = null;
+        try {
+            mod = await import('../../discovery/discoveryFilter.js');
+        } catch {
+            mod = await import('../../discovery/discoveryFilter.ts');
+        }
+        _matchQueryToTaxonomy = mod.matchQueryToTaxonomy;
+        _runDiscovery = mod.runDiscovery;
+        return true;
+    } catch (err) {
+        _discoveryUnavailable = true;
+        console.warn('[Discovery] Moduł niedostępny — tryb legacy:', err?.message);
+        return false;
+    }
+}
 
 // --- Configuration & Constants ---
 
@@ -25,6 +54,15 @@ const NEARBY_CITY_MAP = {
 function normalizeLocation(loc) {
     if (!loc) return null;
     const l = loc.toLowerCase().trim();
+    if (
+        /\bcurrent\s+location\b/i.test(l)
+        || /\bmy\s+location\b/i.test(l)
+        || /\bnearby\b/i.test(l)
+        || /\bw\s*poblizu\b/i.test(l)
+        || /\bblisko\b/i.test(l)
+    ) {
+        return null;
+    }
     if (l.includes('piekar')) return 'Piekary Śląskie';
     if (l.includes('katow')) return 'Katowice';
     if (l.includes('bytom')) return 'Bytom';
@@ -33,18 +71,528 @@ function normalizeLocation(loc) {
     return knownMatch || loc; // Return original if no normalization match, specific handlers might fuzzy match later
 }
 
+function normalizeLooseText(value) {
+    return String(value || '')
+        .toLowerCase()
+        .normalize('NFKD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9\s]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+function escapeRegex(value) {
+    return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+const LOCATION_ADDRESS_HINTS = [
+    'ul.', 'ul ', 'ulica', 'aleja', 'al.', 'al ',
+    'plac', 'pl.', 'rondo', 'os.', 'os ', 'osiedle',
+    'numer', ' nr '
+];
+
+function isAddressLikeLocation(value) {
+    const normalized = normalizeLooseText(value);
+    if (!normalized) return false;
+
+    const hasStreetHint = LOCATION_ADDRESS_HINTS.some((hint) => normalized.includes(hint));
+    const hasStreetNumber = /\b\d+[a-z]?\b/i.test(normalized);
+    const endsWithStreetNumber = /^[a-z\s.-]{3,}\s+\d+[a-z]?$/i.test(normalized);
+
+    return hasStreetHint || (hasStreetNumber && endsWithStreetNumber);
+}
+
+function resolveSessionCityFallback(session) {
+    const candidate = session?.last_location || session?.default_city || null;
+    if (!candidate) return null;
+    if (isAddressLikeLocation(candidate)) return null;
+    return normalizeLocation(candidate) || candidate;
+}
+
+const CUISINE_NORMALIZATION_RULES = [
+    { pattern: /\bitalian\b|\bwlosk\b|\bwloska\b/, value: 'Wloska' },
+    { pattern: /\bpolish\b|\bpolsk\b|\bpolska\b/, value: 'Polska' },
+    { pattern: /\bamerican\b|\bamerykan\b|\bamerykanska\b/, value: 'Amerykanska' },
+    { pattern: /\bfast\s*food\b|\bfastfood\b/, value: 'Fast Food' },
+    { pattern: /\basian\b|\bazjat\b|\bazjatycka\b/, value: 'Azjatycka' },
+    { pattern: /\bvietnam(?:ese)?\b|\bwietnamsk\w*\b/, value: 'Azjatycka' },
+    { pattern: /\bthai\b|\btajsk\w*\b/, value: 'Azjatycka' },
+    { pattern: /\bkebab\b|\bdoner\b/, value: 'Kebab' },
+    { pattern: /\bpizza\b|\bpizzeria\b/, value: 'Pizza' },
+    { pattern: /\bpierog\b|\bpierogi\b/, value: 'Pierogi' },
+];
+
+function normalizeCuisineSignal(rawCuisine) {
+    if (!rawCuisine) return null;
+
+    const original = String(rawCuisine).trim();
+    const normalized = normalizeLooseText(original);
+    if (!normalized) return null;
+
+    // Guard against accidental restaurant-name downgrade in cuisine slot.
+    if (normalized.includes('restauracja ')) return null;
+
+    for (const rule of CUISINE_NORMALIZATION_RULES) {
+        if (rule.pattern.test(normalized)) {
+            return rule.value;
+        }
+    }
+
+    return original;
+}
+
+function looksLikeCuisineLabel(value) {
+    const normalized = normalizeLooseText(value);
+    if (!normalized) return false;
+    if (GENERIC_DISCOVERY_TERMS.has(normalized)) return true;
+    return CUISINE_NORMALIZATION_RULES.some((rule) => rule.pattern.test(normalized));
+}
+
+const ITEM_FAMILY_DICTIONARY = {
+    rollo: ['rollo', 'rolo', 'rollo kebab', 'kebab rollo', 'durum rollo'],
+    lawasz: ['lawasz', 'lawasz kebab', 'lawasz kebs', 'lawaszkebab'],
+    pita: ['pita', 'pita kebab', 'pita rollo'],
+    kebab: ['kebab', 'kebaba', 'kebaby', 'doner', 'doner kebab', 'döner'],
+    calzone: ['calzone', 'pizza calzone'],
+    schabowy: ['schabowy', 'kotlet schabowy', 'schab tradycyjny'],
+    nalesnik: ['nalesnik', 'nalesniki', 'nalesniki', 'naleśnik', 'naleśniki'],
+    pierogi: ['pierogi', 'pierog', 'pieróg'],
+    zurek: ['zurek', 'żurek', 'zur slaski', 'żur śląski'],
+};
+
+const GENERIC_DISCOVERY_TERMS = new Set([
+    'restauracja', 'restauracje', 'restauracji', 'lokal', 'lokale', 'jedzenie',
+    'pizza', 'pizzeria', 'pizzy', 'kebab', 'burger', 'burgery', 'sushi', 'ramen',
+    'wloska', 'włoska', 'azjatycka', 'azjatyckie', 'polska', 'fastfood',
+]);
+
+const ITEM_QUERY_STOPWORDS = new Set([
+    'gdzie', 'zjem', 'szukam', 'szukamy', 'restauracje', 'restauracji', 'restauracja',
+    'lokal', 'lokale', 'w', 'na', 'do', 'po', 'poprosze', 'poproszę',
+    'chce', 'chcę', 'mam', 'ochote', 'ochotę', 'prosze', 'proszę',
+    'z', 'i', 'oraz',
+]);
+
+const NON_DISH_TOKENS = new Set([
+    'znajdz', 'znajdź', 'pokaz', 'pokaż', 'pokazcie', 'pokażcie', 'cos', 'coś',
+    'jakies', 'jakieś', 'miejsce', 'miejsca', 'lokal', 'lokale', 'restauracje',
+    'restauracji', 'knajpa', 'knajpy', 'jedzenie',
+]);
+
+const ITEM_SIGNAL_TOKENS = new Set(
+    Object.values(ITEM_FAMILY_DICTIONARY)
+        .flat()
+        .map((term) => normalizeLooseText(term))
+        .flatMap((term) => term.split(' '))
+        .filter((token) => token.length >= 4)
+);
+
+function buildItemAliases(itemQuery) {
+    const normalizedQuery = normalizeLooseText(itemQuery);
+    const aliases = new Set([normalizedQuery]);
+
+    for (const [family, terms] of Object.entries(ITEM_FAMILY_DICTIONARY)) {
+        const normalizedTerms = terms.map((term) => normalizeLooseText(term));
+        if (
+            family === normalizedQuery
+            || normalizedTerms.some((term) =>
+                normalizedQuery === term
+                || normalizedQuery.includes(term)
+                || (normalizedQuery.length >= 4 && term.startsWith(normalizedQuery))
+            )
+        ) {
+            aliases.add(normalizeLooseText(family));
+            for (const term of normalizedTerms) aliases.add(term);
+        }
+    }
+
+    for (const token of normalizedQuery.split(' ').filter((token) => token.length >= 4 && !ITEM_QUERY_STOPWORDS.has(token))) {
+        aliases.add(token);
+    }
+
+    return Array.from(aliases).filter(Boolean);
+}
+
+function parseDbAliases(rawAliases) {
+    if (Array.isArray(rawAliases)) {
+        return rawAliases
+            .map((alias) => normalizeLooseText(alias))
+            .filter(Boolean);
+    }
+
+    if (typeof rawAliases !== 'string') return [];
+    const trimmed = rawAliases.trim();
+    if (!trimmed) return [];
+
+    if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+        try {
+            const parsed = JSON.parse(trimmed);
+            if (Array.isArray(parsed)) {
+                return parsed
+                    .map((alias) => normalizeLooseText(alias))
+                    .filter(Boolean);
+            }
+        } catch {
+            // fallthrough to delimiter split
+        }
+    }
+
+    return trimmed
+        .split(/[,;|]/)
+        .map((alias) => normalizeLooseText(alias))
+        .filter(Boolean);
+}
+
+function buildItemSearchCorpus(item) {
+    const corpus = new Set();
+    const directFields = [item?.base_name, item?.name, item?.item_family];
+
+    for (const field of directFields) {
+        const normalized = normalizeLooseText(field);
+        if (normalized) corpus.add(normalized);
+    }
+
+    for (const alias of parseDbAliases(item?.item_aliases)) {
+        if (alias) corpus.add(alias);
+    }
+
+    const family = normalizeLooseText(item?.item_family);
+    if (family && ITEM_FAMILY_DICTIONARY[family]) {
+        for (const term of ITEM_FAMILY_DICTIONARY[family]) {
+            const normalized = normalizeLooseText(term);
+            if (normalized) corpus.add(normalized);
+        }
+    }
+
+    return Array.from(corpus).filter(Boolean);
+}
+
+function extractItemQueryCandidate(ctx, discoveryParams) {
+    const entityDish = String(
+        ctx?.entities?.dish ||
+        ctx?.entities?.item ||
+        ctx?.entities?.items?.[0]?.dish ||
+        ctx?.entities?.items?.[0]?.name ||
+        ''
+    ).trim();
+    const cuisineEntity = String(ctx?.entities?.cuisine || '').trim();
+
+    if (entityDish) {
+        const normalizedEntity = normalizeLooseText(entityDish);
+        if (normalizedEntity && !GENERIC_DISCOVERY_TERMS.has(normalizedEntity)) {
+            return entityDish;
+        }
+    }
+
+    if (cuisineEntity) {
+        const normalizedCuisineEntity = normalizeLooseText(cuisineEntity);
+        if (normalizedCuisineEntity && !GENERIC_DISCOVERY_TERMS.has(normalizedCuisineEntity)) {
+            return cuisineEntity;
+        }
+    }
+
+    const normalizedCuisine = normalizeLooseText(discoveryParams?.cuisine || '');
+    if (!entityDish && (GENERIC_DISCOVERY_TERMS.has(normalizedCuisine) || normalizedCuisine.includes('pizzeria'))) {
+        return null;
+    }
+
+    let candidate = normalizeLooseText(ctx?.text || '');
+    if (!candidate) return null;
+
+    const cleanupPatterns = [
+        /\bgdzie zjem\b/g,
+        /\bgdzie moge zjesc\b/g,
+        /\bszukam\b/g,
+        /\bchce zjesc\b/g,
+        /\bchce\b/g,
+        /\bmam ochote na\b/g,
+        /\brestauracji\b/g,
+        /\brestauracje\b/g,
+        /\brestauracja\b/g,
+        /\blokal\b/g,
+        /\blokale\b/g,
+    ];
+
+    for (const pattern of cleanupPatterns) {
+        candidate = candidate.replace(pattern, ' ');
+    }
+
+    const normalizedLocation = normalizeLooseText(discoveryParams?.location || discoveryParams?.originalLocation || '');
+    if (normalizedLocation) {
+        candidate = candidate.replace(new RegExp(`\\b${escapeRegex(normalizedLocation)}\\b`, 'g'), ' ');
+        for (const token of normalizedLocation.split(' ').filter((token) => token.length >= 3)) {
+            candidate = candidate.replace(new RegExp(`\\b${escapeRegex(token)}\\b`, 'g'), ' ');
+        }
+    }
+    // Usuń końcowe frazy lokalizacyjne, np. "w piekarach", "na bytomiu".
+    candidate = candidate.replace(/\b(w|na)\s+[a-z0-9]{3,}(?:\s+[a-z0-9]{3,})?$/g, ' ');
+
+    candidate = candidate.replace(/\s+/g, ' ').trim();
+    if (!candidate) return null;
+
+    const normalizedText = normalizeLooseText(ctx?.text || '');
+    const hasDishIntentHint = /(zjem|chce zjesc|chce|mam ochote na|zamawiam|poprosze)/.test(normalizedText);
+
+    const meaningfulTokens = candidate
+        .split(' ')
+        .filter((token) => token.length >= 3 && !ITEM_QUERY_STOPWORDS.has(token));
+    if (!meaningfulTokens.length) return null;
+
+    const hasOnlyNonDishTokens = meaningfulTokens.every((token) => NON_DISH_TOKENS.has(token));
+    if (hasOnlyNonDishTokens) return null;
+
+    const hasFamilySignal = meaningfulTokens.some((token) => ITEM_SIGNAL_TOKENS.has(token));
+    if (!entityDish && !cuisineEntity && !hasFamilySignal && !hasDishIntentHint) return null;
+
+    if (meaningfulTokens.length === 1 && GENERIC_DISCOVERY_TERMS.has(meaningfulTokens[0])) {
+        return null;
+    }
+
+    return meaningfulTokens.join(' ');
+}
+
+function scoreMenuItemMatch(item, aliases) {
+    const corpus = buildItemSearchCorpus(item);
+    if (!corpus.length) return 0;
+
+    let best = 0;
+    for (const needle of corpus) {
+        for (const alias of aliases) {
+            if (!alias) continue;
+            if (needle === alias) {
+                best = Math.max(best, 140);
+                continue;
+            }
+            if (needle.startsWith(`${alias} `) || needle.endsWith(` ${alias}`)) {
+                best = Math.max(best, 120);
+                continue;
+            }
+            if (needle.includes(alias)) {
+                best = Math.max(best, 100);
+                continue;
+            }
+            if (alias.includes(needle) && needle.length >= 5) {
+                best = Math.max(best, 85);
+            }
+        }
+    }
+
+    const queryTokens = aliases
+        .flatMap((alias) => alias.split(' '))
+        .filter((token) => token.length >= 4 && !ITEM_QUERY_STOPWORDS.has(token));
+
+    if (queryTokens.length > 0) {
+        const uniqueTokens = [...new Set(queryTokens)];
+        const tokenHits = uniqueTokens.filter((token) => corpus.some((needle) => needle.includes(token))).length;
+        if (tokenHits > 0) {
+            best = Math.max(best, 60 + tokenHits * 10);
+        }
+    }
+
+    return best;
+}
+
+async function fetchCityMenuRows(restaurantIds) {
+    const selectColumns = 'id, name, base_name, item_family, item_aliases, restaurant_id, available';
+    const buildQuery = () => supabase
+        .from('menu_items_v2')
+        .select(selectColumns)
+        .in('restaurant_id', restaurantIds);
+
+    const probeQuery = buildQuery();
+
+    if (probeQuery && typeof probeQuery.range === 'function') {
+        const batchSize = 1000;
+        const maxRows = 20000;
+        const rows = [];
+
+        for (let from = 0; from < maxRows; from += batchSize) {
+            const to = from + batchSize - 1;
+            const { data, error } = await buildQuery().range(from, to);
+            if (error) throw error;
+
+            const page = Array.isArray(data) ? data : [];
+            if (!page.length) break;
+
+            rows.push(...page);
+            if (page.length < batchSize) break;
+        }
+
+        return rows;
+    }
+
+    if (probeQuery && typeof probeQuery.limit === 'function') {
+        const { data, error } = await buildQuery().limit(5000);
+        if (error) throw error;
+        return Array.isArray(data) ? data : [];
+    }
+
+    const { data, error } = await buildQuery();
+    if (error) throw error;
+    return Array.isArray(data) ? data : [];
+}
+
+async function searchRestaurantsByItemInCity({ location, coords, itemQuery }) {
+    const aliases = buildItemAliases(itemQuery);
+    if (!aliases.length) return [];
+
+    const { data: cityRestaurants, error: restErr } = await supabase
+        .from('restaurants')
+        .select('id, name, address, city, cuisine_type, lat, lng, delivery_available, price_level, taxonomy_groups, taxonomy_cats, taxonomy_tags, maps_rating, maps_ratings_total, opening_hours, phone, website, image_url, photo_gallery')
+        .ilike('city', `%${location}%`)
+        .limit(80);
+
+    if (restErr) throw restErr;
+    if (!Array.isArray(cityRestaurants) || cityRestaurants.length === 0) return [];
+
+    const restaurantIds = cityRestaurants.map((restaurant) => restaurant.id).filter(Boolean);
+    if (!restaurantIds.length) return [];
+
+    const menuRows = await fetchCityMenuRows(restaurantIds);
+    if (!Array.isArray(menuRows) || menuRows.length === 0) return [];
+
+    const byRestaurant = new Map();
+    for (const item of menuRows) {
+        if (item?.available === false) continue;
+        const itemName = item?.base_name || item?.name || '';
+        const score = scoreMenuItemMatch(item, aliases);
+        if (score < 85) continue;
+
+        const restaurantId = item?.restaurant_id;
+        if (!restaurantId) continue;
+
+        const existing = byRestaurant.get(restaurantId) || {
+            maxScore: 0,
+            hits: new Set(),
+        };
+        existing.maxScore = Math.max(existing.maxScore, score);
+        if (itemName) existing.hits.add(String(itemName));
+        byRestaurant.set(restaurantId, existing);
+    }
+
+    const ranked = cityRestaurants
+        .map((restaurant) => {
+            const match = byRestaurant.get(restaurant.id);
+            if (!match) return null;
+            const matchedItems = Array.from(match.hits).slice(0, 3);
+            const distance = (coords && Number.isFinite(restaurant.lat) && Number.isFinite(restaurant.lng))
+                ? calculateDistance(coords.lat, coords.lng, restaurant.lat, restaurant.lng)
+                : restaurant.distance;
+            return {
+                ...restaurant,
+                distance,
+                item_match_score: match.maxScore,
+                matched_menu_items: matchedItems,
+            };
+        })
+        .filter(Boolean);
+
+    ranked.sort((a, b) => {
+        if ((b.item_match_score || 0) !== (a.item_match_score || 0)) {
+            return (b.item_match_score || 0) - (a.item_match_score || 0);
+        }
+        const aHits = Array.isArray(a.matched_menu_items) ? a.matched_menu_items.length : 0;
+        const bHits = Array.isArray(b.matched_menu_items) ? b.matched_menu_items.length : 0;
+        if (bHits !== aHits) return bHits - aHits;
+        if (Number.isFinite(a.distance) && Number.isFinite(b.distance)) {
+            return a.distance - b.distance;
+        }
+        return 0;
+    });
+
+    return ranked.slice(0, 10);
+}
+
+function isPizzaDiscoveryQuery(text, cuisine) {
+    const blob = normalizeLooseText(`${text || ''} ${cuisine || ''}`);
+    return blob.includes('pizza') || blob.includes('pizz') || blob.includes('pizzeria');
+}
+
+function hasPizzaRestaurantSignal(restaurant) {
+    const corpus = normalizeLooseText(
+        `${restaurant?.name || ''} ${restaurant?.cuisine_type || ''} ${restaurant?.description || ''}`
+    );
+    return corpus.includes('pizza') || corpus.includes('pizz') || corpus.includes('pizzeria');
+}
+
+function rankPizzaFirst(restaurants) {
+    const scored = (restaurants || []).map((restaurant, idx) => {
+        const corpus = normalizeLooseText(
+            `${restaurant?.name || ''} ${restaurant?.cuisine_type || ''} ${restaurant?.description || ''}`
+        );
+        const score =
+            (hasPizzaRestaurantSignal(restaurant) ? 100 : 0) +
+            (corpus.includes('pizzeria') ? 20 : 0) +
+            (corpus.includes('wloska') ? 10 : 0);
+        return { restaurant, score, idx };
+    });
+
+    scored.sort((a, b) => {
+        if (b.score !== a.score) return b.score - a.score;
+        return a.idx - b.idx;
+    });
+
+    return scored.map((row) => row.restaurant);
+}
+
+function mergeUniqueRestaurants(primary, secondary) {
+    const seen = new Set();
+    const out = [];
+    for (const r of [...(primary || []), ...(secondary || [])]) {
+        const key = r?.id || `${r?.name || ''}:${r?.city || ''}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push(r);
+    }
+    return out;
+}
+
+function getCuisineSearchVariants(cuisine) {
+    if (!cuisine) return [];
+    const base = String(cuisine).trim();
+    const normalized = normalizeLooseText(base);
+    if (!normalized) return [base];
+
+    if (normalized === 'azjatycka' || normalized === 'asian') {
+        // Live DB often stores concrete cuisines (Wietnamska/Tajska/Chinska)
+        // instead of umbrella "Azjatycka".
+        return [base, 'Wietnamska', 'Tajska', 'Chinska', 'Chińska'];
+    }
+
+    if (normalized === 'fast food' || normalized === 'fastfood') {
+        // "fast food" is a user-level umbrella, while DB uses concrete cuisine labels.
+        return [base, 'Amerykanska', 'Amerykańska', 'Kebab', 'Burger', 'Burgery'];
+    }
+
+    return [base];
+}
+
+async function searchRestaurantsWithCuisineVariants(repo, location, cuisine) {
+    if (!cuisine) return repo.searchRestaurants(location, null);
+    const variants = getCuisineSearchVariants(cuisine);
+    let merged = [];
+    for (const variant of variants) {
+        const rows = await repo.searchRestaurants(location, variant);
+        merged = mergeUniqueRestaurants(merged, rows || []);
+    }
+    return merged;
+}
+
+async function searchNearbyWithCuisineVariants(repo, lat, lng, radiusKm, cuisine) {
+    if (!cuisine) return repo.searchNearby(lat, lng, radiusKm, null);
+    const variants = getCuisineSearchVariants(cuisine);
+    let merged = [];
+    for (const variant of variants) {
+        const rows = await repo.searchNearby(lat, lng, radiusKm, variant);
+        merged = mergeUniqueRestaurants(merged, rows || []);
+    }
+    return merged;
+}
+
 function resolveDiscoveryMode(ctx) {
     const { text, session, entities, body } = ctx;
 
-    // 1. Extract Parameters
-    let rawLocation = entities?.location || extractLocation(text);
-    // Explicit session fallback only if valid known city (prevents poison)
-    if (!rawLocation && session?.last_location && KNOWN_CITIES.includes(session.last_location)) {
-        rawLocation = session.last_location;
-    }
-
-    const cuisineType = entities?.cuisine || extractCuisineType(text);
-    const normalizedLoc = normalizeLocation(rawLocation);
+    // Parse coordinates first so live tool calls can force GPS path when available.
     const bodyLat = body?.lat != null ? parseFloat(body.lat) : null;
     const bodyLng = body?.lng != null ? parseFloat(body.lng) : null;
     const bodyCoords = (Number.isFinite(bodyLat) && Number.isFinite(bodyLng))
@@ -53,7 +601,104 @@ function resolveDiscoveryMode(ctx) {
     const ctxCoords = (ctx?.coords && Number.isFinite(ctx.coords.lat) && Number.isFinite(ctx.coords.lng))
         ? { lat: ctx.coords.lat, lng: ctx.coords.lng }
         : null;
-    const coords = bodyCoords || ctxCoords || null;
+    const sessionLat = session?.session_lat != null ? parseFloat(session.session_lat) : null;
+    const sessionLng = session?.session_lng != null ? parseFloat(session.session_lng) : null;
+    const sessionCoords = (Number.isFinite(sessionLat) && Number.isFinite(sessionLng))
+        ? { lat: sessionLat, lng: sessionLng }
+        : null;
+    const coords = bodyCoords || ctxCoords || sessionCoords || null;
+
+    const isLiveFindNearbyCall =
+        String(ctx?.body?.meta?.sourceTool || '') === 'find_nearby'
+        || String(ctx?.source || '') === 'live_tool:find_nearby'
+        || String(ctx?.body?.meta?.channel || '') === 'live_tools';
+    const hasAnyGpsInput = Boolean(coords);
+    const preferGpsForLiveNearby = isLiveFindNearbyCall && hasAnyGpsInput;
+
+    const rawCuisineType = entities?.cuisine || extractCuisineType(text) || session?.pendingDish || null;
+    const cuisineType = normalizeCuisineSignal(rawCuisineType);
+    if (rawCuisineType && cuisineType && normalizeLooseText(rawCuisineType) !== normalizeLooseText(cuisineType)) {
+        console.log('[DISCOVERY_CUISINE_NORMALIZED]', JSON.stringify({
+            from: rawCuisineType,
+            to: cuisineType,
+        }));
+    }
+
+    // 1. Extract location parameters
+    let rawLocation = entities?.location || null;
+    if (!rawLocation && !preferGpsForLiveNearby) {
+        rawLocation = extractLocation(text);
+    }
+
+    if (rawLocation) {
+        const normalizedLocation = normalizeLooseText(rawLocation);
+        const normalizedRawCuisine = normalizeLooseText(rawCuisineType || '');
+        const normalizedCuisine = normalizeLooseText(cuisineType || '');
+        const locationMirrorsCuisine =
+            (normalizedRawCuisine && normalizedLocation === normalizedRawCuisine)
+            || (normalizedCuisine && normalizedLocation === normalizedCuisine);
+
+        if (locationMirrorsCuisine || looksLikeCuisineLabel(rawLocation)) {
+            console.log('[DISCOVERY_LOCATION_REJECTED_AS_CUISINE]', JSON.stringify({
+                rawLocation,
+                rawCuisineType,
+                cuisineType,
+            }));
+            rawLocation = null;
+        }
+    }
+
+    if (rawLocation && isAddressLikeLocation(rawLocation)) {
+        const fallbackCity = resolveSessionCityFallback(session);
+        console.log('[DISCOVERY_LOCATION_SANITIZED]', JSON.stringify({
+            rawLocation,
+            fallbackCity,
+        }));
+        rawLocation = fallbackCity;
+    }
+
+    // Live fallback: re-use last resolved city only when we are not in a direct GPS tool call.
+    if (!rawLocation && !preferGpsForLiveNearby) {
+        rawLocation = resolveSessionCityFallback(session);
+    }
+
+    const normalizedLoc = normalizeLocation(rawLocation);
+    const normalizedText = normalizeLooseText(text);
+    const nearbyCueFromMeta = Boolean(ctx?.body?.meta?.nearbyCue);
+    const hasNearbyIntentSignal =
+        nearbyCueFromMeta
+        || normalizedText.includes('w poblizu')
+        || normalizedText.includes('blisko')
+        || normalizedText.includes('nearby')
+        || normalizedText.includes('obok')
+        || normalizedText.includes('w okolicy');
+    const locationLooksLikePlaceholder = rawLocation
+        ? normalizeLocation(rawLocation) === null
+        : false;
+
+    const shouldForceGpsForLive =
+        hasNearbyIntentSignal
+        || !normalizedLoc
+        || locationLooksLikePlaceholder;
+
+    // Live GPS override:
+    // If this is a live find_nearby call with available GPS, prefer GPS whenever
+    // nearby intent is present or location is empty/placeholder.
+    if (preferGpsForLiveNearby && coords && shouldForceGpsForLive) {
+        console.log('[DISCOVERY_GPS_LIVE_OVERRIDE]', JSON.stringify({
+            rawLocation,
+            normalizedLoc,
+            hasNearbyIntentSignal,
+            nearbyCueFromMeta,
+            locationLooksLikePlaceholder,
+            coords,
+        }));
+        return {
+            mode: 'GPS',
+            coords,
+            cuisine: cuisineType
+        };
+    }
 
     // 2. Determine Mode
     if (normalizedLoc) {
@@ -79,7 +724,9 @@ function resolveDiscoveryMode(ctx) {
     // Using (?:^|\s) ... (?:\s|$) pattern instead.
     const ORDER_VERBS_REGEX = /(?:^|\s)(zamawiam|zamow|zamów|poprosze|poprosz[ęe]|wezme|wezm[ęe]|biore|bior[ęe]|chce|chc[ęe]|chciał(bym|abym))(?:\s|$|[.,?!])/i;
     const isImplicitOrder = ORDER_VERBS_REGEX.test(text);
-    const dishEntity = entities?.dish || (entities?.items && entities.items[0]?.name);
+    const dishEntity = entities?.dish
+        || (entities?.items && entities.items[0]?.name)
+        || (typeof session?.pendingDish === 'string' ? session.pendingDish : null);
 
     return {
         mode: 'FALLBACK',
@@ -136,6 +783,8 @@ export class FindRestaurantHandler {
         // 1. Resolve Mode & Context
         const discoveryParams = resolveDiscoveryMode(ctx);
         const { mode, location, cuisine, coords, isImplicitOrder, dishEntity } = discoveryParams;
+        let usedItemLedDiscovery = false;
+        let cityGPSRetry = false; // set true when CITY mode fails and we retry with GPS
 
         console.log(`🔎 Discovery Mode: ${mode}`, discoveryParams);
 
@@ -146,16 +795,68 @@ export class FindRestaurantHandler {
 
         if (mode === 'CITY') {
             try {
-                restaurants = await this.repo.searchRestaurants(location, cuisine);
+                const itemQueryCandidate = extractItemQueryCandidate(ctx, discoveryParams);
+                if (itemQueryCandidate) {
+                    try {
+                        const itemLedMatches = await searchRestaurantsByItemInCity({
+                            location,
+                            coords,
+                            itemQuery: itemQueryCandidate,
+                        });
+
+                        if (itemLedMatches.length > 0) {
+                            restaurants = itemLedMatches;
+                            usedItemLedDiscovery = true;
+                            console.log('[DISCOVERY_ITEM_LED]', JSON.stringify({
+                                location,
+                                itemQuery: itemQueryCandidate,
+                                aliases: buildItemAliases(itemQueryCandidate),
+                                matchedRestaurants: itemLedMatches.slice(0, 5).map((restaurant) => ({
+                                    id: restaurant.id,
+                                    name: restaurant.name,
+                                    score: restaurant.item_match_score,
+                                    items: restaurant.matched_menu_items,
+                                })),
+                            }));
+                        }
+                    } catch (itemErr) {
+                        console.warn('[DISCOVERY_ITEM_LED] skip_item_path_error', itemErr?.message || itemErr);
+                    }
+                }
+
+                if (!usedItemLedDiscovery) {
+                    restaurants = await searchRestaurantsWithCuisineVariants(this.repo, location, cuisine);
+                }
+
+                // Pizza-specific safeguard:
+                // - some obvious pizza places have null/legacy cuisine_type
+                // - strict cuisine filter can hide them (e.g., "Pizzeria ...")
+                // We always merge in city-level pizza candidates and rank them first.
+                const wantsPizza = !usedItemLedDiscovery && isPizzaDiscoveryQuery(ctx.text, cuisine);
+                if (wantsPizza) {
+                    const cityWide = await this.repo.searchRestaurants(location, null);
+                    const pizzaCandidates = (cityWide || []).filter(hasPizzaRestaurantSignal);
+                    if (pizzaCandidates.length > 0) {
+                        restaurants = rankPizzaFirst(mergeUniqueRestaurants(restaurants, pizzaCandidates));
+                        console.log('[DISCOVERY_PIZZA_FIX]', JSON.stringify({
+                            location,
+                            cuisine,
+                            beforeCount: (restaurants || []).length,
+                            cityWideCount: cityWide?.length || 0,
+                            pizzaCandidates: pizzaCandidates.map(r => r.name),
+                            topAfter: restaurants.slice(0, 3).map(r => r.name),
+                        }));
+                    }
+                }
 
                 // Internal Fallback: Nearby Cities
-                if (!restaurants || restaurants.length === 0) {
+                if (!usedItemLedDiscovery && (!restaurants || restaurants.length === 0)) {
                     const normalizedKey = location.toLowerCase();
                     const suggestions = NEARBY_CITY_MAP[normalizedKey] || [];
 
                     for (const neighbor of suggestions) {
                         console.log(`🔎 Fallback: Checking ${neighbor}...`);
-                        const neighborRest = await this.repo.searchRestaurants(neighbor, cuisine);
+                        const neighborRest = await searchRestaurantsWithCuisineVariants(this.repo, neighbor, cuisine);
                         if (neighborRest && neighborRest.length > 0) {
                             restaurants = neighborRest;
                             foundInNearby = true;
@@ -171,20 +872,41 @@ export class FindRestaurantHandler {
 
             // Handle "Still No Results" for CITY mode
             if (!restaurants || restaurants.length === 0) {
-                const cuisineMsg = cuisine ? ` serwujących ${cuisine}` : '';
-                return {
-                    reply: `Nie znalazłam żadnych restauracji w ${location}${cuisineMsg}. Może inna kuchnia?`,
-                    contextUpdates: {
-                        last_location: location,
-                        pendingDish: dishEntity || ctx.session?.pendingDish || null
+                if (coords) {
+                    // CITY returned 0 (possibly garbage city name from Gemini) — retry with GPS
+                    console.log(`[CITY_GPS_FALLBACK] city="${location}" 0 results, retrying with GPS lat=${coords.lat} lng=${coords.lng}`);
+                    try {
+                        restaurants = await searchNearbyWithCuisineVariants(this.repo, coords.lat, coords.lng, 10, cuisine);
+                    } catch (gpsErr) {
+                        console.warn('[CITY_GPS_FALLBACK] GPS retry failed:', gpsErr?.message || gpsErr);
                     }
-                };
+                    if (restaurants && restaurants.length > 0) {
+                        cityGPSRetry = true;
+                        discoveryParams.mode = 'GPS';
+                        discoveryParams.location = null;
+                    } else {
+                        const cuisineMsg = cuisine ? ` serwujących ${cuisine}` : '';
+                        return {
+                            reply: `Nie znalazłam nic w pobliżu${cuisineMsg}. Może inna kuchnia?`,
+                            contextUpdates: { pendingDish: dishEntity || ctx.session?.pendingDish || null }
+                        };
+                    }
+                } else {
+                    const cuisineMsg = cuisine ? ` serwujących ${cuisine}` : '';
+                    return {
+                        reply: `Nie znalazłam żadnych restauracji w ${location}${cuisineMsg}. Może inna kuchnia?`,
+                        contextUpdates: {
+                            last_location: location,
+                            pendingDish: dishEntity || ctx.session?.pendingDish || null
+                        }
+                    };
+                }
             }
 
         } else if (mode === 'GPS') {
             try {
                 // Radius: 10km default
-                restaurants = await this.repo.searchNearby(coords.lat, coords.lng, 10, cuisine);
+                restaurants = await searchNearbyWithCuisineVariants(this.repo, coords.lat, coords.lng, 10, cuisine);
             } catch (error) {
                 console.error('Repo Error (GPS):', error);
                 return { reply: "Nie udało mi się pobrać lokalizacji.", error: 'db_error' };
@@ -196,7 +918,7 @@ export class FindRestaurantHandler {
                 const cityHint = normalizeLocation(ctx?.session?.last_location || null);
                 if (cityHint) {
                     try {
-                        const cityCandidates = await this.repo.searchRestaurants(cityHint, cuisine);
+                        const cityCandidates = await searchRestaurantsWithCuisineVariants(this.repo, cityHint, cuisine);
                         const knownIds = new Set(restaurants.map(r => r.id));
                         for (const candidate of cityCandidates || []) {
                             if (!knownIds.has(candidate.id)) {
@@ -212,6 +934,25 @@ export class FindRestaurantHandler {
                     } catch (enrichErr) {
                         console.warn('GPS->CITY enrichment failed:', enrichErr?.message || enrichErr);
                     }
+                }
+            }
+
+            // GPS Pizza Fix: some pizza places have null/non-standard cuisine_type.
+            // Same issue as CITY mode PIZZA_FIX — do a radius search without cuisine filter
+            // and merge in pizza-signal candidates.
+            if (isPizzaDiscoveryQuery(ctx.text, cuisine) && Array.isArray(restaurants) && restaurants.length < 3) {
+                try {
+                    const allNearby = await this.repo.searchNearby(coords.lat, coords.lng, 10, null);
+                    const pizzaCandidates = (allNearby || []).filter(hasPizzaRestaurantSignal);
+                    if (pizzaCandidates.length > 0) {
+                        restaurants = rankPizzaFirst(mergeUniqueRestaurants(restaurants, pizzaCandidates));
+                        console.log('[GPS_PIZZA_FIX]', JSON.stringify({
+                            before: restaurants.length,
+                            pizzaCandidates: pizzaCandidates.map(r => r.name),
+                        }));
+                    }
+                } catch (pizzaErr) {
+                    console.warn('[GPS_PIZZA_FIX] failed:', pizzaErr?.message || pizzaErr);
                 }
             }
 
@@ -255,6 +996,63 @@ export class FindRestaurantHandler {
             });
         }
 
+        // ── DISCOVERY RANKING LAYER ───────────────────────────────────
+        //
+        // FAZA 1 — SHADOW MODE
+        //   Uruchamia nowy silnik równolegle ze starym.
+        //   Loguje porównanie. Nie zmienia `restaurants`.
+        //
+        // FAZA 2 — PARTIAL ROUTING
+        //   Gdy confidence === 'deterministic': nowy silnik PRZEJMUJE sorting.
+        //   Gdy confidence === 'partial'|'empty':  stary flow bez zmian.
+        //
+        // FAZA 3 — FULL TAKEOVER (TODO: włącz gdy FAZA 2 ustabilizowana)
+        //   Wszystkie zapytania przez nowy silnik + LLM fallback signal.
+        // ─────────────────────────────────────────────────────────────
+
+        const discoveryEngineReady = await loadDiscoveryEngine();
+
+        if (!usedItemLedDiscovery && discoveryEngineReady && restaurants.length > 0) {
+            const rawText = ctx.text || '';
+            const parsed = _matchQueryToTaxonomy(rawText);
+
+            // ── FAZA 1: SHADOW LOG ──
+            const shadowResult = _runDiscovery(parsed, restaurants);
+            console.log('[Discovery:Shadow]', JSON.stringify({
+                query: rawText,
+                confidence: parsed.confidence,
+                topGroups: parsed.topGroups,
+                categories: parsed.categories,
+                tags: parsed.tags,
+                open_now: parsed.open_now,
+                fallback: shadowResult.fallback,
+                before: shadowResult.totalBeforeFilter,
+                after: shadowResult.totalAfterFilter,
+                oldOrder: restaurants.slice(0, 3).map(r => r.id),
+                newOrder: shadowResult.items.slice(0, 3).map(sr => sr.restaurant.id),
+                topScore: shadowResult.items[0]?.score ?? null,
+            }));
+
+            // ── FAZA 2: PARTIAL ROUTING ──
+            //   Aktywne gdy: confidence === 'deterministic' ORAZ parser znalazł wyniki
+            if (parsed.confidence === 'deterministic' && shadowResult.fallback === null && shadowResult.items.length > 0) {
+                console.log('[Discovery:Routing] deterministic → nowy silnik aktywny');
+                restaurants = shadowResult.items.map(sr => sr.restaurant);
+
+            } else if (shadowResult.fallback === 'llm') {
+                // FAZA 2 — LLM fallback signal (logujemy, nie działamy jeszcze)
+                // TODO FAZA 3: przekaż do LLM refiner
+                console.log('[Discovery:Fallback] LLM signal:', shadowResult.fallbackReason);
+                // restaurants bez zmian — stary flow
+
+            } else {
+                // confidence partial lub brak wyników → stary flow bez zmian
+                console.log(`[Discovery:Routing] ${parsed.confidence} → legacy flow`);
+            }
+        }
+
+        // ── END DISCOVERY LAYER ───────────────────────────────────────
+
         // 3. Format Response (Standard Success Path)
         const resultData = { restaurants, foundInNearby, nearbySourceCity };
         const reply = formatDiscoveryReply(resultData, discoveryParams);
@@ -265,7 +1063,8 @@ export class FindRestaurantHandler {
         }));
 
         // Determine resolved location for session
-        const finalLocation = nearbySourceCity || location || (mode === 'GPS' ? 'GPS' : null);
+        // cityGPSRetry: CITY failed with garbage name, results found via GPS — don't persist bad city
+        const finalLocation = cityGPSRetry ? 'GPS' : (nearbySourceCity || location || (mode === 'GPS' ? 'GPS' : null));
 
         return {
             reply,

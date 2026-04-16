@@ -1,5 +1,5 @@
 ﻿
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, vi } from 'vitest';
 import { pipeline } from '../brainV2.js';
 import dotenv from 'dotenv';
 import { RESTAURANT_CATALOG } from '../data/restaurantCatalog.js';
@@ -131,6 +131,43 @@ describe('Ordering affirmation regression', () => {
 
         const session = getSession(sessionId);
         expect(session?.cart?.items).toHaveLength(2);
+    });
+});
+
+describe('Clear cart regression', () => {
+    it('handles "wyczysc koszyk" before unknown-intent fallback and clears backend session cart', async () => {
+        const sessionId = 'clear_cart_' + Date.now();
+        const detectSpy = vi.spyOn(pipeline.nlu, 'detect');
+
+        try {
+            updateSession(sessionId, {
+                conversationPhase: 'ordering',
+                currentRestaurant: { id: 'CALL', name: 'Callzone' },
+                lastRestaurant: { id: 'CALL', name: 'Callzone' },
+                cart: {
+                    items: [
+                        { id: 'v1', name: 'Vege Burger', price_pln: '28.00', qty: 1 }
+                    ],
+                    total: 28
+                },
+                pendingOrder: { items: [{ name: 'Vege Burger', qty: 1 }] },
+                expectedContext: 'confirm_order'
+            });
+
+            const result = await pipeline.process(sessionId, 'wyczysc koszyk');
+
+            expect(result.intent).toBe('clear_cart');
+            expect(result.meta?.source).toBe('clear_cart_command');
+            expect(result.cart?.items || []).toHaveLength(0);
+            expect(detectSpy).not.toHaveBeenCalled();
+
+            const session = getSession(sessionId);
+            expect(session?.cart?.items || []).toHaveLength(0);
+            expect(session?.pendingOrder).toBeNull();
+            expect(session?.expectedContext).toBeNull();
+        } finally {
+            detectSpy.mockRestore();
+        }
     });
 });
 

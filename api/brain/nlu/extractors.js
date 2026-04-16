@@ -122,20 +122,36 @@ export function extractLocation(text) {
 
     // 1. Explicit Prepositions
     const locationKeywords = ['w', 'na', 'blisko', 'koło', 'niedaleko', 'obok', 'przy'];
-    const pattern = new RegExp(`(?:${locationKeywords.join('|')})\\s+([A-ZĄĆĘŁŃÓŚŹŻ][a-ząćęłńóśźż]+(?:\\s+[A-ZĄĆĘŁŃÓŚŹŻ][a-ząćęłńóśźż]+)*)`);
-    const match = text.match(pattern);
+    // Try capitalized match first (more precise)
+    const capPattern = new RegExp(`(?:${locationKeywords.join('|')})\\s+([A-ZĄĆĘŁŃÓŚŹŻ][a-ząćęłńóśźż]+(?:\\s+[A-ZĄĆĘŁŃÓŚŹŻ][a-ząćęłńóśźż]+)*)`, 'i');
+    const capMatch = text.match(capPattern);
 
     let location = null;
 
-    if (match) {
-        location = match[1]?.trim();
+    if (capMatch) {
+        const raw = capMatch[1]?.trim() || '';
+        // The i-flag makes the character class match lowercase too, so the capture group
+        // may greedily include non-location words (e.g. "Piekarach zjem kebaba").
+        // Trim to only the leading Title-Cased words (proper noun / city name).
+        const titleWords = [];
+        for (const w of raw.split(/\s+/)) {
+            if (/^[A-ZĄĆĘŁŃÓŚŹŻ]/.test(w)) titleWords.push(w);
+            else break;
+        }
+        location = titleWords.join(' ') || null;
     } else {
-        // 2. Fallback: Capitalized words at end of sentence or standalone
-        const cityPattern = /\b([A-ZĄĆĘŁŃÓŚŹŻ][a-ząćęłńóśźż]+(?:\s+[A-ZĄĆĘŁŃÓŚŹŻ][a-ząćęłńóśźż]+)*)\b/g;
-        const cities = text.match(cityPattern);
-        if (cities && cities.length > 0) {
-            // Take last capitalized sequence that isn't blacklisted
-            location = cities.reverse().find(c => !isBlacklisted(c.toLowerCase()));
+        // 2. Fallback: Any word after preposition (case insensitive)
+        const lowPattern = new RegExp(`(?:${locationKeywords.join('|')})\\s+([a-ząćęłńóśźż]{3,}(?:\\s+[a-ząćęłńóśźż]{3,})*)`, 'i');
+        const lowMatch = text.match(lowPattern);
+        if (lowMatch) {
+            location = lowMatch[1]?.trim();
+        } else {
+            // 3. Fallback: Capitalized words standalone
+            const cityPattern = /\b([A-ZĄĆĘŁŃÓŚŹŻ][a-ząćęłńóśźż]+(?:\s+[A-ZĄĆĘŁŃÓŚŹŻ][a-ząćęłńóśźż]+)*)\b/g;
+            const cities = text.match(cityPattern);
+            if (cities && cities.length > 0) {
+                location = cities.reverse().find(c => !isBlacklisted(c.toLowerCase()));
+            }
         }
     }
 
@@ -195,6 +211,10 @@ function isBlacklisted(locLower) {
         'grillowany', 'grillowanego', 'grillowanej',
         'pieczony', 'pieczonego', 'pieczonej',
         'gotowany', 'gotowanego', 'gotowanej',
+        // spicy preference phrases should never be treated as location
+        'ostro', 'ostry', 'ostra', 'ostre', 'ostrego', 'ostrej',
+        'pikantny', 'pikantna', 'pikantne', 'pikantnego', 'pikantnej',
+        'spicy', 'chili', 'chilli',
         // portions/sizes
         'duży', 'dużego', 'mały', 'małego', 'średni', 'średniego'
     ];
@@ -209,14 +229,20 @@ function normalizePolishCity(raw) {
         .map(word => {
             // Priorytety: najpierw dłuższe końcówki
             if (/ich$/i.test(word)) return word.replace(/ich$/i, 'ie');  // Śląskich → Śląskie
-            if (/im$/i.test(word)) return word.replace(/im$/i, 'ie');   // Śląskim → Śląskie
+            if (/im$/i.test(word)) return word.replace(/ich$/i, 'ie');   // Śląskim → Śląskie
             if (/ach$/i.test(word)) return word.replace(/ach$/i, 'y');  // Piekarach → Piekary
             if (/ami$/i.test(word)) return word.replace(/ami$/i, 'a');   // Gliwicami → Gliwica
             if (/iu$/i.test(word)) return word.replace(/iu$/i, '');     // Bytomiu → Bytom
             // Adjectives usually safe
             if (/skie$/i.test(word)) return word;
-            if (/ie$/i.test(word)) return word.replace(/ie$/i, 'a');    // Katowicie → Katowica (approximation)
+            if (/ice$/i.test(word)) return word; // Protection for Gliwice, Katowice
+            if (/ie$/i.test(word)) {
+                // If it's short or looks like Slaskie, leave it
+                if (word.length <= 4) return word;
+                return word.replace(/ie$/i, 'a');    // Katowicie → Katowica (approximation)
+            }
             return word;
         })
         .join(' ');
 }
+

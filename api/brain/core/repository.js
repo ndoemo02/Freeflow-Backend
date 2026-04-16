@@ -12,7 +12,7 @@ export class SupabaseRestaurantRepository {
     async searchRestaurants(city, cuisine) {
         let query = supabase
             .from('restaurants')
-            .select('id, name, address, city, cuisine_type, lat, lng')
+            .select('id, name, address, city, cuisine_type, lat, lng, delivery_available, price_level, taxonomy_groups, taxonomy_cats, taxonomy_tags, maps_rating, maps_ratings_total, opening_hours, phone, website, image_url, photo_gallery')
             .ilike('city', `%${city}%`);
 
         if (cuisine) {
@@ -31,7 +31,7 @@ export class SupabaseRestaurantRepository {
 
         let query = supabase
             .from('restaurants')
-            .select('id, name, address, city, cuisine_type, lat, lng')
+            .select('id, name, address, city, cuisine_type, lat, lng, delivery_available, price_level, taxonomy_groups, taxonomy_cats, taxonomy_tags, maps_rating, maps_ratings_total, opening_hours, phone, website, image_url, photo_gallery')
             .gte('lat', lat - delta)
             .lte('lat', lat + delta)
             .gte('lng', lng - delta)

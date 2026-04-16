@@ -8,9 +8,17 @@
  * ❌ Does NOT make decisions
  * ❌ Does NOT ask questions the FSM didn't authorize
  * ❌ Does NOT change meaning
+ * ❌ Does NOT change numbers (prices, quantities)
+ * ❌ Does NOT change proper nouns (dish names, restaurant names)
+ * ❌ Does NOT add new dishes, prices, or restaurants not in templateText
+ * ✅ May change style, tone, sentence structure
+ * ✅ May shorten or warm up phrasing
  * ✅ Paraphrases for natural speech
  * ✅ Max 2 sentences
  * ✅ Falls back to SurfaceRenderer on failure
+ *
+ * FACTS ARE IMMUTABLE — this is an architectural contract, not a guideline.
+ * If validateParaphrase detects mutation of numbers or proper nouns, output is rejected.
  * 
  * INPUT:  { surfaceKey, facts, lang }
  * OUTPUT: { spokenText, ssml, fromLLM: boolean }
@@ -25,31 +33,61 @@ import { renderSurface } from './SurfaceRenderer.js';
 const PHRASE_GENERATOR_CONFIG = {
     enabled: true,
     maxSentences: 2,
-    maxWords: 40,
-    maxChars: 300, // Hard cap for TTS
-    timeout: 2000, // ms
+    maxWords: 40,       // default — applies to most surfaces
+    maxChars: 300,      // Hard cap for TTS
+    timeout: 2000,      // ms
     fallbackOnError: true
 };
 
+// Surface-specific word limit overrides.
+// Used when surface contract explicitly allows longer output
+// (e.g., dish detail explanation, cart summary with multiple items).
+// Must match surface keys from SurfaceRenderer.
+const SURFACE_WORD_LIMITS = {
+    DISH_DETAIL:  60,
+    CART_SUMMARY: 60,
+    MENU_OVERVIEW: 55,
+    // all other surfaces: PHRASE_GENERATOR_CONFIG.maxWords (40)
+};
+
 // System prompt for phrase generation (Polish)
-const SYSTEM_PROMPT = `Jesteś asystentem głosowym do zamawiania jedzenia. 
+const SYSTEM_PROMPT = `Jesteś asystentem głosowym do zamawiania jedzenia.
 Twoim jedynym zadaniem jest przeformułowanie podanego tekstu na naturalną mowę.
 
-ZASADY:
+ZASADY — STYL (wolno zmieniać):
 1. Maksymalnie 2 krótkie zdania
-2. NIE zadawaj nowych pytań - tylko przepisz te które są w oryginale
-3. NIE zmieniaj sensu ani informacji
-4. Bądź przyjazna ale rzeczowa
-5. Używaj naturalnego języka mówionego (nie pisanego)
-6. Jeśli w oryginale jest lista numerowana, zachowaj numery
-7. Używaj poprawnej polskiej gramatyki: dopełniacz ("nie ma problemu", nie "nie ma problem"), odmiana czasowników ("umknęło mi", nie "umknę mi"), właściwy przypadek
+2. Używaj naturalnego języka mówionego (nie pisanego)
+3. Bądź przyjazna ale rzeczowa
+4. Możesz skrócić, ocieplić ton, zmienić szyk zdania
+5. Używaj poprawnej polskiej gramatyki: dopełniacz ("nie ma problemu"), właściwy przypadek, odmiana czasowników
 
-Przykłady:
-Oryginał: "Mam kilka opcji dla \"pizza\". Wybierz: 1) Margherita (25 zł) 2) Pepperoni (28 zł)"
-Przepisane: "Mam dla ciebie kilka opcji pizzy: pierwsza to Margherita za dwadzieścia pięć złotych, druga to Pepperoni za dwadzieścia osiem."
+ZASADY — FAKTY (nigdy nie zmieniaj):
+6. NIE zmieniaj żadnych liczb — ceny, ilości, numery pozycji przepisuj dokładnie tak jak są w oryginale
+7. NIE zmieniaj nazw własnych — nazwy dań i restauracji przepisuj dokładnie, bez parafrazowania ani zastępowania zaimkami; szczególnie gdy nazwa jest częścią kontekstu akcji (potwierdzenie zamówienia, wybór restauracji)
+8. NIE dopisuj nowych dań, cen ani restauracji których nie ma w oryginale
+9. NIE dodawaj nowych pytań jeśli oryginał ich nie zawiera; możesz uprościć formę CTA ("Czy dodać do koszyka?" → "Dodać do koszyka?") ale nie zmieniaj intencji pytania
+10. Jeśli w oryginale jest lista numerowana, zachowaj wszystkie numery i pozycje
 
-Oryginał: "Chcesz menu której restauracji? 1. Pizza Hut, 2. Domino's"  
-Przepisane: "Z której restauracji chcesz zobaczyć menu? Mam Pizza Hut i Domino's."`;
+PRZYKŁADY:
+Oryginał: "Mam kilka opcji dla pizza. Wybierz: 1) Margherita (25 zł) 2) Pepperoni (28 zł)"
+Przepisane: "Mam dla ciebie dwie opcje pizzy: Margherita za 25 złotych albo Pepperoni za 28."
+
+Oryginał: "Chcesz menu której restauracji? 1. Pizza Hut, 2. Domino's"
+Przepisane: "Z której restauracji chcesz menu? Pizza Hut czy Domino's?"
+
+Oryginał: "Dodałam Vege Burger — razem 2 pozycje. Co jeszcze?"
+Przepisane: "Dodałam Vege Burgera, masz już 2 pozycje. Coś jeszcze?"
+
+DOZWOLONE uproszczenia CTA:
+✅ "Czy dodać do koszyka?" → "Dodać do koszyka?" — uproszczenie formy, ta sama intencja
+✅ "Czy potwierdzasz zamówienie?" → "Potwierdzamy?" — skrót formy, ta sama intencja
+
+NIEDOZWOLONE (przykłady błędów):
+❌ "Margherita (25 zł)" → "Margherita (26 zł)" — zmiana ceny
+❌ Dodanie nowej pozycji której nie było w oryginale
+❌ "Vege Burger" → "wegetariański burger" — zmiana nazwy własnej dania
+❌ "Zamówienie w Starej Kamienicy" → "Zamówienie w tej restauracji" — zastąpienie nazwy zaimkiem gdy jest częścią kontekstu akcji
+❌ "Czy chcesz zobaczyć menu?" → "Chcesz zobaczyć menu i dodać do koszyka?" — zmiana intencji pytania`;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // PHRASE GENERATOR
@@ -109,8 +147,7 @@ export async function generatePhrase(input, options = {}) {
         const paraphrased = await paraphraseWithLLM(templateText, surfaceKey);
 
         if (paraphrased && paraphrased.length > 0) {
-            // Validate: ensure no new questions added
-            const valid = validateParaphrase(templateText, paraphrased);
+            const valid = validateParaphrase(templateText, paraphrased, facts, surfaceKey);
 
             if (valid) {
                 // Hard cap: truncate to maxChars
@@ -164,7 +201,7 @@ async function paraphraseWithLLM(text, surfaceKey) {
                     { role: 'user', content: userPrompt }
                 ],
                 max_tokens: 150,
-                temperature: 0.7
+                temperature: 0.3
             }),
             new Promise((_, reject) =>
                 setTimeout(() => reject(new Error('Timeout')), PHRASE_GENERATOR_CONFIG.timeout)
@@ -181,39 +218,111 @@ async function paraphraseWithLLM(text, surfaceKey) {
 }
 
 /**
- * Validate paraphrased output
- * - No new questions added
- * - Essential info preserved
- * - Not too long
- * 
- * @param {string} original - Template text
+ * Validate paraphrased output.
+ *
+ * FACTS ARE IMMUTABLE — architectural contract.
+ * Checks: length, sentence count, question count, number preservation,
+ * and named entity preservation (dish names, restaurant names).
+ *
+ * @param {string} original   - Template text from SurfaceRenderer
  * @param {string} paraphrased - LLM output
+ * @param {Object} facts       - Surface facts (used for entity extraction)
+ * @param {string} surfaceKey  - Surface context (used for word limit override)
  * @returns {boolean}
  */
-function validateParaphrase(original, paraphrased) {
-    // Check length
+function validateParaphrase(original, paraphrased, facts = {}, surfaceKey = null) {
+    // 1. Length guard — surface-aware
+    const maxWords = SURFACE_WORD_LIMITS[surfaceKey] ?? PHRASE_GENERATOR_CONFIG.maxWords;
     const wordCount = paraphrased.split(/\s+/).length;
-    if (wordCount > PHRASE_GENERATOR_CONFIG.maxWords) {
+    if (wordCount > maxWords) {
+        console.warn(`[PhraseGenerator] Rejected: too long (${wordCount} words, limit ${maxWords} for surface ${surfaceKey})`);
         return false;
     }
 
-    // Check sentence count (rough)
+    // 2. Sentence count guard
     const sentenceCount = (paraphrased.match(/[.!?]/g) || []).length;
     if (sentenceCount > PHRASE_GENERATOR_CONFIG.maxSentences + 1) {
+        console.warn('[PhraseGenerator] Rejected: too many sentences');
         return false;
     }
 
-    // Check for new questions (if original had no question, paraphrase shouldn't add one)
-    const originalHasQuestion = original.includes('?');
+    // 3. Questions guard
+    // Simplifying CTA form is OK ("Czy dodać?" → "Dodać?"), adding new questions is not.
     const paraphrasedQuestions = (paraphrased.match(/\?/g) || []).length;
     const originalQuestions = (original.match(/\?/g) || []).length;
-
-    if (paraphrasedQuestions > originalQuestions + 1) {
-        // LLM added questions - reject
+    if (paraphrasedQuestions > originalQuestions) {
+        console.warn('[PhraseGenerator] Rejected: added new questions');
         return false;
+    }
+
+    // 4. IMMUTABLE FACTS — number preservation guard
+    const extractNumbers = (text) =>
+        (text.match(/\d+(?:[.,]\d+)?/g) || []).map(n => n.replace(',', '.'));
+
+    const originalNumbers = extractNumbers(original);
+    const paraphrasedNumbers = extractNumbers(paraphrased);
+
+    for (const num of originalNumbers) {
+        const found = paraphrasedNumbers.some(n => n === num);
+        if (!found) {
+            console.warn(`[PhraseGenerator] Rejected: number "${num}" from original missing in paraphrase`);
+            return false;
+        }
+    }
+    for (const num of paraphrasedNumbers) {
+        const found = originalNumbers.some(n => n === num);
+        if (!found) {
+            console.warn(`[PhraseGenerator] Rejected: number "${num}" hallucinated — not in original`);
+            return false;
+        }
+    }
+
+    // 5. IMMUTABLE FACTS — named entity preservation guard
+    // Extracts protected entity strings from facts (dish names, restaurant names).
+    // Checks that each entity present in templateText also appears in paraphrase.
+    // Note: uses case-insensitive substring match to allow Polish inflection (Vege Burger → Vege Burgera).
+    const protectedEntities = extractNamedEntities(facts, original);
+    for (const entity of protectedEntities) {
+        if (!paraphrased.toLowerCase().includes(entity.toLowerCase())) {
+            console.warn(`[PhraseGenerator] Rejected: named entity "${entity}" missing in paraphrase`);
+            return false;
+        }
     }
 
     return true;
+}
+
+/**
+ * Extract protected named entities from facts and templateText.
+ * Returns entity strings that must be preserved in paraphrase output.
+ *
+ * Heuristic: collects string values from facts that appear in templateText
+ * and are longer than 3 chars (to exclude short words like "tak", "nie").
+ * Does not require NLP — relies on facts being the authoritative source.
+ *
+ * @param {Object} facts       - Surface facts object
+ * @param {string} templateText - Deterministic template text
+ * @returns {string[]}
+ */
+function extractNamedEntities(facts, templateText) {
+    const entities = new Set();
+    const template = templateText.toLowerCase();
+
+    function collectStrings(obj) {
+        if (!obj || typeof obj !== 'object') return;
+        for (const val of Object.values(obj)) {
+            if (typeof val === 'string' && val.length > 3 && template.includes(val.toLowerCase())) {
+                entities.add(val);
+            } else if (Array.isArray(val)) {
+                val.forEach(item => collectStrings(item));
+            } else if (typeof val === 'object') {
+                collectStrings(val);
+            }
+        }
+    }
+
+    collectStrings(facts);
+    return [...entities];
 }
 
 /**

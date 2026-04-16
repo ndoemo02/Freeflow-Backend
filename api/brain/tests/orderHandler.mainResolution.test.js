@@ -198,6 +198,195 @@ describe('OrderHandler main-item resolution', () => {
         expect(pepsi?.qty).toBe(1);
     });
 
+    it('commits valid items from multi-item batch when one item is missing in menu', async () => {
+        canonicalizeDishMock.mockImplementation((text) => text);
+
+        const session = {
+            currentRestaurant: { id: 'R_VIEN', name: 'Vien-Thien' },
+            lastRestaurant: { id: 'R_VIEN', name: 'Vien-Thien' },
+            last_menu: [
+                {
+                    id: 'main-wolowina-5-smakow',
+                    name: 'Wołowina 5 smaków',
+                    base_name: 'Wołowina 5 smaków',
+                    category: 'Danie glowne',
+                    type: 'MAIN',
+                    price_pln: 36,
+                },
+                {
+                    id: 'soup-won-ton',
+                    name: 'Zupa Won Ton',
+                    base_name: 'Zupa Won Ton',
+                    category: 'Zupa',
+                    type: 'MAIN',
+                    price_pln: 18,
+                },
+            ],
+            cart: { items: [], total: 0 },
+        };
+
+        const response = await handler.execute({
+            text: 'Sushi, Wolowina 5 smakow i Zupa Won Ton',
+            entities: {
+                dish: 'Sushi',
+                items: [
+                    { dish: 'Sushi', quantity: 1 },
+                    { dish: 'Wołowina 5 smaków', quantity: 1 },
+                    { dish: 'Zupa Won Ton', quantity: 2 },
+                ],
+            },
+            session,
+        });
+
+        expect(response.intent).not.toBe('clarify_order');
+        expect(response.meta?.addedToCart).toBe(true);
+        expect(response.meta?.source).toBe('order_handler_multi_partial_commit');
+        expect(response.meta?.unresolvedItems).toContain('Sushi');
+        expect(response.reply).toContain('Nie znalazlam w menu: Sushi');
+        expect(response.contextUpdates?.cart?.items?.length).toBe(2);
+        const wonTon = response.contextUpdates?.cart?.items?.find((item) => item.id === 'soup-won-ton');
+        const wolowina = response.contextUpdates?.cart?.items?.find((item) => item.id === 'main-wolowina-5-smakow');
+        expect(wonTon?.qty).toBe(2);
+        expect(wolowina?.qty).toBe(1);
+    });
+
+    it('clamps accidental multi-item qty drift to 1 when user gave no explicit quantity', async () => {
+        canonicalizeDishMock.mockImplementation((text) => text);
+
+        const session = {
+            currentRestaurant: { id: 'R_STARA', name: 'Restauracja Stara Kamienica' },
+            lastRestaurant: { id: 'R_STARA', name: 'Restauracja Stara Kamienica' },
+            last_menu: [
+                {
+                    id: 'main-schab-tradycyjny',
+                    name: 'Tradycyjny schabowy',
+                    base_name: 'Tradycyjny schabowy',
+                    category: 'Danie glowne',
+                    type: 'MAIN',
+                    price_pln: 16,
+                },
+                {
+                    id: 'main-nalesnik-kurczak',
+                    name: 'Nalesnik z kurczakiem i warzywami',
+                    base_name: 'Nalesnik z kurczakiem i warzywami',
+                    category: 'Danie glowne',
+                    type: 'MAIN',
+                    price_pln: 24,
+                },
+            ],
+            cart: { items: [], total: 0 },
+        };
+
+        const response = await handler.execute({
+            text: 'zamawiam schab tradycyjny i nalesnik',
+            entities: {
+                items: [
+                    { dish: 'Tradycyjny schabowy', quantity: 2 },
+                    { dish: 'Nalesnik z kurczakiem i warzywami', quantity: 3 },
+                ],
+                dish: 'Tradycyjny schabowy',
+            },
+            session,
+        });
+
+        expect(response.meta?.addedToCart).toBe(true);
+        const schab = response.contextUpdates?.cart?.items?.find((item) => item.id === 'main-schab-tradycyjny');
+        const nalesnik = response.contextUpdates?.cart?.items?.find((item) => item.id === 'main-nalesnik-kurczak');
+        expect(schab?.qty).toBe(1);
+        expect(nalesnik?.qty).toBe(1);
+    });
+
+    it('allows ADDON in multi-item batch when same request contains MAIN item', async () => {
+        canonicalizeDishMock.mockImplementation((text) => text);
+
+        const session = {
+            currentRestaurant: { id: 'R_STARA', name: 'Restauracja Stara Kamienica' },
+            lastRestaurant: { id: 'R_STARA', name: 'Restauracja Stara Kamienica' },
+            last_menu: [
+                {
+                    id: 'main-schab-beskidzki',
+                    name: 'Schab po beskidzku',
+                    base_name: 'Schab po beskidzku',
+                    category: 'Danie glowne',
+                    type: 'MAIN',
+                    price_pln: 39,
+                },
+                {
+                    id: 'addon-pierogi',
+                    name: 'Pierogi (ruskie lub z miesem) 6 szt.',
+                    base_name: 'Pierogi',
+                    category: 'Dodatki',
+                    type: 'ADDON',
+                    price_pln: 18,
+                },
+            ],
+            cart: { items: [], total: 0 },
+        };
+
+        const response = await handler.execute({
+            text: 'Schab po beskidzku i pierogi',
+            entities: {
+                items: [
+                    { dish: 'Schab po beskidzku', quantity: 1 },
+                    { dish: 'Pierogi (ruskie lub z miesem) 6 szt.', quantity: 1 },
+                ],
+                dish: 'Schab po beskidzku',
+            },
+            session,
+        });
+
+        expect(response.intent).not.toBe('clarify_order');
+        expect(response.meta?.addedToCart).toBe(true);
+        expect(response.contextUpdates?.cart?.items?.length).toBe(2);
+        expect(response.contextUpdates?.cart?.items?.some((item) => item.id === 'main-schab-beskidzki')).toBe(true);
+        expect(response.contextUpdates?.cart?.items?.some((item) => item.id === 'addon-pierogi')).toBe(true);
+    });
+
+    it('allows Pierogi ADDON with Lody MAIN in the same add_items_to_cart batch', async () => {
+        canonicalizeDishMock.mockImplementation((text) => text);
+
+        const session = {
+            currentRestaurant: { id: 'R_STARA', name: 'Restauracja Stara Kamienica' },
+            lastRestaurant: { id: 'R_STARA', name: 'Restauracja Stara Kamienica' },
+            last_menu: [
+                {
+                    id: 'addon-pierogi',
+                    name: 'Pierogi (ruskie lub z miesem) 6 szt.',
+                    base_name: 'Pierogi',
+                    category: 'Dodatki',
+                    type: 'ADDON',
+                    price_pln: 18,
+                },
+                {
+                    id: 'main-lody',
+                    name: 'Lody z goracymi malinami i bita smietana',
+                    base_name: 'Lody z goracymi malinami i bita smietana',
+                    category: 'Deser',
+                    price_pln: 18,
+                },
+            ],
+            cart: { items: [], total: 0 },
+        };
+
+        const response = await handler.execute({
+            text: 'Pierogi i lody',
+            entities: {
+                items: [
+                    { dish: 'Pierogi (ruskie lub z miesem) 6 szt.', quantity: 1 },
+                    { dish: 'Lody z goracymi malinami i bita smietana', quantity: 1 },
+                ],
+                dish: 'Pierogi (ruskie lub z miesem) 6 szt.',
+            },
+            session,
+        });
+
+        expect(response.intent).not.toBe('clarify_order');
+        expect(response.meta?.addedToCart).toBe(true);
+        expect(response.contextUpdates?.cart?.items?.length).toBe(2);
+        expect(response.contextUpdates?.cart?.items?.some((item) => item.id === 'addon-pierogi')).toBe(true);
+        expect(response.contextUpdates?.cart?.items?.some((item) => item.id === 'main-lody')).toBe(true);
+    });
+
     it('allows single-item compound quantity drink order without clarify', async () => {
         canonicalizeDishMock.mockImplementation((text) => text);
 
@@ -274,6 +463,108 @@ describe('OrderHandler main-item resolution', () => {
         expect(response.meta?.addedToCart).toBe(true);
         expect(response.contextUpdates?.cart?.items?.[0]?.id).toBe('main-callzone-margherita-33');
         expect(response.contextUpdates?.cart?.items?.[0]?.qty).toBe(2);
+    });
+
+    it('asks for variant clarification when shared base name matches multiple menu variants', async () => {
+        canonicalizeDishMock.mockImplementation((text) => text);
+
+        const session = {
+            currentRestaurant: { id: 'R_HUB', name: 'Dwor Hubertus' },
+            lastRestaurant: { id: 'R_HUB', name: 'Dwor Hubertus' },
+            last_menu: [
+                {
+                    id: 'main-wodzionka',
+                    name: 'Wodzionka',
+                    base_name: 'Wodzionka',
+                    category: 'Zupy',
+                    type: 'MAIN',
+                    price_pln: 16,
+                },
+                {
+                    id: 'main-zur-bread',
+                    name: 'Zur slaski w chlebie',
+                    base_name: 'Zur slaski w chlebie',
+                    category: 'Zupy',
+                    type: 'MAIN',
+                    price_pln: 22,
+                },
+                {
+                    id: 'main-zur-plate',
+                    name: 'Zur slaski na talerzu',
+                    base_name: 'Zur slaski na talerzu',
+                    category: 'Zupy',
+                    type: 'MAIN',
+                    price_pln: 20,
+                },
+            ],
+            cart: { items: [], total: 0 },
+        };
+
+        const response = await handler.execute({
+            text: 'Zur slaski',
+            entities: { dish: 'Zur slaski' },
+            session,
+        });
+
+        expect(response.intent).toBe('clarify_order');
+        expect(response.meta?.clarify?.clarifyReason).toBe('shared_base_ambiguity');
+        expect(response.reply).toContain('Zur slaski w chlebie');
+        expect(response.reply).toContain('Zur slaski na talerzu');
+        expect(response.contextUpdates?.cart?.items?.length || 0).toBe(0);
+    });
+
+    it('keeps multi-item add unresolved when one item has shared-base ambiguity', async () => {
+        canonicalizeDishMock.mockImplementation((text) => text);
+
+        const session = {
+            currentRestaurant: { id: 'R_HUB', name: 'Dwor Hubertus' },
+            lastRestaurant: { id: 'R_HUB', name: 'Dwor Hubertus' },
+            last_menu: [
+                {
+                    id: 'main-wodzionka',
+                    name: 'Wodzionka',
+                    base_name: 'Wodzionka',
+                    category: 'Zupy',
+                    type: 'MAIN',
+                    price_pln: 16,
+                },
+                {
+                    id: 'main-zur-bread',
+                    name: 'Zur slaski w chlebie',
+                    base_name: 'Zur slaski w chlebie',
+                    category: 'Zupy',
+                    type: 'MAIN',
+                    price_pln: 22,
+                },
+                {
+                    id: 'main-zur-plate',
+                    name: 'Zur slaski na talerzu',
+                    base_name: 'Zur slaski na talerzu',
+                    category: 'Zupy',
+                    type: 'MAIN',
+                    price_pln: 20,
+                },
+            ],
+            cart: { items: [], total: 0 },
+        };
+
+        const response = await handler.execute({
+            text: 'Wodzionka i Zur slaski',
+            entities: {
+                dish: 'Wodzionka',
+                items: [
+                    { dish: 'Wodzionka', quantity: 1 },
+                    { dish: 'Zur slaski', quantity: 1 },
+                ],
+            },
+            session,
+        });
+
+        expect(response.intent).toBe('clarify_order');
+        expect(response.meta?.clarify?.clarifyReason).toBe('shared_base_ambiguity');
+        expect(response.reply).toContain('Zur slaski w chlebie');
+        expect(response.reply).toContain('Zur slaski na talerzu');
+        expect(response.contextUpdates?.cart?.items?.length || 0).toBe(0);
     });
 
     it('applies scoped Żurek fallback in Stara Kamienica without addon context', async () => {

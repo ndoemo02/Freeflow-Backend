@@ -1,38 +1,111 @@
-/**
+﻿/**
  * Food Domain: Menu Handler
- * Odpowiada za wyświetlanie karty dań (Menu).
+ * Odpowiada za wyswietlanie karty dan (Menu).
  */
 
 import { loadMenuPreview } from '../../menuService.js';
 import { findRestaurantByName, getLocationFallback } from '../../locationService.js';
 import { RESTAURANT_CATALOG } from '../../data/restaurantCatalog.js';
 
+function normalizeMenuToken(value) {
+    return String(value || '')
+        .toLowerCase()
+        .normalize('NFKD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9\s]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+const DRINK_SIGNALS = [
+    'napoj', 'piwo', 'cola', 'kola', 'sok', 'woda', 'herbata', 'kawa', 'lemo',
+    'sprite', 'fanta', 'pepsi', 'monster', 'energy', 'juice', 'beer', 'wino',
+    'wine', 'koktajl', 'smoothie', 'shake', 'mleko', 'limon',
+];
+
+function isLikelyDrink(item) {
+    const name = normalizeMenuToken(item?.name || item?.base_name || '');
+    if (DRINK_SIGNALS.some((s) => name.includes(s))) return true;
+    // numeric volume: 0.85, 0.33, 500ml etc.
+    if (/\b0\.\d+\b/.test(name)) return true;
+    if (/\b\d{3,4}\s*ml\b/.test(name)) return true;
+    return false;
+}
+
+function buildNaturalMenuReplySummary(menuItems = []) {
+    const items = Array.isArray(menuItems) ? menuItems : [];
+    const sizes = new Set();
+    const highlights = [];
+    const seenHighlights = new Set();
+
+    for (const item of items.slice(0, 40)) {
+        // Highlights: nazwy dan (bez rozmiarow w tytule)
+        const rawName = String(item?.base_name || item?.name || '').trim();
+        if (rawName) {
+            const cleanedName = rawName
+                .replace(/\b(XXL|XL|L|M|S)\b/gi, ' ')
+                .replace(/\b(duza|duzy|mala|maly|standard|mega)\b/gi, ' ')
+                .replace(/\s+/g, ' ')
+                .trim();
+            const displayName = cleanedName || rawName;
+            const key = normalizeMenuToken(displayName);
+            if (key && !seenHighlights.has(key)) {
+                seenHighlights.add(key);
+                highlights.push(displayName);
+            }
+        }
+
+        // Rozmiary tylko z dan (nie napojow) i tylko standardowe: S/M/L/XL/XXL
+        if (!isLikelyDrink(item)) {
+            const variantRaw = String(item?.size_or_variant || '').trim();
+            const variantFromName = String(item?.name || '').match(/\b(XXL|XL|L|M|S)\b/i)?.[1] || '';
+            const variant = (variantRaw || variantFromName).trim();
+            if (variant && /^(XXL|XL|L|M|S)$/i.test(variant)) {
+                sizes.add(variant.toUpperCase());
+            }
+        }
+    }
+
+    const sizeList = Array.from(sizes).slice(0, 3);
+    const highlightList = highlights.slice(0, 4);
+
+    // Podsumowanie: nazwy dan maja priorytet nad kategoriami bialkowymi
+    const summaryLine = highlightList.length > 0
+        ? `W karcie znajdziesz m.in. ${highlightList.join(', ')}.`
+        : 'W karcie jest sporo roznych pozycji.';
+
+    // Pytanie o rozmiar tylko gdy sa 2+ rzeczywiste rozmiary dan (nie napojow)
+    const followUpQuestion = sizeList.length >= 2
+        ? `Wolisz rozmiar ${sizeList.slice(0, 2).join(' czy ')}?`
+        : 'Na co masz ochote?';
+
+    return { summaryLine, followUpQuestion };
+}
 
 export class MenuHandler {
-
     async execute(ctx) {
         const { text, session, entities, sessionId } = ctx;
         if (!sessionId) {
-            throw new Error("MenuHandler: sessionId missing");
+            throw new Error('MenuHandler: sessionId missing');
         }
-        console.log(`🧠 MenuHandler executing for session ${sessionId}. Text: "${text}"`);
-        console.log(`🧠 MenuHandler: session lastRestaurant: ${session?.lastRestaurant?.name} (${session?.lastRestaurant?.id})`);
-        console.log(`🧠 MenuHandler: entities:`, JSON.stringify(entities));
+        console.log(`MenuHandler executing for session ${sessionId}. Text: "${text}"`);
+        console.log(`MenuHandler: session lastRestaurant: ${session?.lastRestaurant?.name} (${session?.lastRestaurant?.id})`);
+        console.log('MenuHandler: entities:', JSON.stringify(entities));
 
-        // 1. Zidentyfikuj restaurację
+        // 1. Zidentyfikuj restauracje
         let restaurant = null;
         let matchedFromText = false;
 
-        // A) Jawnie w tekście (ID z katalogu ma priorytet)
+        // A) Jawnie w tekscie (ID z katalogu ma priorytet)
         if (entities?.restaurantId) {
-            const catalogMatch = RESTAURANT_CATALOG.find(r => r.id === entities.restaurantId);
+            const catalogMatch = RESTAURANT_CATALOG.find((r) => r.id === entities.restaurantId);
             if (catalogMatch) {
                 restaurant = catalogMatch;
                 matchedFromText = true;
             }
         }
 
-        // B) Jawnie w tekście (nazwa jeśli ID brak - np. spoza katalogu)
+        // B) Jawnie w tekscie (nazwa jesli ID brak - np. spoza katalogu)
         if (!restaurant && entities?.restaurant) {
             restaurant = await findRestaurantByName(entities.restaurant);
             if (restaurant) matchedFromText = true;
@@ -48,7 +121,7 @@ export class MenuHandler {
             const fallback = await getLocationFallback(
                 sessionId,
                 session?.last_location,
-                "Najpierw wybierz restaurację w {location}, a potem pokażę menu:\n{list}\n\nKtóra Cię interesuje?"
+                'Najpierw wybierz restauracje w {location}, a potem pokaze menu:\n{list}\n\nKtora Cie interesuje?'
             );
 
             if (fallback) {
@@ -56,8 +129,8 @@ export class MenuHandler {
             }
 
             return {
-                reply: "Najpierw wybierz restaurację. Powiedz 'gdzie zjeść w pobliżu' aby zobaczyć listę.",
-                contextUpdates: { expectedContext: 'find_nearby' }
+                reply: "Najpierw wybierz restauracje. Powiedz 'gdzie zjesc w poblizu' aby zobaczyc liste.",
+                contextUpdates: { expectedContext: 'find_nearby' },
             };
         }
 
@@ -67,11 +140,11 @@ export class MenuHandler {
             expectedContext: 'create_order', // will be overwritten if matchedFromText
             lastIntent: 'menu_request',
             context: 'IN_RESTAURANT',
-            lockedRestaurantId: restaurant.id
+            lockedRestaurantId: restaurant.id,
         };
 
         if (matchedFromText) {
-            console.log(`🟢 MenuHandler: matched restaurant from text -> ${restaurant.name}, resetting conversation phase`);
+            console.log(`MenuHandler: matched restaurant from text -> ${restaurant.name}, resetting conversation phase`);
             baseContextUpdates.currentRestaurant = restaurant;
             baseContextUpdates.conversationPhase = 'restaurant_selected';
             baseContextUpdates.last_restaurants_list = [];
@@ -89,29 +162,30 @@ export class MenuHandler {
             session.last_menu.length > 0;
 
         if (canUseCache) {
-            console.log(`⚡ Cache Hit: Returning cached menu for ${sessionRestaurant.name}`);
+            console.log(`Cache Hit: Returning cached menu for ${sessionRestaurant.name}`);
             console.log(`[MenuCache] HIT restaurant=${restaurant.id} items=${session.last_menu.length}`);
             const items = session.last_menu;
+            const menuSummary = buildNaturalMenuReplySummary(items);
 
             // Anti-Loop for Cache
             if (session.lastIntent === 'show_menu' || session.lastIntent === 'menu_request') {
                 return {
                     intent: 'menu_request', // Standard V2
-                    reply: "Listę dań masz na ekranie. Czy coś wpadło Ci w oko?",
+                    reply: 'Liste dan masz na ekranie. Czy cos wpadlo Ci w oko?',
                     menuItems: items,
                     restaurants: [],
                     meta: { source: 'cache_anti_loop', latency_total_ms: 0 },
-                    contextUpdates: { ...baseContextUpdates }
+                    contextUpdates: { ...baseContextUpdates },
                 };
             }
 
             return {
                 intent: 'menu_request', // Standard V2
-                reply: `Wybrano restaurację ${sessionRestaurant.name}. Polecam: ${items.map(m => m.name).join(', ')}. Co podać?`,
+                reply: `Wybrano restauracje ${sessionRestaurant.name}. ${menuSummary.summaryLine} ${menuSummary.followUpQuestion}`,
                 menuItems: items,
                 restaurants: [],
                 meta: { source: 'cache', latency_total_ms: 0 },
-                contextUpdates: { ...baseContextUpdates }
+                contextUpdates: { ...baseContextUpdates },
             };
         }
 
@@ -127,27 +201,28 @@ export class MenuHandler {
         // 4. Formatowanie odpowiedzi
         const count = preview.menu.length;
         const shown = preview.shortlist.length;
-        const listText = preview.shortlist.map(m => `${m.name} (${Number(m.price_pln).toFixed(2)} zł)`).join(", ");
-        const intro = `Wybrano restaurację ${restaurant.name}. W menu m.in.:`;
-        const closing = "Co podać?";
-        const reply = `${intro}\n${listText}\n\n${closing}`;
+        const menuSummary = buildNaturalMenuReplySummary(preview.menu);
+        const intro = `Wybrano restauracje ${restaurant.name}.`;
+        const closing = menuSummary.followUpQuestion;
+        const reply = `${intro} ${menuSummary.summaryLine} ${closing}`;
 
-        console.log(`✅ MenuHandler: showing ${shown}/${count} items for ${restaurant.name}`);
+        console.log(`MenuHandler: showing ${shown}/${count} items for ${restaurant.name}`);
 
         return {
             intent: 'menu_request',
             reply,
             closing_question: closing,
-            menuItems: preview.shortlist,
-            menu: preview.shortlist, // Legacy compat
+            menuItems: preview.shortlist, // Shortlist for Gemini (token budget)
+            menu: preview.menu, // Full menu for UI rendering
             restaurants: [],
-            restaurant: restaurant,
+            restaurant,
             contextUpdates: {
                 ...baseContextUpdates,
-                last_menu: preview.menu, // FIX 1: Store FULL menu (all items) in context, not only shortlist (6), to support dish_guard matching items lower in the list
-                last_menu_restaurant_id: restaurant.id
+                // Store FULL menu in context to support downstream dish matching.
+                last_menu: preview.menu,
+                last_menu_restaurant_id: restaurant.id,
             },
-            meta: { source: 'db' }
+            meta: { source: 'db' },
         };
     }
 }

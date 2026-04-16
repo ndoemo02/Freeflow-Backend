@@ -18,6 +18,8 @@ export class ResponseBuilder {
 
         const restaurants = cleanDomainResponse.restaurants || [];
         const menuItems = cleanDomainResponse.menuItems || [];
+        // Preserve full menu when available (menuItems may be a shortlist for Gemini token budget)
+        const fullMenu = cleanDomainResponse.menu || menuItems;
 
         const restaurantsWithDisplayName = restaurants.map((r) => {
             if (!r || r.distance == null) return r;
@@ -47,7 +49,7 @@ export class ResponseBuilder {
             actions: domainResponse.actions || [],
             restaurants: restaurantsWithDisplayName,
             menuItems,
-            menu: menuItems,
+            menu: fullMenu,
             cart,
             recommendations: Array.isArray(cleanDomainResponse.recommendations) ? cleanDomainResponse.recommendations : [],
             meta: {

@@ -334,9 +334,26 @@ function fuzzyMatch(a, b) {
 }
 
 // ——— Menu catalog & order parsing ———
+function isValidRestaurantContextId(value) {
+  if (typeof value === 'number') return Number.isFinite(value) && value > 0;
+  if (typeof value !== 'string') return false;
+  const trimmed = value.trim();
+  if (!trimmed) return false;
+  // Session identifiers (sess_...) must never be used as restaurant_id.
+  if (/^sess[_-]/i.test(trimmed)) return false;
+  return true;
+}
+
 async function loadMenuCatalog(session) {
-  // preferuj ostatnią restaurację z kontekstu, jeśli jest
-  const lastId = session?.currentRestaurant?.id || session?.lastRestaurant?.id || session?.restaurant?.id || session?.id;
+  // Preferujemy wyłącznie identyfikatory restauracji z kontekstu restauracji.
+  // Nigdy nie używamy session.id jako restaurant_id.
+  const idCandidates = [
+    session?.currentRestaurant?.id,
+    session?.lastRestaurant?.id,
+    session?.restaurant?.id,
+    session?.last_menu_restaurant_id,
+  ];
+  const lastId = idCandidates.find(isValidRestaurantContextId) || null;
 
   console.log(`[loadMenuCatalog] ?? Session:`, session);
   console.log(`[loadMenuCatalog] ?? lastRestaurant:`, session?.lastRestaurant);

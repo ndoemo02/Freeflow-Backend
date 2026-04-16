@@ -601,6 +601,7 @@ export function parseCompoundOrder(text = '', menu = []) {
             const modifier = extractModifier(rawLabel, resolvedDish);
             const itemMeta = {
                 rawLabel: toTitleCase(rawLabel || resolvedDish),
+                quantitySource,
             };
 
             if (modifier) {

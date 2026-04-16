@@ -10,6 +10,49 @@ export function isLiveModeEnabled() {
 }
 
 export function registerLiveRoutes(app) {
+    app.get('/api/voice/live/runtime-config', async (req, res) => {
+        const fallbackModel =
+            process.env.GEMINI_LIVE_MODEL ||
+            process.env.LIVE_MODEL ||
+            'gemini-2.5-flash-native-audio-preview-12-2025';
+
+        try {
+            const { getConfig } = await import('../../config/configService.js');
+            const cfg = await getConfig();
+            const liveModel =
+                typeof cfg?.live_model === 'string' && cfg.live_model.trim().length > 0
+                    ? cfg.live_model.trim()
+                    : fallbackModel;
+            const speechStyle =
+                typeof cfg?.speech_style === 'string' && cfg.speech_style.trim().length > 0
+                    ? cfg.speech_style.trim()
+                    : 'standard';
+            const amberPrompt =
+                typeof cfg?.amber_prompt === 'string' && cfg.amber_prompt.trim().length > 0
+                    ? cfg.amber_prompt.trim()
+                    : '';
+
+            return res.status(200).json({
+                ok: true,
+                live_mode: isLiveModeEnabled(),
+                live_model: liveModel,
+                speech_style: speechStyle,
+                amber_prompt: amberPrompt,
+                prompt_source: amberPrompt ? 'system_config:amber_prompt' : `speech_style:${speechStyle}`,
+            });
+        } catch (error) {
+            return res.status(200).json({
+                ok: true,
+                live_mode: isLiveModeEnabled(),
+                live_model: fallbackModel,
+                speech_style: 'standard',
+                amber_prompt: '',
+                prompt_source: 'fallback',
+                error: error?.message || 'runtime_config_unavailable',
+            });
+        }
+    });
+
     app.get('/api/voice/live/health', (req, res) => {
         res.status(200).json({
             ok: true,
@@ -33,6 +76,7 @@ export function registerLiveRoutes(app) {
         const toolName = body.tool || body.tool_name;
         const args = body.args || {};
         const requestId = body.request_id || null;
+        const turnId = body.turn_id || requestId || null;
 
         if (!isLiveModeEnabled()) {
             return res.status(409).json({
@@ -56,6 +100,7 @@ export function registerLiveRoutes(app) {
                 toolName: String(toolName),
                 args,
                 requestId,
+                turnId,
             });
 
             const status = result.ok ? 200 : 400;

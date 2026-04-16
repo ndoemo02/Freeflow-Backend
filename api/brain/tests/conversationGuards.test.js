@@ -247,8 +247,23 @@ describe('🛡️ ConversationGuards', () => {
             expect(sanitizeLocation('Bytom', {})).toBe('Bytom');
         });
 
+        it('rejects address-like location and falls back to session city', () => {
+            const result = sanitizeLocation('Piłsudskiego 1', { last_location: 'Piekary Śląskie' });
+            expect(result).toBe('Piekary Śląskie');
+        });
+
+        it('rejects address-like location when no fallback is available', () => {
+            const result = sanitizeLocation('Piłsudskiego 1', {});
+            expect(result).toBeNull();
+        });
+
         it('rejects long location containing pizza', () => {
             const result = sanitizeLocation('pizzę może być włoska', {});
+            expect(result).toBeNull();
+        });
+
+        it('treats "current location" as placeholder and returns null', () => {
+            const result = sanitizeLocation('current location', { last_location: 'Piekary Śląskie' });
             expect(result).toBeNull();
         });
 

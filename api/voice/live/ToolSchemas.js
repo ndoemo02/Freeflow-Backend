@@ -88,6 +88,48 @@ export const LIVE_TOOL_SCHEMAS = Object.freeze([
         },
     },
     {
+        name: 'update_cart_item_quantity',
+        description: 'Change quantity for an existing cart item by dish name.',
+        parameters: {
+            type: 'object',
+            properties: {
+                dish: { type: 'string' },
+                quantity: { type: 'number' },
+            },
+            required: ['dish', 'quantity'],
+            additionalProperties: false,
+        },
+    },
+    {
+        name: 'remove_item_from_cart',
+        description: 'Remove item from cart by dish name. Optional quantity removes only part of amount.',
+        parameters: {
+            type: 'object',
+            properties: {
+                dish: { type: 'string' },
+                quantity: { type: 'number' },
+            },
+            required: ['dish'],
+            additionalProperties: false,
+        },
+    },
+    {
+        name: 'replace_cart_item',
+        description: 'Replace one cart item with another dish in the same restaurant scope.',
+        parameters: {
+            type: 'object',
+            properties: {
+                from_dish: { type: 'string' },
+                to_dish: { type: 'string' },
+                quantity: { type: 'number' },
+                restaurant_id: { type: 'string' },
+                restaurant_name: { type: 'string' },
+            },
+            required: ['from_dish', 'to_dish'],
+            additionalProperties: false,
+        },
+    },
+    {
         name: 'confirm_add_to_cart',
         description: 'Confirm pending add-to-cart operation.',
         parameters: {

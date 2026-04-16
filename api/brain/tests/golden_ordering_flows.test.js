@@ -1,5 +1,10 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
+import { BrainPipeline } from '../core/pipeline.js';
+import { NLURouter } from '../nlu/router.js';
+import { InMemoryRestaurantRepository } from '../core/repository.js';
+import { getSession, updateSession, closeConversation, getOrCreateActiveSession } from '../session/sessionStore.js';
+
 vi.mock('../../_supabase.js', () => {
   const empty = { data: [], error: null };
   const builder = {
@@ -36,6 +41,8 @@ vi.mock('../../brain/supabaseClient.js', () => ({
 
 const CALLZONE_ID = 'bd9f2244-7618-4071-aa96-52616a7b4c70';
 const REZYDENCJA_ID = '4d27fbe3-20d0-4eb4-b003-1935be53af25';
+const STARA_ID = '1fc1e782-bac6-47b2-978a-f6f2b38000cd';
+const DWOR_ID = 'af8448ef-974b-46c8-a4ae-b04b8dc7c9f8';
 
 const CALLZONE_MENU = [
   { id: 'call-v1', name: 'Vege Burger', base_name: 'Vege Burger', price_pln: 28, description: 'Burger vege', category: 'burger', available: true },
@@ -45,6 +52,18 @@ const CALLZONE_MENU = [
 
 const REZYDENCJA_MENU = [
   { id: 'rez-1', name: 'Tagliatelle z krewetkami', base_name: 'Tagliatelle z krewetkami', price_pln: 28, description: 'Makaron', category: 'makaron', available: true }
+];
+
+const STARA_MENU = [
+  { id: 'sk-n1', name: 'Nalesnik z nutella, bananami, bita smietana', base_name: 'Nalesnik z nutella bananami bita smietana', price_pln: 16, description: 'Nutella i banan', category: 'nalesnik', available: true },
+  { id: 'sk-g1', name: 'Gulasz po wegiersku', base_name: 'Gulasz po wegiersku', price_pln: 23, description: 'Gulasz wolowy', category: 'danie glowne', available: true },
+  { id: 'sk-z1', name: 'Zupa dnia', base_name: 'Zupa dnia', price_pln: 12, description: 'Codzienna zupa', category: 'zupa', available: true },
+  { id: 'sk-c1', name: 'Coca-Cola, Fanta, Sprite, Cappy (200 ml)', base_name: 'Coca Cola Fanta Sprite Cappy', price_pln: 7, description: 'Napoje', category: 'napoj', available: true }
+];
+
+const DWOR_MENU = [
+  { id: 'dh-r1', name: 'Rosol domowy', base_name: 'Rosol domowy', price_pln: 18, description: 'Rosol', category: 'zupa', available: true },
+  { id: 'dh-k1', name: 'Kaczka pieczona', base_name: 'Kaczka pieczona', price_pln: 39, description: 'Kaczka', category: 'danie glowne', available: true }
 ];
 
 vi.mock('../menuService.js', () => ({
@@ -57,19 +76,24 @@ vi.mock('../menuService.js', () => ({
       return { menu: REZYDENCJA_MENU, shortlist: REZYDENCJA_MENU.slice(0, 3), fallbackUsed: false };
     }
 
+    if (restaurantId === STARA_ID) {
+      return { menu: STARA_MENU, shortlist: STARA_MENU.slice(0, 3), fallbackUsed: false };
+    }
+
+    if (restaurantId === DWOR_ID) {
+      return { menu: DWOR_MENU, shortlist: DWOR_MENU.slice(0, 3), fallbackUsed: false };
+    }
+
     return { menu: [], shortlist: [], fallbackUsed: false };
   })
 }));
 
-import { BrainPipeline } from '../core/pipeline.js';
-import { NLURouter } from '../nlu/router.js';
-import { InMemoryRestaurantRepository } from '../core/repository.js';
-import { getSession, updateSession, closeConversation, getOrCreateActiveSession } from '../session/sessionStore.js';
-
 const RESTAURANTS = [
-  { id: CALLZONE_ID, name: 'Callzone', city: 'Piekary �l�skie', cuisine_type: 'Pizzeria', lat: 50.3801, lng: 18.9502 },
-  { id: REZYDENCJA_ID, name: 'Rezydencja Luxury Hotel', city: 'Piekary �l�skie', cuisine_type: 'Mi�dzynarodowa', lat: 50.381, lng: 18.9521 },
-  { id: '569a7d29-57be-4224-bdf3-09c483415cea', name: 'Klaps Burgers', city: 'Piekary �l�skie', cuisine_type: 'Ameryka�ska', lat: 50.3794, lng: 18.9487 }
+  { id: CALLZONE_ID, name: 'Callzone', city: 'Piekary Slaskie', cuisine_type: 'Pizzeria', lat: 50.3801, lng: 18.9502 },
+  { id: REZYDENCJA_ID, name: 'Rezydencja Luxury Hotel', city: 'Piekary Slaskie', cuisine_type: 'Miedzynarodowa', lat: 50.381, lng: 18.9521 },
+  { id: STARA_ID, name: 'Restauracja Stara Kamienica', city: 'Piekary Slaskie', cuisine_type: 'Polska', lat: 50.3791, lng: 18.9491 },
+  { id: DWOR_ID, name: 'Dwor Hubertus', city: 'Piekary Slaskie', cuisine_type: 'Slaska / Europejska', lat: 50.3788, lng: 18.9478 },
+  { id: '569a7d29-57be-4224-bdf3-09c483415cea', name: 'Klaps Burgers', city: 'Piekary Slaskie', cuisine_type: 'Amerykanska', lat: 50.3794, lng: 18.9487 }
 ];
 
 function createPipeline() {
@@ -153,10 +177,10 @@ describe('Golden ordering flows', () => {
     await pipeline.process(sessionId, 'wege burger');
 
     updateSession(sessionId, {
-      last_location: 'Piekary �l�skie'
+      last_location: 'Piekary Slaskie'
     });
 
-    const result = await pipeline.process(sessionId, 'poka� restauracje');
+    const result = await pipeline.process(sessionId, 'pokaz restauracje');
     const session = getSession(sessionId);
 
     expect(result.intent).toBe('find_nearby');
@@ -199,7 +223,7 @@ describe('Golden ordering flows', () => {
 
     expect(result.intent).toBe('create_order');
     expect(result.reply).toContain('Vege Burger');
-    expect(result.reply).not.toContain('Z kt�rej restauracji');
+    expect(result.reply).not.toContain('Z ktorej restauracji');
     expect(session.currentRestaurant?.name).toBe('Callzone');
     expect(session.cart?.items?.length).toBe(1);
   });
@@ -225,4 +249,82 @@ describe('Golden ordering flows', () => {
     expect(session.last_menu_restaurant_id).toBe(CALLZONE_ID);
   });
 
+  it('flow 8: explicit "pokaz restauracje calzone" selects restaurant (not discovery)', async () => {
+    const pipeline = createPipeline();
+    const sessionId = `golden_rest_target_${Date.now()}`;
+
+    const result = await pipeline.process(sessionId, 'pokaz restauracje Calzone');
+    const session = getSession(sessionId);
+
+    // Pipeline may auto-advance to menu_request after explicit restaurant selection.
+    expect(['select_restaurant', 'menu_request']).toContain(result.intent);
+    expect(result.reply).toContain('Callzone');
+    expect(session.currentRestaurant?.id).toBe(CALLZONE_ID);
+  });
+
+  it('flow 9: explicit restaurant + dish stays scoped to Stara Kamienica', async () => {
+    const pipeline = createPipeline();
+    const sessionId = `golden_scope_single_${Date.now()}`;
+
+    const result = await pipeline.process(sessionId, 'chcialbym nalesniki z nutella z restauracji Stara Kamienica');
+    const session = getSession(sessionId);
+    const cartItems = session?.cart?.items || [];
+    const names = cartItems.map((item) => item.name || item.base_name || '');
+
+    expect(result.intent).toBe('create_order');
+    expect(result.meta?.addedToCart).toBe(true);
+    expect(session.currentRestaurant?.id).toBe(STARA_ID);
+    expect(cartItems.length).toBeGreaterThan(0);
+    expect(names.join(' ').toLowerCase()).toContain('nales');
+  });
+
+  it('flow 10: multi-item explicit restaurant keeps quantity and scope', async () => {
+    const pipeline = createPipeline();
+    const sessionId = `golden_scope_multi_${Date.now()}`;
+
+    const result = await pipeline.process(
+      sessionId,
+      'dodaj dwa nalesniki z nutella, gulasz po wegiersku, zupe dnia i dwie cole z restauracji Stara Kamienica'
+    );
+    const session = getSession(sessionId);
+    const cartItems = session?.cart?.items || [];
+    const normalizedNames = cartItems.map((item) => String(item.name || '').toLowerCase());
+    const totalQty = cartItems.reduce((sum, item) => sum + Number(item.qty || item.quantity || 1), 0);
+
+    expect(result.intent).toBe('create_order');
+    expect(result.meta?.addedToCart).toBe(true);
+    expect(session.currentRestaurant?.id).toBe(STARA_ID);
+    expect(cartItems.length).toBeGreaterThanOrEqual(3);
+    expect(totalQty).toBeGreaterThanOrEqual(5);
+    expect(normalizedNames.some((name) => name.includes('nales') || name.includes('nutell'))).toBe(true);
+    expect(normalizedNames.some((name) => name.includes('gulasz'))).toBe(true);
+  });
+
+  it('flow 11: explicit restaurant lock blocks cross-restaurant substitution', async () => {
+    const pipeline = createPipeline();
+    const sessionId = `golden_scope_cross_${Date.now()}`;
+
+    const result = await pipeline.process(sessionId, 'dodaj nalesniki z nutella z restauracji Dwor Hubertus');
+    const session = getSession(sessionId);
+    const cartItems = session?.cart?.items || [];
+
+    expect(result.meta?.addedToCart || false).toBe(false);
+    expect(['clarify_order', 'create_order']).toContain(result.intent);
+    expect(session.currentRestaurant?.id).toBe(DWOR_ID);
+    expect(cartItems.length).toBe(0);
+  });
+
+  it('flow 12: low-confidence generic request clarifies instead of forcing substitution', async () => {
+    const pipeline = createPipeline();
+    const sessionId = `golden_scope_amb_${Date.now()}`;
+
+    await pipeline.process(sessionId, 'Restauracja Stara Kamienica');
+    const result = await pipeline.process(sessionId, 'dodaj cos dobrego');
+    const session = getSession(sessionId);
+
+    expect(result.meta?.addedToCart || false).toBe(false);
+    expect(['clarify_order', 'menu_request', 'UNKNOWN_INTENT', 'create_order']).toContain(result.intent);
+    expect((session?.cart?.items || []).length).toBe(0);
+  });
 });
+

@@ -1,4 +1,5 @@
 import { supabase } from "../_supabase.js";
+import { buildUnifiedTurns } from "./turnAdapter.js";
 
 export default async function handler(req, res) {
     // Auth check
@@ -28,7 +29,8 @@ export default async function handler(req, res) {
         ok: true,
         data: {
             ...conv,
-            timeline: events || []
+            timeline: events || [],
+            turns: buildUnifiedTurns(events || []),
         }
     });
 }

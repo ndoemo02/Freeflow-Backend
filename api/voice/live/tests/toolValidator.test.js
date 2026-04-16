@@ -147,3 +147,52 @@ describe('ToolValidator — happy paths', () => {
         expect(result.valid).toBe(true);
     });
 });
+
+describe('ToolValidator - cart edit tools', () => {
+    it('update_cart_item_quantity valid payload -> valid=true', () => {
+        const result = validateAndSanitize('update_cart_item_quantity', {
+            dish: 'Cola',
+            quantity: 3,
+        });
+        expect(result.valid).toBe(true);
+        expect(result.sanitized.dish).toBe('Cola');
+        expect(result.sanitized.quantity).toBe(3);
+    });
+
+    it('remove_item_from_cart valid payload without quantity -> valid=true', () => {
+        const result = validateAndSanitize('remove_item_from_cart', {
+            dish: 'Frytki',
+        });
+        expect(result.valid).toBe(true);
+        expect(result.sanitized.dish).toBe('Frytki');
+        expect(result.sanitized.quantity).toBeUndefined();
+    });
+
+    it('replace_cart_item valid payload -> valid=true', () => {
+        const result = validateAndSanitize('replace_cart_item', {
+            from_dish: 'Kurczak XL',
+            to_dish: 'Wolowina XL',
+            quantity: 2,
+        });
+        expect(result.valid).toBe(true);
+        expect(result.sanitized.from_dish).toBe('Kurczak XL');
+        expect(result.sanitized.to_dish).toBe('Wolowina XL');
+        expect(result.sanitized.quantity).toBe(2);
+    });
+});
+
+describe('ToolValidator - cart edit required fields', () => {
+    it('update_cart_item_quantity without dish -> missing_required_field', () => {
+        const result = validateAndSanitize('update_cart_item_quantity', { quantity: 2 });
+        expect(result.valid).toBe(false);
+        expect(result.error).toBe('missing_required_field');
+        expect(result.field).toBe('dish');
+    });
+
+    it('replace_cart_item without to_dish -> missing_required_field', () => {
+        const result = validateAndSanitize('replace_cart_item', { from_dish: 'A' });
+        expect(result.valid).toBe(false);
+        expect(result.error).toBe('missing_required_field');
+        expect(result.field).toBe('to_dish');
+    });
+});
