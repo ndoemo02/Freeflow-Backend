@@ -118,6 +118,7 @@
 **/venv.bak/
 **/.env.local
 **/env.local
+gcp-service-account.json
 
 # Spyder project settings
 **/.spyderproject

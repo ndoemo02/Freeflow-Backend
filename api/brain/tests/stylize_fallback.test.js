@@ -12,6 +12,8 @@ import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 // Shared mock — all tests control this single `create` function so the
 // cached `openaiClient` singleton always delegates to the same reference.
 const mockCreate = vi.fn();
+const mockGenerateTextWithVertex = vi.fn();
+const mockIsVertexTextConfigured = vi.fn(() => true);
 
 vi.mock('../../config/configService.js', () => ({
     getConfig: vi.fn().mockResolvedValue({}),
@@ -19,10 +21,9 @@ vi.mock('../../config/configService.js', () => ({
 vi.mock('../utils/googleAuth.js', () => ({
     getVertexAccessToken: vi.fn().mockResolvedValue('fake-token'),
 }));
-vi.mock('@google-cloud/vertexai', () => ({
-    VertexAI: vi.fn().mockImplementation(() => ({
-        getGenerativeModel: vi.fn().mockReturnValue({}),
-    })),
+vi.mock('../ai/vertexTextClient.js', () => ({
+    generateTextWithVertex: (...args) => mockGenerateTextWithVertex(...args),
+    isVertexTextConfigured: (...args) => mockIsVertexTextConfigured(...args),
 }));
 vi.mock('openai', () => ({
     default: vi.fn().mockImplementation(() => ({
@@ -48,9 +49,13 @@ describe('stylizeWithGPT4o fallback chain', () => {
         _stylize429CB.count = 0;
         clearTtsCaches();
         mockCreate.mockReset();
+        mockGenerateTextWithVertex.mockReset();
+        mockIsVertexTextConfigured.mockReset();
+        mockIsVertexTextConfigured.mockReturnValue(true);
         process.env.OPENAI_MODEL = 'gpt-4o-mini';
         process.env.OPENAI_API_KEY = 'sk-test';
-        process.env.GEMINI_API_KEY = 'gemini-test-key';
+        process.env.GCP_PROJECT_ID = 'freeflow-voiceorder';
+        process.env.GCP_LOCATION = 'europe-west4';
         process.env.NODE_ENV = 'not-test';
         process.env.OPENAI_STREAM = 'false';
     });
@@ -58,7 +63,8 @@ describe('stylizeWithGPT4o fallback chain', () => {
     afterEach(() => {
         vi.restoreAllMocks();
         process.env.NODE_ENV = 'test';
-        delete process.env.GEMINI_API_KEY;
+        delete process.env.GCP_PROJECT_ID;
+        delete process.env.GCP_LOCATION;
     });
 
     it('429 from OpenAI → falls back to Gemini, emits STYLIZE_PROVIDER_TRACE fallbackUsed=true', async () => {
@@ -67,12 +73,7 @@ describe('stylizeWithGPT4o fallback chain', () => {
         );
 
         const geminiReply = 'Gotowe zamówienie czeka na Ciebie!';
-        vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-            ok: true,
-            json: async () => ({
-                candidates: [{ content: { parts: [{ text: geminiReply }] } }],
-            }),
-        }));
+        mockGenerateTextWithVertex.mockResolvedValueOnce(geminiReply);
 
         const { events, spy } = captureLogEvents();
         const result = await stylizeWithGPT4o('Zamówienie zostało złożone.', 'confirm_order');
@@ -81,7 +82,7 @@ describe('stylizeWithGPT4o fallback chain', () => {
         expect(result).toBe(geminiReply);
         const trace = events.find(e => e.event === 'STYLIZE_PROVIDER_TRACE');
         expect(trace).toBeDefined();
-        expect(trace.provider).toBe('gemini');
+        expect(trace.provider).toBe('vertex');
         expect(trace.fallbackUsed).toBe(true);
     });
 
@@ -91,12 +92,7 @@ describe('stylizeWithGPT4o fallback chain', () => {
         _stylize429CB.count = 1;
 
         const geminiReply = 'Podajemy zaraz!';
-        vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-            ok: true,
-            json: async () => ({
-                candidates: [{ content: { parts: [{ text: geminiReply }] } }],
-            }),
-        }));
+        mockGenerateTextWithVertex.mockResolvedValueOnce(geminiReply);
 
         const result = await stylizeWithGPT4o('Podajemy Twoje danie.', 'create_order');
 
@@ -108,7 +104,7 @@ describe('stylizeWithGPT4o fallback chain', () => {
         mockCreate.mockRejectedValue(
             Object.assign(new Error('429'), { status: 429 })
         );
-        delete process.env.GEMINI_API_KEY;
+        mockIsVertexTextConfigured.mockReturnValue(false);
 
         const rawText = 'Twoje zamówienie jest gotowe.';
         const result = await stylizeWithGPT4o(rawText, 'confirm_order');

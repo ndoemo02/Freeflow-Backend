@@ -111,6 +111,38 @@ describe('OrderHandler main-item resolution', () => {
         expect(session.cart.items.length).toBe(0);
     });
 
+    it('asks explicit X/Y clarification when disambiguation returns low-confidence item options', async () => {
+        canonicalizeDishMock.mockImplementation((text) => text);
+        resolveMenuItemConflictMock.mockResolvedValueOnce({
+            status: 'DISAMBIGUATION_REQUIRED',
+            clarifyType: 'item',
+            query: 'burger klasyk',
+            options: [
+                { id: 'main-burger-classic', name: 'Burger Klasyczny', score: 0.72 },
+                { id: 'main-burger-bbq', name: 'Burger BBQ', score: 0.69 },
+            ],
+        });
+
+        const session = {
+            currentRestaurant: null,
+            lastRestaurant: null,
+            last_menu: [],
+            cart: { items: [], total: 0 },
+        };
+
+        const response = await handler.execute({
+            text: 'burger klasyk',
+            entities: { dish: 'burger klasyk' },
+            session,
+        });
+
+        expect(response.intent).toBe('clarify_order');
+        expect(response.reply).toContain('Czy chodziło Ci o "Burger Klasyczny" czy "Burger BBQ"?');
+        expect(response.meta?.clarify?.clarifyType).toBe('item');
+        expect(response.contextUpdates?.expectedContext).toBe('clarify_order');
+        expect(session.cart.items.length).toBe(0);
+    });
+
     it('does not block addon ordering when expectedContext is order_addon', async () => {
         canonicalizeDishMock.mockReturnValue('Sos Tzatziki');
 

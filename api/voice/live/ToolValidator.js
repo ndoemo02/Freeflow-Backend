@@ -16,6 +16,10 @@ const STRING_LIMITS = {
     restaurant_name: { maxLen: 200 },
     restaurant_id:   { maxLen: 64 },
     selection_text:  { maxLen: 300 },
+    query:           { maxLen: 120 },
+    category:        { maxLen: 80 },
+    city:            { maxLen: 120 },
+    metric:          { maxLen: 40 },
 };
 
 function coerceString(val, key) {
@@ -62,6 +66,20 @@ export function validateAndSanitize(toolName, rawArgs) {
             continue;
         }
 
+        if (key === 'max_restaurants') {
+            const n = Math.floor(Number(val));
+            if (!Number.isFinite(n)) continue;
+            sanitized[key] = Math.max(1, Math.min(3, n));
+            continue;
+        }
+
+        if (key === 'max_items_per_restaurant') {
+            const n = Math.floor(Number(val));
+            if (!Number.isFinite(n)) continue;
+            sanitized[key] = Math.max(1, Math.min(3, n));
+            continue;
+        }
+
         if (key === 'lat' || key === 'lng') {
             const n = Number(val);
             if (!Number.isFinite(n)) continue;
@@ -104,7 +122,16 @@ export function validateAndSanitize(toolName, rawArgs) {
                 }
                 continue;
             }
-            sanitized[key] = coerced;
+            if (key === 'metric') {
+                const normalizedMetric = coerced.toLowerCase().replace(/\s+/g, '_');
+                if (normalizedMetric.includes('lowest') || normalizedMetric.includes('cheapest') || normalizedMetric.includes('najtans')) {
+                    sanitized[key] = 'lowest_price';
+                } else {
+                    sanitized[key] = 'best_match';
+                }
+            } else {
+                sanitized[key] = coerced;
+            }
             continue;
         }
 

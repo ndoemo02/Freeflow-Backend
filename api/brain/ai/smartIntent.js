@@ -1,6 +1,7 @@
 // Smart Intent Resolution Layer (V2 + classic NLU compatibility)
 
 import { detectIntent } from '../intents/intentRouterGlue.js';
+import { generateJsonWithVertex, isVertexTextConfigured } from './vertexTextClient.js';
 
 const TIMEOUT_MS = 15000;
 
@@ -78,8 +79,8 @@ export async function smartResolveIntent({ text, session, sessionId, restaurants
         return classicResult;
     }
 
-    // 4. LLM Fallback (Gemini)
-    const USE_LLM = process.env.USE_LLM_INTENT === 'true' || process.env.GEMINI_API_KEY;
+    // 4. LLM Fallback (Vertex)
+    const USE_LLM = process.env.USE_LLM_INTENT === 'true' || isVertexTextConfigured();
     if (!USE_LLM) return classicResult;
 
     try {
@@ -102,54 +103,26 @@ Rules:
 Return JSON: { "intent": "string", "confidence": number, "slots": object }
 Context: ${JSON.stringify(contextData)}`;
 
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
-
-        const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`;
-
-        const response = await fetch(GEMINI_URL, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-                system_instruction: {
-                    parts: [{ text: systemPrompt }]
-                },
-                contents: [{
-                    parts: [{ text: `User: "${text}"` }]
-                }],
-                generationConfig: {
-                    temperature: 0.1,
-                    responseMimeType: "application/json"
-                }
-            }),
-            signal: controller.signal
+        const parsed = await generateJsonWithVertex({
+            systemPrompt,
+            userPrompt: `User: "${text}"`,
+            temperature: 0.1,
+            model: process.env.GEMINI_TEXT_MODEL || 'gemini-2.5-flash',
+            timeoutMs: TIMEOUT_MS,
         });
 
-        clearTimeout(timeoutId);
-
-        if (response.ok) {
-            const json = await response.json();
-            const content = json.candidates?.[0]?.content?.parts?.[0]?.text;
-            if (content) {
-                const parsed = JSON.parse(content);
-                // 5. Merge / Refine
-                if (parsed.intent && parsed.intent !== 'unknown') {
-                    return {
-                        ...classicResult, // Preserve classic raw data
-                        intent: parsed.intent,
-                        confidence: parsed.confidence || 0.85,
-                        slots: { ...classicResult.slots, ...(parsed.slots || {}) },
-                        source: 'llm'
-                    };
-                }
-            }
-        } else {
-            console.warn(`⚠️ SmartIntent Gemini error: ${response.status}`);
+        // 5. Merge / Refine
+        if (parsed?.intent && parsed.intent !== 'unknown') {
+            return {
+                ...classicResult, // Preserve classic raw data
+                intent: parsed.intent,
+                confidence: parsed.confidence || 0.85,
+                slots: { ...classicResult.slots, ...(parsed.slots || {}) },
+                source: 'llm'
+            };
         }
     } catch (err) {
-        if (err.name === 'AbortError') {
+        if (String(err?.message || '').includes('vertex_timeout')) {
             console.warn(`⚠️ SmartIntent timeout after ${TIMEOUT_MS}ms`);
         } else {
             console.warn('⚠️ SmartIntent LLM error:', err.message);

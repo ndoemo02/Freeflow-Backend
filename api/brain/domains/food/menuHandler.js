@@ -200,19 +200,21 @@ export class MenuHandler {
 
         // 4. Formatowanie odpowiedzi
         const count = preview.menu.length;
-        const shown = preview.shortlist.length;
+        const menuItemsForAssistant = preview.menu;
+        const shown = menuItemsForAssistant.length;
         const menuSummary = buildNaturalMenuReplySummary(preview.menu);
         const intro = `Wybrano restauracje ${restaurant.name}.`;
         const closing = menuSummary.followUpQuestion;
         const reply = `${intro} ${menuSummary.summaryLine} ${closing}`;
 
-        console.log(`MenuHandler: showing ${shown}/${count} items for ${restaurant.name}`);
+        console.log(`MenuHandler: showing ${shown}/${count} items for ${restaurant.name} (assistant_scope=full_menu)`);
 
         return {
             intent: 'menu_request',
             reply,
             closing_question: closing,
-            menuItems: preview.shortlist, // Shortlist for Gemini (token budget)
+            // In target restaurant scope, assistant must see full menu for reliable dish resolution.
+            menuItems: menuItemsForAssistant,
             menu: preview.menu, // Full menu for UI rendering
             restaurants: [],
             restaurant,
@@ -222,7 +224,7 @@ export class MenuHandler {
                 last_menu: preview.menu,
                 last_menu_restaurant_id: restaurant.id,
             },
-            meta: { source: 'db' },
+            meta: { source: 'db', menuScope: 'full_menu' },
         };
     }
 }

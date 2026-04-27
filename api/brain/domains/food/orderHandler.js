@@ -432,6 +432,53 @@ function buildSharedBaseClarifyReply(query = '', candidates = []) {
     return `Mam kilka wariantow dla "${base}": ${head} lub ${last}. Ktory wariant wybierasz?`;
 }
 
+function normalizeItemClarifyOptions(options = []) {
+    return (options || [])
+        .map((option) => ({
+            id: option?.id || null,
+            name: String(option?.name || option?.base_name || '').trim() || null,
+            restaurant: option?.restaurant || option?.restaurants || null,
+            score: Number(option?.score ?? option?.matchScore ?? 0),
+        }))
+        .filter((option) => Boolean(option.name))
+        .slice(0, 2);
+}
+
+function buildItemClarifyReply(options = []) {
+    const normalized = normalizeItemClarifyOptions(options);
+    if (normalized.length === 0) {
+        return 'Potrzebuje doprecyzowania pozycji. Podaj pelna nazwe z menu.';
+    }
+    if (normalized.length === 1) {
+        return `Czy chodziło Ci o "${normalized[0].name}"?`;
+    }
+    return `Czy chodziło Ci o "${normalized[0].name}" czy "${normalized[1].name}"?`;
+}
+
+function buildItemClarifyResponse({
+    options = [],
+    query = '',
+}) {
+    const normalizedOptions = normalizeItemClarifyOptions(options);
+    return {
+        intent: 'clarify_order',
+        reply: buildItemClarifyReply(normalizedOptions),
+        meta: {
+            source: 'order_item_disambiguation',
+            clarify: {
+                status: 'AMBIGUOUS',
+                clarifyType: 'item',
+                expectedContext: 'clarify_order',
+                query: normalizeDish(query || ''),
+                options: normalizedOptions,
+            },
+        },
+        contextUpdates: {
+            expectedContext: 'clarify_order',
+        },
+    };
+}
+
 function inferRequestedCategory({
     requestedDish = '',
     rawUserText = '',
@@ -1366,6 +1413,20 @@ export class OrderHandler {
                 });
 
                 if (candidateResult?.resolution?.status !== DISAMBIGUATION_RESULT.ADD_ITEM || !candidateResult?.resolution?.item) {
+                    if (
+                        candidateResult?.resolution?.status === DISAMBIGUATION_RESULT.DISAMBIGUATION_REQUIRED
+                        && candidateResult?.resolution?.clarifyType === 'item'
+                    ) {
+                        return buildItemClarifyResponse({
+                            options: candidateResult?.resolution?.options || [],
+                            query:
+                                candidateResult?.resolution?.query
+                                || candidateResult?.rawRequestedDish
+                                || candidateResult?.requestedDish
+                                || candidateText,
+                        });
+                    }
+
                     const clarifyResponse = buildClarifyResponse({
                         ambiguousMeta: {
                             ...(candidateResult?.ambiguousMeta || {}),
@@ -1832,13 +1893,14 @@ export class OrderHandler {
                 const sessionRestaurant = session?.currentRestaurant?.name || session?.lastRestaurant?.name || null;
                 const clarifyCandidates = collectMenuCandidates(menu, requestedDish);
                 const singleCandidate = clarifyCandidates.length === 1 ? clarifyCandidates[0] : null;
+                const hasRichCanonicalSignal = isRichSpecificDishPhrase(canonicalDish);
                 const canPromoteSingleAddon =
                     Boolean(singleCandidate) &&
                     resolveCategoryFromItem(singleCandidate) === ORDER_REQUESTED_CATEGORY.ADDON &&
                     !addonContext &&
                     !explicitAddonRequest &&
                     !genericTokenBlocked &&
-                    isRichSpecificDishPhrase(rawRequestedDish || requestedDish) &&
+                    (isRichSpecificDishPhrase(rawRequestedDish || requestedDish) || hasRichCanonicalSignal) &&
                     hasDishSignalCompatibility(rawRequestedDish || requestedDish, singleCandidate);
 
                 if (canPromoteSingleAddon) {
@@ -2086,6 +2148,13 @@ export class OrderHandler {
 
         // CASE B: Disambiguation Required (Multi-match, no context)
         if (resolution.status === DISAMBIGUATION_RESULT.DISAMBIGUATION_REQUIRED) {
+            if (resolution?.clarifyType === 'item') {
+                return buildItemClarifyResponse({
+                    options: resolution?.options || [],
+                    query: resolution?.query || requestedDish || searchPhrase,
+                });
+            }
+
             const options = resolution.candidates.slice(0, 3); // Limit to 3
             const optionNames = options.map(o => o.restaurant.name).join(", ");
 

@@ -3,9 +3,9 @@
  * Odpowiada za przepĹ‚yw danych: Request -> Hydration -> NLU -> Domain -> Response
  */
 
-import { getEngineMode, isDev, isStrict, devLog, devWarn, devError, strictAssert, strictRequireSession, sanitizeResponse } from './engineMode.js';
+import { getEngineMode, isDev, isStrict, devLog, devWarn, devError, strictAssert, strictRequireSession, sanitizeResponse as engineSanitizeResponse } from './engineMode.js';
 
-import { getSession, updateSession, getOrCreateActiveSessionAsync, closeConversation } from '../session/sessionStore.js';
+import { getSession, getSessionAsync, updateSession, getOrCreateActiveSessionAsync, closeConversation } from '../session/sessionStore.js';
 import { FindRestaurantHandler } from '../domains/food/findHandler.js';
 import { MenuHandler } from '../domains/food/menuHandler.js';
 import { OrderHandler } from '../domains/food/orderHandler.js';
@@ -70,6 +70,18 @@ import { canonicalizeDish } from '../nlu/dishCanon.js';
 
 // Ă„â€ÄąĹźĂ˘â‚¬ĹĄÄąÂ  Phonetic Dish Matcher (STT error recovery before NLU)
 import { matchDishPhonetic } from '../nlu/phoneticDishMatch.js';
+import {
+    ROLE_GUARD_FALLBACK_REPLY,
+    SUBMITTED_ORDER_FALLBACK_REPLY,
+    isMetaRequest,
+    isIntentWhitelisted,
+    isMutationCapabilityIntent,
+    isMutationRequestText,
+    isSubmittedOrLater,
+    sanitizeAssistantResponse,
+} from './securityGuards.js';
+
+export { isMetaRequest } from './securityGuards.js';
 
 // Ă„â€ÄąĹźĂ˘â‚¬Ĺ›Ă‹Â Intelligent TTS Summaries
 function buildRestaurantSummaryForTTS(restaurants, location) {
@@ -189,6 +201,25 @@ function isExplicitClearCartCommand(text = '') {
         /\b(wyczysc|oproznij|usun)\b.*\b(koszyk|cart)\b/i.test(normalized) ||
         /\b(koszyk|cart)\b.*\b(wyczysc|oproznij|usun)\b/i.test(normalized)
     );
+}
+
+function createGuardedFallbackResponse({
+    activeSessionId,
+    sessionContext,
+    intent = 'safety_guard_blocked',
+    reply = ROLE_GUARD_FALLBACK_REPLY,
+    source = 'role_guard',
+}) {
+    return sanitizeAssistantResponse({
+        ok: true,
+        session_id: activeSessionId,
+        intent,
+        reply,
+        should_reply: true,
+        stopTTS: false,
+        meta: { source },
+        context: getSession(activeSessionId) || sessionContext,
+    });
 }
 
 function mapOrderModeEvent({ intent = '', preState = ORDER_MODE_STATE.NEUTRAL, domainResponse = null }) {
@@ -483,6 +514,31 @@ export class BrainPipeline {
         if (!text || !text.trim()) {
             if (!IS_SHADOW) BrainPipeline._inFlight.delete(inflightKey);
             return this.createErrorResponse('brak_tekstu', 'Nie usĹ‚yszaĹ‚am, moĹĽesz powtĂłrzyÄ‡?');
+        }
+
+        const incomingSessionSnapshot = await getSessionAsync(sessionId, { createIfMissing: false }).catch(() => null);
+        const submittedBoundaryFromIncomingSession = isSubmittedOrLater(incomingSessionSnapshot);
+
+        if (submittedBoundaryFromIncomingSession && isMutationRequestText(text)) {
+            if (!IS_SHADOW) BrainPipeline._inFlight.delete(inflightKey);
+            return createGuardedFallbackResponse({
+                activeSessionId,
+                sessionContext: incomingSessionSnapshot || {},
+                intent: 'order_already_submitted',
+                reply: SUBMITTED_ORDER_FALLBACK_REPLY,
+                source: 'order_submitted_boundary',
+            });
+        }
+
+        if (isMetaRequest(text)) {
+            if (!IS_SHADOW) BrainPipeline._inFlight.delete(inflightKey);
+            return createGuardedFallbackResponse({
+                activeSessionId,
+                sessionContext: incomingSessionSnapshot || {},
+                intent: 'safety_guard_blocked',
+                reply: ROLE_GUARD_FALLBACK_REPLY,
+                source: 'meta_guard',
+            });
         }
 
         const ENGINE_MODE = getEngineMode();
@@ -936,6 +992,28 @@ export class BrainPipeline {
             context.trace.push(`intent_resolved:${intentResult?.intent || 'unknown'}`);
             const guardOverride = guardedPreIntentContext.intent !== preIntentContext.intent ? guardedPreIntentContext.intent : 'none';
             context.trace.push(`guard_override:${guardOverride}`);
+
+            if (!isIntentWhitelisted(intentResult?.intent)) {
+                BrainLogger.pipeline(`[INTENT_WHITELIST_BLOCK] intent="${intentResult?.intent || 'unknown'}" source="${intentResult?.source || 'unknown'}"`);
+                return createGuardedFallbackResponse({
+                    activeSessionId,
+                    sessionContext,
+                    intent: 'safety_guard_blocked',
+                    reply: ROLE_GUARD_FALLBACK_REPLY,
+                    source: 'intent_whitelist_block',
+                });
+            }
+
+            const submittedBoundaryInSession = submittedBoundaryFromIncomingSession || isSubmittedOrLater(sessionContext);
+            if (submittedBoundaryInSession && isMutationCapabilityIntent(intentResult?.intent)) {
+                return createGuardedFallbackResponse({
+                    activeSessionId,
+                    sessionContext,
+                    intent: 'order_already_submitted',
+                    reply: SUBMITTED_ORDER_FALLBACK_REPLY,
+                    source: 'order_submitted_boundary',
+                });
+            }
 
             // EARLY EXITS (Greetings) - Skip everything else
             // Ä‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚Â
@@ -2425,7 +2503,7 @@ if (intentResult?.intent === 'UNKNOWN_INTENT') {
             // stable/strict: strip debug meta, session dumps, turn_ids
             // dev: full response passthrough
             // Ä‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚ÂÄ‚ËĂ˘â‚¬ËĂ‚Â
-            return sanitizeResponse(response);
+            return engineSanitizeResponse(sanitizeAssistantResponse(response));
 
         } catch (error) {
             BrainLogger.pipeline('Error:', error.message);
@@ -2455,12 +2533,12 @@ if (intentResult?.intent === 'UNKNOWN_INTENT') {
     }
 
     createErrorResponse(errorCode, message) {
-        return {
+        return sanitizeAssistantResponse({
             ok: false,
             error: errorCode,
             reply: message,
             timestamp: new Date().toISOString()
-        };
+        });
     }
 }
 

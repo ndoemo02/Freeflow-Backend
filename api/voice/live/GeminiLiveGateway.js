@@ -12,9 +12,15 @@ import {
 import { buildLiveArgsSummary, logLiveEvent } from './liveTraceEvents.js';
 import { updateSession } from '../../brain/session/sessionStore.js';
 import supabase from '../../brain/supabaseClient.js';
+import {
+    summarizeLiveToolResult,
+    validateLiveOrigin,
+} from './liveSecurity.js';
+import { getSession } from '../../brain/session/sessionStore.js';
 
-const TOOL_EXECUTION_TIMEOUT_MS = 8000;
+const TOOL_EXECUTION_TIMEOUT_MS = 12000;
 const DEFAULT_LIVE_MODEL = process.env.GEMINI_LIVE_MODEL || process.env.LIVE_MODEL || 'gemini-2.5-flash-native-audio-preview-12-2025';
+const GPS_SOFT_RESET_DISTANCE_KM = 0.8;
 
 async function resolveRuntimeLiveModel() {
     let runtimeModel = DEFAULT_LIVE_MODEL;
@@ -57,6 +63,56 @@ function compactText(value, max = 260) {
     return text.length > max ? `${text.slice(0, max - 1)}…` : text;
 }
 
+function toFiniteNumber(value) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+}
+
+function haversineKm(lat1, lng1, lat2, lng2) {
+    const toRad = (deg) => (deg * Math.PI) / 180;
+    const R = 6371;
+    const dLat = toRad(lat2 - lat1);
+    const dLng = toRad(lng2 - lng1);
+    const a = Math.sin(dLat / 2) ** 2
+        + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+}
+
+function canApplyGeoSoftReset(session = {}) {
+    const cartItems = Array.isArray(session?.cart?.items) ? session.cart.items.length : 0;
+    const cartTotal = Number(session?.cart?.total || 0);
+    const hasPendingOrder = Boolean(session?.pendingOrder);
+    const orderMode = String(session?.orderMode || '').trim().toLowerCase();
+    const hasActiveCheckout =
+        orderMode === 'building'
+        || orderMode === 'checkout_form'
+        || orderMode === 'awaiting_confirmation';
+
+    return (
+        cartItems === 0
+        && (!Number.isFinite(cartTotal) || cartTotal <= 0)
+        && !hasPendingOrder
+        && !hasActiveCheckout
+    );
+}
+
+function buildGeoSoftResetPatch() {
+    return {
+        conversationPhase: 'idle',
+        expectedContext: null,
+        awaiting: null,
+        pendingDish: null,
+        pendingOrder: null,
+        last_location: null,
+        last_restaurants_list: null,
+        lastRestaurants: [],
+        currentRestaurant: null,
+        current_restaurant: null,
+        selectedRestaurant: null,
+    };
+}
+
 function buildActionSummary({ toolName, response }) {
     const runtimeIntent = response?.meta?.liveTool?.runtimeIntent || response?.intent || null;
     const restaurantsCount = Array.isArray(response?.restaurants) ? response.restaurants.length : null;
@@ -68,6 +124,9 @@ function buildActionSummary({ toolName, response }) {
     }
     if ((toolName === 'show_menu' || runtimeIntent === 'menu_request') && menuItemsCount != null) {
         return `Załadowano menu (${menuItemsCount} pozycji).`;
+    }
+    if (toolName === 'compare_restaurants' && restaurantsCount != null) {
+        return `Porownano ${restaurantsCount} restauracji.`;
     }
     if (toolName === 'add_item_to_cart' || toolName === 'add_items_to_cart' || runtimeIntent === 'create_order') {
         if (cartItemsCount != null) return `Zaktualizowano koszyk (${cartItemsCount} pozycji).`;
@@ -102,6 +161,12 @@ export class GeminiLiveGateway {
         this.wss.on('connection', async (socket, req) => {
             if (!this.isLiveEnabled()) {
                 socket.close(4001, 'LIVE_MODE_DISABLED');
+                return;
+            }
+
+            const originCheck = validateLiveOrigin(req?.headers?.origin);
+            if (!originCheck.ok) {
+                socket.close(4003, 'ORIGIN_NOT_ALLOWED');
                 return;
             }
 
@@ -159,8 +224,29 @@ export class GeminiLiveGateway {
                         const lat = typeof parsed.lat === 'number' ? parsed.lat : null;
                         const lng = typeof parsed.lng === 'number' ? parsed.lng : null;
                         if (Number.isFinite(lat) && Number.isFinite(lng)) {
-                            updateSession(sessionId, { session_lat: lat, session_lng: lng });
+                            const sessionSnapshot = getSession(sessionId) || {};
+                            const prevLat = toFiniteNumber(sessionSnapshot?.session_lat);
+                            const prevLng = toFiniteNumber(sessionSnapshot?.session_lng);
+                            let movedKm = 0;
+                            let geoSoftResetApplied = false;
+
+                            if (prevLat != null && prevLng != null) {
+                                movedKm = haversineKm(prevLat, prevLng, lat, lng);
+                                if (movedKm >= GPS_SOFT_RESET_DISTANCE_KM && canApplyGeoSoftReset(sessionSnapshot)) {
+                                    updateSession(sessionId, buildGeoSoftResetPatch());
+                                    geoSoftResetApplied = true;
+                                }
+                            }
+
+                            updateSession(sessionId, {
+                                session_lat: lat,
+                                session_lng: lng,
+                                session_geo_updated_at: new Date().toISOString(),
+                            });
                             console.log(`[SESSION_INIT] GPS saved sessionId=${sessionId} lat=${lat} lng=${lng}`);
+                            if (geoSoftResetApplied) {
+                                console.log(`[SESSION_GPS_MOVE_RESET] sessionId=${sessionId} movedKm=${movedKm.toFixed(2)} cart=empty pendingOrder=false`);
+                            }
                         }
                         return;
                     }
@@ -171,10 +257,9 @@ export class GeminiLiveGateway {
                 const toolName = parsed.tool;
                 const requestId = parsed.request_id || null;
                 const turnId = parsed.turn_id || requestId || `live_turn_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-                const transcriptFinal = compactText(parsed.transcript_final || parsed.transcript || parsed.user_text || '');
+                const transcriptFinal = compactText(parsed.transcript_final || '');
 
                 console.log(`[LiveDiag-BE] WS tool_call received: ${toolName} req:${requestId} session:${sessionId}`);
-                console.log(`[LiveDiag-BE] args:`, JSON.stringify(parsed.args || {}));
 
                 if (transcriptFinal) {
                     logLiveEvent({
@@ -260,21 +345,14 @@ export class GeminiLiveGateway {
                             requestId,
                             turnId,
                             transcript: transcriptFinal || null,
-                            userText: transcriptFinal || null,
+                            userText: null,
                         }),
                         TOOL_EXECUTION_TIMEOUT_MS,
                     );
 
                     const reply = result.response?.reply || result.response?.text || '(empty)';
-                    const rCount = result.response?.restaurants?.length ?? null;
-                    const mCount = result.response?.menuItems?.length ?? null;
-                    const fullMenuCount = result.response?.menu?.length ?? null;
-                    console.log(`[LiveDiag-BE] ToolRouter done: ${toolName} ok:${result.ok}`);
-                    console.log(`[LiveDiag-BE] reply: "${reply.slice(0, 120)}"`);
-                    if (rCount !== null) console.log(`[LiveDiag-BE] restaurants: ${rCount}`);
-                    if (mCount !== null) console.log(`[LiveDiag-BE] menuItems(shortlist): ${mCount}`);
-                    if (fullMenuCount !== null) console.log(`[LiveDiag-BE] menu(full): ${fullMenuCount}`);
-                    console.log(`[LiveDiag-BE] trace: ${(result.trace || []).join(' -> ')}`);
+                    const summary = summarizeLiveToolResult(result, toolName);
+                    console.log(`[LIVE_TOOL_SUMMARY] session=${sessionId} tool=${toolName} ok=${result.ok !== false} intent=${summary.intent} restaurantLocked=${summary.restaurantLocked} candidateCount=${summary.candidateCount ?? 'n/a'} topMatch=${summary.topMatch ?? 'n/a'} score=${summary.score ?? 'n/a'}`);
 
                     // Loguj intencję do amber_intents (zasila panel "Ostatnie interakcje Amber")
                     {

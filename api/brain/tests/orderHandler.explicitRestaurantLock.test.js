@@ -77,16 +77,14 @@ describe('DisambiguationService — hardLock', () => {
         expect(result.status).toBe(DISAMBIGUATION_RESULT.ITEM_NOT_FOUND);
     });
 
-    it('without hardLock global fallback still works (unchanged behaviour)', async () => {
-        // rosół not in sk1, but hardLock=false → falls back to global → finds it in dh1
+    it('without hardLock still stays scoped when restaurant is known', async () => {
+        // Restaurant known (sk1) → search remains scoped and does not cross-substitute.
         const result = await resolveMenuItemConflict('rosol domowy', {
             restaurant_id: 'sk1',
             hardLock: false,
             session: {},
         });
-        // May be ADD_ITEM (found globally) — what matters is it is NOT blocked
-        expect([DISAMBIGUATION_RESULT.ADD_ITEM, DISAMBIGUATION_RESULT.DISAMBIGUATION_REQUIRED])
-            .toContain(result.status);
+        expect(result.status).toBe(DISAMBIGUATION_RESULT.ITEM_NOT_FOUND);
     });
 });
 

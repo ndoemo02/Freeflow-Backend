@@ -83,6 +83,16 @@ async function runStartupHealthReport() {
   pushCheck('supabase.adminClient', Boolean(supabaseAdmin), supabaseAdmin ? 'initialized' : 'disabled (no service role)');
 
   const googleCredPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+  const gcpProjectId =
+    process.env.GCP_PROJECT_ID ||
+    process.env.GOOGLE_PROJECT_ID ||
+    process.env.GCLOUD_PROJECT ||
+    process.env.GOOGLE_CLOUD_PROJECT;
+  const gcpLocation =
+    process.env.GCP_LOCATION ||
+    process.env.GOOGLE_VERTEX_LOCATION ||
+    process.env.GCLOUD_LOCATION ||
+    process.env.GOOGLE_CLOUD_LOCATION;
   pushCheck(
     'env.GOOGLE_APPLICATION_CREDENTIALS',
     Boolean(googleCredPath),
@@ -93,7 +103,8 @@ async function runStartupHealthReport() {
     Boolean(googleCredPath) && fs.existsSync(googleCredPath),
     googleCredPath ? (fs.existsSync(googleCredPath) ? 'found' : 'not found') : 'skipped'
   );
-  pushCheck('env.GEMINI_API_KEY', Boolean(process.env.GEMINI_API_KEY), process.env.GEMINI_API_KEY ? 'set' : 'missing');
+  pushCheck('env.GCP_PROJECT_ID', Boolean(gcpProjectId), gcpProjectId ? gcpProjectId : 'missing');
+  pushCheck('env.GCP_LOCATION', Boolean(gcpLocation), gcpLocation ? gcpLocation : 'missing');
   pushCheck('env.OPENAI_API_KEY', Boolean(process.env.OPENAI_API_KEY), process.env.OPENAI_API_KEY ? 'set' : 'missing');
 
   const moduleChecks = [

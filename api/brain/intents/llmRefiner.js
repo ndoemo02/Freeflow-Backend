@@ -1,9 +1,8 @@
 // api/brain/intents/llmRefiner.js
-// Gemini (default) → OpenAI (fallback) — per project LLM policy.
-// Both providers use native fetch — no SDK dependency.
+// Vertex (default) → OpenAI (fallback) — per project LLM policy.
 import { normalize as normalizeText } from "../utils/normalizeText.js";
+import { generateJsonWithVertex, isVertexTextConfigured } from "../ai/vertexTextClient.js";
 
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent`;
 const OPENAI_URL = `https://api.openai.com/v1/chat/completions`;
 const TIMEOUT_MS = 6000;
 
@@ -22,47 +21,20 @@ Dopuszczalne pola:
 }
 `.trim();
 
-async function refineWithGemini(payload) {
-    const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
-    if (!apiKey) return null;
-
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
-
+async function refineWithVertex(payload) {
+    if (!isVertexTextConfigured()) return null;
     try {
-        const response = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
-                contents: [{ parts: [{ text: JSON.stringify(payload) }] }],
-                generationConfig: {
-                    temperature: 0.2,
-                    responseMimeType: "application/json",
-                },
-            }),
-            signal: controller.signal,
+        return await generateJsonWithVertex({
+            systemPrompt: SYSTEM_PROMPT,
+            userPrompt: JSON.stringify(payload),
+            model: process.env.GEMINI_TEXT_MODEL || "gemini-2.5-flash",
+            temperature: 0.2,
+            timeoutMs: TIMEOUT_MS,
         });
-
-        clearTimeout(timeoutId);
-
-        if (!response.ok) {
-            console.warn("LLM REFINER (Gemini) HTTP error:", response.status);
-            return null;
-        }
-
-        const data = await response.json();
-        const raw = data?.candidates?.[0]?.content?.parts?.map((p) => p.text).join("") ?? "{}";
-
-        try {
-            return JSON.parse(raw);
-        } catch {
-            console.warn("LLM REFINER (Gemini) invalid JSON:", raw);
-            return null;
-        }
     } catch (err) {
-        clearTimeout(timeoutId);
-        if (err.name !== "AbortError") console.error("LLM REFINER (Gemini) error:", err);
+        if (!String(err?.message || "").includes("vertex_timeout")) {
+            console.error("LLM REFINER (Vertex) error:", err);
+        }
         return null;
     }
 }
@@ -131,7 +103,7 @@ export async function refineIntentLLM({ text, coarseIntent, session }) {
     }
 
     const noKeyAvailable =
-        !(process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY) &&
+        !isVertexTextConfigured() &&
         !process.env.OPENAI_API_KEY;
 
     if (noKeyAvailable) {
@@ -153,7 +125,7 @@ export async function refineIntentLLM({ text, coarseIntent, session }) {
         cart: session?.cart || null,
     };
 
-    const parsed = (await refineWithGemini(payload)) ?? (await refineWithOpenAI(payload));
+    const parsed = (await refineWithVertex(payload)) ?? (await refineWithOpenAI(payload));
 
     if (!parsed) {
         return {

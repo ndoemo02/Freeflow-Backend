@@ -196,3 +196,30 @@ describe('ToolValidator - cart edit required fields', () => {
         expect(result.field).toBe('to_dish');
     });
 });
+
+describe('ToolValidator - compare_restaurants', () => {
+    it('sanitizes compare_restaurants limits and metric', () => {
+        const result = validateAndSanitize('compare_restaurants', {
+            query: 'pierogi',
+            metric: 'najtansze',
+            max_restaurants: 10,
+            max_items_per_restaurant: 0,
+        });
+
+        expect(result.valid).toBe(true);
+        expect(result.sanitized.query).toBe('pierogi');
+        expect(result.sanitized.metric).toBe('lowest_price');
+        expect(result.sanitized.max_restaurants).toBe(3);
+        expect(result.sanitized.max_items_per_restaurant).toBe(1);
+    });
+
+    it('defaults unknown metric to best_match', () => {
+        const result = validateAndSanitize('compare_restaurants', {
+            query: 'pierogi',
+            metric: 'semantic_magic_mode',
+        });
+
+        expect(result.valid).toBe(true);
+        expect(result.sanitized.metric).toBe('best_match');
+    });
+});

@@ -235,6 +235,55 @@ describe('Live ToolRouter', () => {
         expect(Array.isArray(result.trace)).toBe(true);
     });
 
+    it('for clarify_order from add_item tool, marks not-added and uses explicit no-add reply', async () => {
+        const sessions = new Map([
+            ['sess_live_test_clarify', {
+                conversationPhase: 'ordering',
+                currentRestaurant: { id: 'r1', name: 'Rest 1' },
+                cart: { items: [], total: 0 },
+                orderMode: 'restaurant_selected',
+            }],
+        ]);
+
+        const getSession = (id) => sessions.get(id) || {};
+        const updateSession = (id, patch) => {
+            const prev = sessions.get(id) || {};
+            const next = { ...prev, ...patch };
+            sessions.set(id, next);
+            return next;
+        };
+
+        const handlers = makeFakeHandlers();
+        handlers.ordering.create_order = {
+            execute: async () => ({
+                intent: 'clarify_order',
+                reply: 'Podaj pelna nazwe z listy.',
+                contextUpdates: { expectedContext: 'clarify_order' },
+                meta: { clarify: { expectedContext: 'clarify_order' } },
+            }),
+        };
+
+        const router = new ToolRouter({
+            handlers,
+            getSession,
+            updateSession,
+        });
+
+        const result = await router.executeToolCall({
+            sessionId: 'sess_live_test_clarify',
+            toolName: 'add_item_to_cart',
+            args: { dish: 'Pierogi', quantity: 1 },
+            requestId: 'req-clarify-1',
+        });
+
+        expect(result.ok).toBe(false);
+        expect(result.response.intent).toBe('clarify_order');
+        expect(String(result.response.reply)).toMatch(/Jeszcze nie dodalam/i);
+        expect(result.response.meta?.liveTool?.clarifyNotAdded).toBe(true);
+        expect(result.response.meta?.liveTool?.cartChanged).toBe(false);
+        expect(result.trace.some((entry) => entry.includes('cart_guard:clarify_not_added'))).toBe(true);
+    });
+
     it('ignores live transcript for find_nearby text when args are empty', async () => {
         const sessions = new Map([
             ['sess_live_transcript', { conversationPhase: 'neutral', orderMode: 'neutral' }],
@@ -385,13 +434,13 @@ describe('Live ToolRouter', () => {
         const result = await router.executeToolCall({
             sessionId: 'sess_live_location_address',
             toolName: 'find_nearby',
-            args: { location: 'Pilsudskiego 1', cuisine: 'pierogi' },
+            args: { location: 'Pilsudskiego 1', cuisine: 'Polish' },
         });
 
         expect(result.ok).toBe(true);
         expect(capturedEntities?.location).toBe('Piekary Slaskie');
         expect(capturedText).toContain('Piekary Slaskie');
-        expect(capturedText).toContain('pierogi');
+        expect(capturedText).toContain('Polish');
         expect(result.trace.some((entry) => entry.includes('live_find_location_sanitized:Piekary Slaskie'))).toBe(true);
     });
 

@@ -14,6 +14,17 @@ import { fuzzyIncludes, normalizeDish, levenshtein } from '../helpers.js';
 import { parseCompoundOrder } from './compoundOrderParser.js';
 import { canonicalizeDish } from './dishCanon.js';
 
+const NLU_VERBOSE_LOGS = process.env.NLU_VERBOSE_LOGS === 'true';
+function nluLog(...args) {
+    if (String(args?.[0] || '') === '[NLU_MIN]') {
+        console.log(...args);
+        return;
+    }
+    if (NLU_VERBOSE_LOGS) {
+        console.log(...args);
+    }
+}
+
 function isExplicitRestaurantSearch(text = '') {
     const t = String(text || '').toLowerCase();
     const loose = toLooseAscii(text);
@@ -52,6 +63,24 @@ function toLooseAscii(value = '') {
         .replace(/[^a-z0-9\s]/g, ' ')
         .replace(/\s+/g, ' ')
         .trim();
+}
+
+function logNluDecisionMinimal({
+    intent = 'unknown',
+    restaurantLocked = false,
+    candidateCount = 0,
+    topMatch = null,
+    topScore = null,
+}) {
+    const payload = {
+        intent: String(intent || 'unknown'),
+        restaurantLocked: Boolean(restaurantLocked),
+        candidateCount: Number.isFinite(candidateCount) ? candidateCount : 0,
+        topMatch: topMatch || null,
+        score: Number.isFinite(topScore) ? Number(topScore.toFixed(3)) : null,
+    };
+    nluLog('[NLU_MIN]', JSON.stringify(payload));
+    BrainLogger.nlu(`[NLU_MIN] intent=${payload.intent} lock=${payload.restaurantLocked} candidates=${payload.candidateCount} top=${payload.topMatch || '-'} score=${payload.score ?? '-'}`);
 }
 
 const ITEM_FAMILY_DICTIONARY = {
@@ -321,21 +350,37 @@ export class NLURouter {
         // Enrich with domain
         result.domain = this._mapDomain(result.intent);
 
-        console.log('[NLU_ROUTER_RESULT]', JSON.stringify(result, null, 2));
-        BrainLogger.nlu('Result:', result);
+        const candidateDiagnostics = ctx?.__candidateDiagnostics || {};
+        const restaurantLocked = Boolean(
+            ctx?.session?.currentRestaurant?.id
+            || result?.entities?.restaurantId
+            || result?.entities?.restaurant
+        );
+        logNluDecisionMinimal({
+            intent: result?.intent,
+            restaurantLocked,
+            candidateCount: Number(candidateDiagnostics?.candidateCount || 0),
+            topMatch: candidateDiagnostics?.topMatch || null,
+            topScore: Number(candidateDiagnostics?.topScore),
+        });
         return result;
     }
 
     async _detectInternal(ctx) {
         const { text, session } = ctx;
+        if (ctx && typeof ctx === 'object') {
+            ctx.__candidateDiagnostics = {
+                candidateCount: 0,
+                topMatch: null,
+                topScore: null,
+            };
+        }
         const safeText = String(text || '')
             .replace(/\uFFFD/g, '')
             .replace(/\s+/g, ' ')
             .trim();
         const normalized = normalizeTxt(safeText);
         const normalizedLoose = toLooseAscii(safeText);
-
-        BrainLogger.nlu('Detecting intent for:', text);
 
         // 1. Entity Extraction (NLU Layer)
         // Now using advanced extractors ported from Legacy
@@ -349,9 +394,8 @@ export class NLURouter {
         const explicitDiscoverySignal = hasDiscoverySignal(text, normalizedLoose, location);
 
         if (session?.currentRestaurant && explicitDiscoverySignal) {
-            console.log('[DISCOVERY_CONTEXT_OVERRIDE_TRACE]', JSON.stringify({
+            nluLog('[DISCOVERY_CONTEXT_OVERRIDE_TRACE]', JSON.stringify({
                 source: 'restaurant_navigation_override',
-                text,
                 location,
                 cuisine,
                 currentRestaurant: session?.currentRestaurant?.name || null,
@@ -377,7 +421,7 @@ export class NLURouter {
         const detectedItemFamily = detectItemFamilyFromText(safeText);
 
         if (detectedItemFamily) {
-            console.log(`[NLU_ITEM_DETECTED] family=${detectedItemFamily}`);
+            nluLog(`[NLU_ITEM_DETECTED] family=${detectedItemFamily}`);
             BrainLogger.nlu(`[NLU_ITEM_DETECTED] family=${detectedItemFamily}`);
         }
 
@@ -396,13 +440,6 @@ export class NLURouter {
             parsed?.restaurant
         );
 
-        console.log('[TEXT_ORDER_TRACE]', JSON.stringify({
-            normalizedText: normalizedLoose,
-            detectedRestaurant: entities.restaurant || parsed?.restaurant || null,
-            restaurantLocked: Boolean(session?.currentRestaurant?.id || hasExplicitRestaurantTarget),
-            location: entities.location || null,
-        }));
-
         const hasSelectionSignal = hasRestaurantSelectionSignal(text, normalizedLoose, {
             matchedRestaurant: Boolean(matchedRestaurant),
             parsedRestaurant: Boolean(parsed?.restaurant),
@@ -414,8 +451,7 @@ export class NLURouter {
             !hasSelectionSignal;
 
         if (shouldForceSpicyRefinement) {
-            console.log('[NLU_SPICY_REFINEMENT]', JSON.stringify({
-                text,
+            nluLog('[NLU_SPICY_REFINEMENT]', JSON.stringify({
                 source: 'nlu_spicy_refinement',
                 expectedContext: session?.expectedContext || null,
                 locationCandidate: location || null,
@@ -459,10 +495,8 @@ export class NLURouter {
             /^\s*(koszyk|zamowienie)\s*$/i.test(normalizedLoose);
 
         if (isExplicitCheckoutRequest) {
-            console.log('[CHECKOUT_BRIDGE_TRACE]', JSON.stringify({
+            nluLog('[CHECKOUT_BRIDGE_TRACE]', JSON.stringify({
                 source: 'explicit_checkout_bridge',
-                text,
-                normalized,
                 hasCurrentRestaurant: Boolean(session?.currentRestaurant),
             }));
             return {
@@ -625,7 +659,7 @@ export class NLURouter {
             const compoundItems = Array.isArray(compound?.items) ? compound.items : [];
             const hasCompoundSignal = compoundItems.length > 1 || compoundItems.some((item) => Number(item?.quantity || 1) > 1);
             if (hasCompoundSignal) {
-                console.log('[COMPOUND_RAW_TRACE]', JSON.stringify({
+                nluLog('[COMPOUND_RAW_TRACE]', JSON.stringify({
                     source: 'compound_parser',
                     rawText: rawDishText,
                     items: compoundItems,
@@ -634,7 +668,7 @@ export class NLURouter {
 
                 if (Array.isArray(compound?.segmentTraces) && compound.segmentTraces.length > 0) {
                     for (const segmentTrace of compound.segmentTraces) {
-                        console.log('[QUANTITY_SEGMENT_TRACE]', JSON.stringify({
+                        nluLog('[QUANTITY_SEGMENT_TRACE]', JSON.stringify({
                             source: 'compound_parser',
                             ...segmentTrace,
                         }));
@@ -643,7 +677,7 @@ export class NLURouter {
 
                 if (Array.isArray(compound?.heuristicTraces) && compound.heuristicTraces.length > 0) {
                     for (const heuristicTrace of compound.heuristicTraces) {
-                        console.log('[COMPOUND_HEURISTIC_TRACE]', JSON.stringify({
+                        nluLog('[COMPOUND_HEURISTIC_TRACE]', JSON.stringify({
                             source: 'compound_parser',
                             ...heuristicTrace,
                         }));
@@ -652,7 +686,7 @@ export class NLURouter {
 
                 const canonicalizedItems = compoundItems.map((item) => {
                     const safeCanonical = safeCanonicalizeCompoundItem(item, session);
-                    console.log('[SAFE_CANON_ITEM_TRACE]', JSON.stringify({
+                    nluLog('[SAFE_CANON_ITEM_TRACE]', JSON.stringify({
                         source: 'compound_parser',
                         inputDish: item?.dish || null,
                         outputDish: safeCanonical.item?.dish || null,
@@ -662,7 +696,7 @@ export class NLURouter {
                     }));
 
                     if (safeCanonical.item?.meta?.modifier) {
-                        console.log('[MODIFIER_PRESERVED_TRACE]', JSON.stringify({
+                        nluLog('[MODIFIER_PRESERVED_TRACE]', JSON.stringify({
                             source: 'compound_parser',
                             dish: safeCanonical.item?.dish || null,
                             rawLabel: safeCanonical.item?.meta?.rawLabel || null,
@@ -673,7 +707,7 @@ export class NLURouter {
                     return safeCanonical.item;
                 });
 
-                console.log('[COMPOUND_CANON_TRACE]', JSON.stringify({
+                nluLog('[COMPOUND_CANON_TRACE]', JSON.stringify({
                     source: 'compound_parser',
                     rawItems: compoundItems,
                     canonicalItems: canonicalizedItems,
@@ -688,7 +722,7 @@ export class NLURouter {
                 const allowSingleCompound = singleCompoundQuantity && !singleCompoundGeneric;
 
                 if (singleCompoundQuantity) {
-                    console.log('[SINGLE_COMPOUND_ALLOW_TRACE]', JSON.stringify({
+                    nluLog('[SINGLE_COMPOUND_ALLOW_TRACE]', JSON.stringify({
                         source: 'compound_parser',
                         dish: canonicalizedItems[0]?.dish || null,
                         quantity: canonicalizedItems[0]?.quantity || null,
@@ -763,10 +797,13 @@ export class NLURouter {
                     };
                 }).sort((a, b) => b.score - a.score);
 
-                console.log('[DishMatch]', scored.slice(0, 3).map((s) => ({
-                    name: s.item.base_name || s.item.name,
-                    score: Number(s.score.toFixed(3))
-                })));
+                if (ctx && typeof ctx === 'object') {
+                    ctx.__candidateDiagnostics = {
+                        candidateCount: scored.length,
+                        topMatch: scored[0]?.item?.base_name || scored[0]?.item?.name || null,
+                        topScore: Number.isFinite(scored[0]?.score) ? scored[0].score : null,
+                    };
+                }
 
                 if (scored.length > 0 && scored[0].score > 0.55) {
                     return scored[0].item;
@@ -905,7 +942,7 @@ export class NLURouter {
                 (location || !matchedRestaurant);
 
             if (shouldForceDiscovery && (!session?.currentRestaurant || isExplicitRestaurantSearch(text))) {
-                console.log('[TEXT_ORDER_DECISION]', JSON.stringify({
+                nluLog('[TEXT_ORDER_DECISION]', JSON.stringify({
                     decision: 'force_discovery_guard',
                     reason: 'discovery_without_explicit_restaurant',
                     hasLocation: Boolean(location),
@@ -927,7 +964,7 @@ export class NLURouter {
             (location || explicitDiscoverySignal || !matchedRestaurant);
 
         if (shouldForceItemDiscovery) {
-            console.log('[TEXT_ORDER_DECISION]', JSON.stringify({
+            nluLog('[TEXT_ORDER_DECISION]', JSON.stringify({
                 decision: 'force_discovery_item_family',
                 family: detectedItemFamily,
                 matchedRestaurant: matchedRestaurant?.name || null,
@@ -941,6 +978,16 @@ export class NLURouter {
                     ...entities,
                     dish: detectedItemFamily,
                 }
+            };
+        }
+
+        const hasWhereToEatSignal = /\bgdzie\s+(zjem|zamowie|zamowic|moge\s+zjesc|moge\s+zamowic)\b/i.test(normalizedLoose);
+        if (!session?.currentRestaurant && hasWhereToEatSignal) {
+            return {
+                intent: 'find_nearby',
+                confidence: 0.94,
+                source: 'where_to_eat_guard',
+                entities
             };
         }
 
@@ -1287,3 +1334,4 @@ export class NLURouter {
         };
     }
 }
+

@@ -3,6 +3,7 @@
 
 import { applyCORS } from '../../_cors.js';
 import { ToolRouter } from './ToolRouter.js';
+import { validateLiveInternalKey, validateLiveOrigin } from './liveSecurity.js';
 
 function isLiveModeEnabled() {
   return String(process.env.LIVE_MODE || '').toLowerCase() === 'true';
@@ -23,6 +24,22 @@ export default async function handler(req, res) {
   const args = body.args || {};
   const requestId = body.request_id || null;
   const turnId = body.turn_id || requestId || null;
+  const originCheck = validateLiveOrigin(req.headers?.origin);
+  if (!originCheck.ok) {
+    return res.status(403).json({
+      ok: false,
+      error: 'origin_not_allowed',
+      reason: originCheck.reason,
+    });
+  }
+  const internalKeyCheck = validateLiveInternalKey(req.headers || {});
+  if (!internalKeyCheck.ok) {
+    return res.status(403).json({
+      ok: false,
+      error: 'forbidden',
+      reason: internalKeyCheck.reason,
+    });
+  }
 
   if (!isLiveModeEnabled()) {
     return res.status(409).json({

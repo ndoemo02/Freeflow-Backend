@@ -28,7 +28,7 @@ export const LIVE_TOOL_SCHEMAS = Object.freeze([
     },
     {
         name: 'show_menu',
-        description: 'Show menu for selected restaurant.',
+        description: 'Show menu for selected restaurant. Can be called repeatedly for multiple restaurants to build comparisons.',
         parameters: {
             type: 'object',
             properties: {
@@ -44,6 +44,22 @@ export const LIVE_TOOL_SCHEMAS = Object.freeze([
         parameters: {
             type: 'object',
             properties: {},
+            additionalProperties: false,
+        },
+    },
+    {
+        name: 'compare_restaurants',
+        description: 'Compare menu items across up to 3 restaurants in the same city. Read-only.',
+        parameters: {
+            type: 'object',
+            properties: {
+                query: { type: 'string' },
+                category: { type: 'string' },
+                city: { type: 'string' },
+                metric: { type: 'string' },
+                max_restaurants: { type: 'number' },
+                max_items_per_restaurant: { type: 'number' },
+            },
             additionalProperties: false,
         },
     },

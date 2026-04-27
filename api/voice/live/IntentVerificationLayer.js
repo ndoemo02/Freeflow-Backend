@@ -26,6 +26,12 @@ const RAPID_FIRE_DEFAULT_MS = 1500;
 const RAPID_FIRE_PER_TOOL_MS = Object.freeze({
     // Discovery tends to be retried by live models; allow a wider duplicate window.
     find_nearby: 3000,
+    // Short affirmative confirmations ("tak", "potwierdzam") are often repeated quickly in voice UX.
+    // Keep anti-spam, but reduce accidental duplicate blocking for confirmation turns.
+    confirm_add_to_cart: 500,
+    confirm_order: 700,
+    open_checkout: 700,
+    cancel_order: 500,
 });
 
 function getRapidFireWindowMs(toolName) {
@@ -41,6 +47,7 @@ const TOOL_INTENT = Object.freeze({
     select_restaurant:  'select_restaurant',
     show_menu:          'menu_request',
     show_more_options:  'show_more_options',
+    compare_restaurants:'find_nearby',
     add_item_to_cart:   'create_order',
     add_items_to_cart:  'create_order',
     update_cart_item_quantity: 'create_order',
@@ -62,36 +69,40 @@ const TOOL_INTENT = Object.freeze({
 const ALLOWED_TOOLS_BY_ORDER_MODE = Object.freeze({
     neutral: new Set([
         'find_nearby', 'select_restaurant', 'show_menu', 'show_more_options',
+        'compare_restaurants',
         'update_cart_item_quantity', 'remove_item_from_cart', 'replace_cart_item',
         'get_cart_state', 'cancel_order',
     ]),
     restaurant_selected: new Set([
         'find_nearby', 'select_restaurant', 'show_menu', 'show_more_options',
+        'compare_restaurants',
         'add_item_to_cart', 'add_items_to_cart', 'confirm_add_to_cart',
         'update_cart_item_quantity', 'remove_item_from_cart', 'replace_cart_item',
         'get_cart_state', 'cancel_order',
     ]),
     building: new Set([
+        'compare_restaurants',
         'add_item_to_cart', 'add_items_to_cart', 'confirm_add_to_cart',
         'update_cart_item_quantity', 'remove_item_from_cart', 'replace_cart_item',
         'open_checkout', 'confirm_order', 'cancel_order',
         'get_cart_state', 'show_menu',
     ]),
     checkout_form: new Set([
+        'compare_restaurants',
         'confirm_order', 'cancel_order', 'add_item_to_cart', 'add_items_to_cart',
         'update_cart_item_quantity', 'remove_item_from_cart', 'replace_cart_item',
         'get_cart_state', 'open_checkout',
     ]),
     awaiting_confirmation: new Set([
-        'confirm_order', 'cancel_order', 'get_cart_state',
+        'confirm_order', 'cancel_order', 'get_cart_state', 'compare_restaurants',
     ]),
     completed: new Set([
         'find_nearby', 'select_restaurant', 'show_menu', 'show_more_options',
-        'get_cart_state',
+        'compare_restaurants', 'get_cart_state',
     ]),
     cancelled: new Set([
         'find_nearby', 'select_restaurant', 'show_menu', 'show_more_options',
-        'get_cart_state',
+        'compare_restaurants', 'get_cart_state',
     ]),
 });
 

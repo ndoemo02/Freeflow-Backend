@@ -15,6 +15,7 @@
  */
 
 import { validateLLMOutput, sanitizeLLMOutput, ALLOWED_INTENTS, FORBIDDEN_FIELDS } from './intents/IntentSchema.js';
+import { generateJsonWithVertex, isVertexTextConfigured } from '../ai/vertexTextClient.js';
 
 const TIMEOUT_MS = 15000;
 
@@ -84,9 +85,9 @@ CRITICAL RULES:
 export async function translateIntent(text, hints = {}) {
     const startTime = Date.now();
 
-    // Guard: Must have Gemini key
-    if (!process.env.GEMINI_API_KEY) {
-        console.warn('🛡️ LLM Translator: No GEMINI_API_KEY');
+    // Guard: must have Vertex configuration
+    if (!isVertexTextConfigured()) {
+        console.warn('🛡️ LLM Translator: Vertex not configured (missing GCP_PROJECT_ID/GOOGLE_PROJECT_ID)');
         return SAFE_FALLBACK;
     }
 
@@ -103,63 +104,21 @@ export async function translateIntent(text, hints = {}) {
         if (hints.hasRestaurant) userPrompt += `\nContext: Restaurant already selected`;
         if (hints.hasLocation) userPrompt += `\nContext: Location already known`;
 
-        // Timeout wrapper using AbortController
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
-
-        const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`;
-
-        const response = await fetch(GEMINI_URL, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-                system_instruction: {
-                    parts: [{ text: SYSTEM_PROMPT }]
-                },
-                contents: [{
-                    parts: [{ text: userPrompt }]
-                }],
-                generationConfig: {
-                    temperature: 0.1,
-                    responseMimeType: "application/json"
-                }
-            }),
-            signal: controller.signal
+        const parsed = await generateJsonWithVertex({
+            systemPrompt: SYSTEM_PROMPT,
+            userPrompt,
+            model: process.env.GEMINI_TEXT_MODEL || 'gemini-2.5-flash',
+            temperature: 0.1,
+            timeoutMs: TIMEOUT_MS,
         });
 
-        clearTimeout(timeoutId);
-
-        // Check response status
-        if (!response.ok) {
-            const status = response.status;
-            console.warn(`🛡️ LLM Translator: API error ${status}`);
-            if (status === 429) {
-                console.warn('🛡️ LLM Translator: Rate limited');
-            }
-            return SAFE_FALLBACK;
-        }
-
-        const json = await response.json();
-        const rawContent = json.candidates?.[0]?.content?.parts?.[0]?.text;
-
-        if (!rawContent) {
+        if (!parsed) {
             console.warn('🛡️ LLM Translator: Empty content in response');
             return SAFE_FALLBACK;
         }
 
         // ═══════════════════════════════════════════════════════════════════
         // STEP 1: Parse JSON
-        // ═══════════════════════════════════════════════════════════════════
-        let parsed;
-        try {
-            parsed = JSON.parse(rawContent);
-        } catch (e) {
-            console.warn('🛡️ LLM Translator: Invalid JSON:', rawContent.substring(0, 100));
-            return SAFE_FALLBACK;
-        }
-
         // ═══════════════════════════════════════════════════════════════════
         // STEP 2: Validate structure
         // ═══════════════════════════════════════════════════════════════════
@@ -184,7 +143,7 @@ export async function translateIntent(text, hints = {}) {
         return sanitized;
 
     } catch (error) {
-        if (error.name === 'AbortError') {
+        if (String(error?.message || '').includes('vertex_timeout')) {
             console.warn(`🛡️ LLM Translator: Timeout after ${TIMEOUT_MS} ms`);
         } else {
             console.warn('🛡️ LLM Translator: Error:', error.message);
@@ -197,5 +156,5 @@ export async function translateIntent(text, hints = {}) {
  * Check if LLM translation is available
  */
 export function isLLMTranslatorAvailable() {
-    return !!(process.env.GEMINI_API_KEY && process.env.LLM_TRANSLATOR_ENABLED !== 'false');
+    return !!(isVertexTextConfigured() && process.env.LLM_TRANSLATOR_ENABLED !== 'false');
 }

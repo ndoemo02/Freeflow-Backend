@@ -5,6 +5,7 @@
 
 import { BrainPipeline } from './core/pipeline.js';
 import { NLURouter } from './nlu/router.js';
+import { sanitizeAssistantResponse } from './core/securityGuards.js';
 
 // Singleton Initialization (Warm Start)
 const nlu = new NLURouter();
@@ -42,8 +43,9 @@ export default async function handler(req, res) {
         };
 
         const result = await pipeline.process(sessionId.trim(), text, options);
+        const safeResult = sanitizeAssistantResponse(result);
 
-        return res.status(200).json(result);
+        return res.status(200).json(safeResult);
     } catch (error) {
         const statusCode = error?.statusCode || error?.status || 500;
 

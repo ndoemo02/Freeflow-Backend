@@ -15,12 +15,14 @@ import { ORDER_MODE_EVENT, ORDER_MODE_STATE, transitionOrderMode } from '../../b
 import { findRestaurantInText } from '../../brain/data/restaurantCatalog.js';
 import { sanitizeLocation } from '../../brain/core/ConversationGuards.js';
 import { verifyToolCall } from './IntentVerificationLayer.js';
+import { compareRestaurantsForLive } from './restaurantCompareService.js';
 
 const TOOL_TO_INTENT = Object.freeze({
     find_nearby: 'find_nearby',
     select_restaurant: 'select_restaurant',
     show_menu: 'menu_request',
     show_more_options: 'show_more_options',
+    compare_restaurants: 'find_nearby',
     add_item_to_cart: 'create_order',
     add_items_to_cart: 'create_order',
     update_cart_item_quantity: 'create_order',
@@ -113,6 +115,17 @@ function mapToolPayload(toolName, args = {}, options = {}) {
                 text: pickText('pokaz wiecej opcji'),
                 entities: {},
             };
+        case 'compare_restaurants': {
+            const query = String(args.query || args.category || '').trim();
+            return {
+                text: pickText(query ? `porownaj ${query}` : 'porownaj restauracje'),
+                entities: {
+                    location: args.city || null,
+                    dish: args.query || null,
+                    cuisine: args.category || null,
+                },
+            };
+        }
         case 'add_item_to_cart': {
             const quantity = Math.max(1, Math.floor(Number(args.quantity || 1)));
             return {
@@ -218,6 +231,169 @@ function normalizeLoose(value = '') {
         .replace(/[^a-z0-9\s]/g, ' ')
         .replace(/\s+/g, ' ')
         .trim();
+}
+
+const COMPARE_CUE_RE = /\b(porown|porownaj|porownac|porownanie|kilku restaurac|kilka restaurac|w wielu restaurac|najtans|najtaniej|cheapest|lowest|po\s+\d+\s+(dani|pozycj)|\d+\s+restaurac)\b/i;
+const GENERIC_COMPARE_QUERY_RE = /\b(cena|ceny|cen|miedzy nimi|miedzy nimi|nimi|tymi|tych restaurac|porownanie|ranking)\b/i;
+const PLACEHOLDER_LOCATION_RE = /\b(current location|my location|here|nearby|w poblizu|blisko|biezaca lokalizacja)\b/i;
+const DISH_COMPARE_CUISINE_HINTS = new Set([
+    'pierogi',
+    'pierog',
+    'pierogr',
+    'nalesnik',
+    'nalesniki',
+    'zurek',
+    'schabowy',
+]);
+const DISCOVERY_CATEGORIES = new Set([
+    'pizza', 'kebab', 'burger', 'burgery', 'sushi', 'tajska', 'indyjska',
+    'meksykanska', 'wloska', 'amerykanska', 'azjatycka', 'wege',
+    'wegetarianska', 'napoje', 'deser', 'obiad', 'sniadanie',
+]);
+const POLISH_NUMBER_WORDS = Object.freeze({
+    jeden: 1, jedna: 1, jedno: 1, jednej: 1,
+    dwa: 2, dwoch: 2, dwuch: 2, dwu: 2,
+    trzy: 3, trzech: 3,
+});
+
+function clampRange(value, min, max, fallback) {
+    const parsed = Math.floor(Number(value));
+    if (!Number.isFinite(parsed)) return fallback;
+    if (parsed < min) return min;
+    if (parsed > max) return max;
+    return parsed;
+}
+
+function extractCountFromWord(word = '', fallback = null) {
+    const normalized = normalizeLoose(word);
+    if (!normalized) return fallback;
+    return POLISH_NUMBER_WORDS[normalized] ?? fallback;
+}
+
+function parseMaxRestaurants(text = '') {
+    const source = normalizeLoose(text);
+    if (!source) return 3;
+
+    const numeric = source.match(/\b(\d+)\s+restaurac\w*/i);
+    if (numeric?.[1]) return clampRange(Number(numeric[1]), 1, 3, 3);
+
+    const byWord = source.match(/\bw\s+([a-z]+)\s+restaurac\w*/i);
+    if (byWord?.[1]) return clampRange(extractCountFromWord(byWord[1], 3), 1, 3, 3);
+
+    return 3;
+}
+
+function parseMaxItemsPerRestaurant(text = '') {
+    const source = normalizeLoose(text);
+    if (!source) return 2;
+
+    const numeric = source.match(/\bpo\s+(\d+)\s*(?:dani\w*|pozycj\w*)?/i);
+    if (numeric?.[1]) return clampRange(Number(numeric[1]), 1, 3, 2);
+
+    const byWord = source.match(/\bpo\s+([a-z]+)\s*(?:dani\w*|pozycj\w*)?/i);
+    if (byWord?.[1]) return clampRange(extractCountFromWord(byWord[1], 2), 1, 3, 2);
+
+    return 2;
+}
+
+function cleanCompareTarget(text = '') {
+    if (!text) return '';
+    return String(text)
+        .replace(/\b(porownaj|porownac|porownanie|w kilku restauracjach?|w kilku lokalach?|w wielu restauracjach?|z \d+ restauracji)\b/gi, ' ')
+        .replace(/\b(miedzy nimi|mi[eę]dzy nimi|miedzy tymi|mi[eę]dzy tymi|tych restauracjach?|tymi restauracjami)\b/gi, ' ')
+        .replace(/\bpo\s+\d+\s*(?:dani\w*|pozycj\w*)?\b/gi, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, 120);
+}
+
+function isGenericCompareQuery(text = '') {
+    const normalized = normalizeLoose(text);
+    if (!normalized) return true;
+    if (GENERIC_COMPARE_QUERY_RE.test(normalized)) return true;
+    return normalized.length < 4;
+}
+
+function pickSessionCompareSeed(session = {}) {
+    const candidates = [
+        session?.last_compare_query,
+        session?.pendingDish,
+        session?.last_requested_item,
+    ];
+
+    for (const candidate of candidates) {
+        const cleaned = cleanCompareTarget(String(candidate || '').trim());
+        if (!cleaned) continue;
+        if (isGenericCompareQuery(cleaned)) continue;
+        return cleaned;
+    }
+    return '';
+}
+
+function shouldAutoRouteFindNearbyToCompare({ transcriptText = '', args = {} }) {
+    const signalSource = [transcriptText, args?.cuisine, args?.location].filter(Boolean).join(' ');
+    const normalized = normalizeLoose(signalSource);
+    const cuisineNormalized = normalizeLoose(args?.cuisine || '');
+    const hasDishCuisineHint = cuisineNormalized
+        ? cuisineNormalized.split(' ').some((token) => DISH_COMPARE_CUISINE_HINTS.has(token))
+        : false;
+    if (!normalized) return hasDishCuisineHint;
+    return COMPARE_CUE_RE.test(normalized) || hasDishCuisineHint;
+}
+
+function buildCompareArgsFromFindNearby({ transcriptText = '', args = {}, session = {} }) {
+    if (!shouldAutoRouteFindNearbyToCompare({ transcriptText, args })) {
+        return null;
+    }
+
+    const rawCuisine = String(args?.cuisine || '').trim();
+    const cleanedCuisine = cleanCompareTarget(rawCuisine);
+    const normalizedCuisine = normalizeLoose(cleanedCuisine);
+
+    let query = '';
+    let category = '';
+    if (cleanedCuisine) {
+        if (DISCOVERY_CATEGORIES.has(normalizedCuisine)) {
+            category = cleanedCuisine;
+        } else {
+            query = cleanedCuisine;
+        }
+    }
+
+    if (!query && !category) {
+        const transcriptCandidate = cleanCompareTarget(transcriptText);
+        if (transcriptCandidate) query = transcriptCandidate;
+    }
+
+    const sessionSeed = pickSessionCompareSeed(session);
+    if ((!query || isGenericCompareQuery(query)) && sessionSeed) {
+        query = sessionSeed;
+    }
+
+    if (!query && !category) {
+        return null;
+    }
+
+    const signalSource = [transcriptText, rawCuisine].filter(Boolean).join(' ');
+    const normalizedSignal = normalizeLoose(signalSource);
+    const metric = /\b(najtans|najtaniej|cheapest|lowest|cen|cena|ceny)\b/i.test(normalizedSignal)
+        ? 'lowest_price'
+        : 'best_match';
+
+    const rawLocation = String(args?.location || '').trim();
+    const normalizedLocation = normalizeLoose(rawLocation);
+    const city = rawLocation && !PLACEHOLDER_LOCATION_RE.test(normalizedLocation)
+        ? rawLocation.slice(0, 120)
+        : null;
+
+    return {
+        query: query || undefined,
+        category: category || undefined,
+        city: city || undefined,
+        metric,
+        max_restaurants: parseMaxRestaurants(signalSource),
+        max_items_per_restaurant: parseMaxItemsPerRestaurant(signalSource),
+    };
 }
 
 function shouldDropLocationForGps({ locationCandidate, cuisineCandidate, transcriptText, locationLooksLikeRestaurant }) {
@@ -354,9 +530,77 @@ export class ToolRouter {
         this.handlers = deps.handlers || this.pipeline.handlers;
         this.getSession = deps.getSession || getSession;
         this.updateSession = deps.updateSession || updateSession;
+        this.compareProvider = deps.compareProvider || compareRestaurantsForLive;
         // Rapid-fire protection: śledzi czas ostatniego wywołania narzędzia per sesja
         // Map<sessionId, { toolName: string, timestamp: number, argsKey: string }>
         this._lastToolCallBySession = new Map();
+    }
+
+    async _executeCompareRestaurantsTool({
+        sessionId,
+        toolName,
+        args = {},
+        requestId = null,
+        trace = [],
+    }) {
+        const snapshot = this.getSession(sessionId) || {};
+        const compareResult = await this.compareProvider({ args, session: snapshot });
+        const restaurants = Array.isArray(compareResult?.restaurants) ? compareResult.restaurants : [];
+
+        const sessionPatch = {
+            lastIntent: 'find_nearby',
+            expectedContext: null,
+            last_compare_query: compareResult?.comparison?.query || null,
+            last_compare_category: compareResult?.comparison?.category || null,
+            last_compare_city: compareResult?.comparison?.city || null,
+            last_compare_metric: compareResult?.comparison?.metric || null,
+        };
+        if (compareResult?.comparison?.query) {
+            sessionPatch.pendingDish = compareResult.comparison.query;
+        }
+        if (restaurants.length > 0) {
+            sessionPatch.last_restaurants_list = restaurants.map((restaurant) => ({
+                id: restaurant?.id || null,
+                name: restaurant?.name || null,
+                city: restaurant?.city || null,
+            })).filter((restaurant) => restaurant.id && restaurant.name);
+            sessionPatch.expectedContext = 'select_restaurant';
+        }
+
+        const nextSession = this.updateSession(sessionId, sessionPatch);
+        const reply = String(compareResult?.reply || 'Nie znalazlam dopasowan do porownania.').trim();
+        const safeScore = Number(compareResult?.score);
+
+        const response = {
+            ok: compareResult?.ok !== false,
+            session_id: sessionId,
+            intent: 'find_nearby',
+            reply,
+            text: reply,
+            should_reply: true,
+            actions: [],
+            restaurants,
+            comparison: compareResult?.comparison || null,
+            meta: {
+                source: 'live_tool:compare_restaurants',
+                match: {
+                    candidateCount: Number(compareResult?.candidateCount || restaurants.length || 0),
+                    topMatch: compareResult?.topMatch || null,
+                    score: Number.isFinite(safeScore) ? safeScore : 0,
+                },
+                comparison: compareResult?.comparison || null,
+            },
+            context: nextSession,
+            timestamp: new Date().toISOString(),
+        };
+
+        return {
+            ok: response.ok,
+            tool: toolName,
+            request_id: requestId,
+            response,
+            trace: [...trace, 'compare_restaurants:executed'],
+        };
     }
 
     _buildCartEditResult({ sessionId, toolName, requestId, reply, cart, context, trace = [] }) {
@@ -649,6 +893,7 @@ export class ToolRouter {
         const mapped = mapToolPayload(toolName, args, { transcriptText });
         const entities = mapped.entities || {};
         const textCameFromTranscript = Boolean(transcriptText && mapped.text === transcriptText);
+        const sessionSnapshotForIVL = this.getSession(sessionId) || {};
         if (textCameFromTranscript) {
             trace.push('live_transcript_hint:used');
         } else if (transcriptText && toolName === 'find_nearby') {
@@ -693,7 +938,6 @@ export class ToolRouter {
                 ? lastCallRecord.argsKey
                 : undefined;
 
-            const sessionSnapshotForIVL = this.getSession(sessionId) || {};
             const ivlResult = verifyToolCall({
                 toolName,
                 args,
@@ -798,6 +1042,34 @@ export class ToolRouter {
                 userText,
                 trace,
             });
+        }
+
+        if (toolName === 'compare_restaurants') {
+            return this._executeCompareRestaurantsTool({
+                sessionId,
+                toolName,
+                args,
+                requestId,
+                trace,
+            });
+        }
+
+        if (toolName === 'find_nearby') {
+            const compareArgs = buildCompareArgsFromFindNearby({
+                transcriptText,
+                args,
+                session: sessionSnapshotForIVL,
+            });
+            if (compareArgs) {
+                trace.push('live_find_autoroute:compare_restaurants');
+                return this._executeCompareRestaurantsTool({
+                    sessionId,
+                    toolName,
+                    args: compareArgs,
+                    requestId,
+                    trace,
+                });
+            }
         }
 
         let runtimeIntent = intent;
@@ -998,6 +1270,7 @@ export class ToolRouter {
             || Boolean(domainResponse?.meta?.clarify);
         const responseSuggestsSuccess = domainResponse?.ok !== false && !isClarifyOrderResponse;
         const successDowngraded = cartMutationPath && responseSuggestsSuccess && !cartChanged;
+        const clarifyNotAdded = cartMutationPath && (isClarifyOrderResponse || successDowngraded || !cartChanged);
 
         console.log(`[CART_GUARD] postCount=${postCartItemCount}`);
         console.log(`[CART_GUARD] postTotal=${postCartTotal}`);
@@ -1019,6 +1292,27 @@ export class ToolRouter {
                 },
             };
             context.trace.push('cart_guard:success_downgraded');
+        }
+
+        if (isClarifyOrderResponse) {
+            const currentReply = String(guardedDomainResponse?.reply || guardedDomainResponse?.text || '').trim();
+            const explicitPrefix = 'Jeszcze nie dodalam tej pozycji do koszyka.';
+            const nextReply = /nie dodalam|nie dodano|nie dodane/i.test(currentReply)
+                ? currentReply
+                : `${explicitPrefix} ${currentReply}`.trim();
+
+            guardedDomainResponse = {
+                ...guardedDomainResponse,
+                ok: false,
+                reply: nextReply,
+                text: nextReply,
+                should_reply: true,
+                meta: {
+                    ...(guardedDomainResponse.meta || {}),
+                    cart_guard: 'clarify_not_added',
+                },
+            };
+            context.trace.push('cart_guard:clarify_not_added');
         }
 
         const preOrderMode = sessionSnapshot?.orderMode || ORDER_MODE_STATE.NEUTRAL;
@@ -1068,6 +1362,9 @@ export class ToolRouter {
                     items: postCartItemCount,
                     total: Number(postCartTotal) || 0,
                 },
+                cartChanged,
+                successDowngraded,
+                clarifyNotAdded,
             },
             trace: context.trace,
         };

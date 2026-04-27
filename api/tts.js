@@ -35,18 +35,20 @@ function getVertexClient() {
   if (vertexClient) return vertexClient;
   // Preferuj nowe nazwy ENV sugerowane przez użytkownika
   const project =
+    process.env.GCP_PROJECT_ID ||
     process.env.GOOGLE_PROJECT_ID ||
     process.env.GCLOUD_PROJECT ||
     process.env.GOOGLE_PROJECT ||
     process.env.GOOGLE_CLOUD_PROJECT;
   const location =
+    process.env.GCP_LOCATION ||
     process.env.GOOGLE_TTS_LOCATION ||
     process.env.GCLOUD_LOCATION ||
     process.env.GEMINI_TTS_LOCATION ||
     process.env.GOOGLE_VERTEX_LOCATION ||
     "global";
   if (!project) {
-    throw new Error("Brak GOOGLE_PROJECT_ID / GCLOUD_PROJECT – VertexAI wymaga jawnego project id");
+    throw new Error("Brak GCP_PROJECT_ID / GOOGLE_PROJECT_ID – VertexAI wymaga jawnego project id");
   }
   vertexClient = new VertexAI({ project, location });
   return vertexClient;
@@ -496,13 +498,13 @@ export default async function handler(req, res) {
   if (applyCORS(req, res)) return;
 
   try {
-    const { text, tone } = req.body;
+    const { text, tone, voice } = req.body;
     if (!text) {
       return res.status(400).json({ error: "Missing text parameter" });
     }
 
     // Ujednolicone wywołanie przez playTTS – korzysta z configu (głos, ton, tempo)
-    const audioContent = await playTTS(text, { tone });
+    const audioContent = await playTTS(text, { tone, voice });
 
     if (!audioContent) {
       // Jeśli zwrócono null/empty, to znaczy że TTS jest wyłączony lub wystąpił błąd soft

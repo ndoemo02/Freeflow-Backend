@@ -1,33 +1,38 @@
 /**
- * Testy jednostkowe dla Smart Intent System (Classic NLU + LLM Fallback)
+ * Unit tests for Smart Intent Resolution (classic + Vertex fallback)
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { smartResolveIntent } from '../../api/brain/ai/smartIntent.js';
 
-// Mock detectIntent
+const mockDetectIntent = vi.fn();
+const mockGenerateJsonWithVertex = vi.fn();
+const mockIsVertexTextConfigured = vi.fn(() => true);
+
 vi.mock('../../api/brain/intents/intentRouterGlue.js', () => ({
-  detectIntent: vi.fn()
+  detectIntent: (...args) => mockDetectIntent(...args),
 }));
 
-import { detectIntent } from '../../api/brain/intents/intentRouterGlue.js';
+vi.mock('../../api/brain/ai/vertexTextClient.js', () => ({
+  generateJsonWithVertex: (...args) => mockGenerateJsonWithVertex(...args),
+  isVertexTextConfigured: (...args) => mockIsVertexTextConfigured(...args),
+}));
 
 describe('Smart Intent Resolution', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    // Reset environment
     delete process.env.USE_LLM_INTENT;
-    delete process.env.OPENAI_API_KEY;
     delete process.env.FORCE_LLM_TEST;
+    mockIsVertexTextConfigured.mockReturnValue(true);
   });
 
   describe('Empty Input Handling', () => {
-    it('should return smalltalk intent for empty text', async () => {
+    it('returns smalltalk for empty text', async () => {
       const result = await smartResolveIntent({
         text: '',
         session: {},
         restaurants: [],
-        previousIntent: null
+        previousIntent: null,
       });
 
       expect(result.intent).toBe('smalltalk');
@@ -35,12 +40,12 @@ describe('Smart Intent Resolution', () => {
       expect(result.source).toBe('empty');
     });
 
-    it('should return smalltalk intent for whitespace-only text', async () => {
+    it('returns smalltalk for whitespace-only text', async () => {
       const result = await smartResolveIntent({
         text: '   ',
         session: {},
         restaurants: [],
-        previousIntent: null
+        previousIntent: null,
       });
 
       expect(result.intent).toBe('smalltalk');
@@ -49,405 +54,259 @@ describe('Smart Intent Resolution', () => {
   });
 
   describe('Classic NLU Path', () => {
-    it('should use classic NLU result when confidence is high', async () => {
-      detectIntent.mockResolvedValueOnce({
+    it('uses classic result when confidence is high', async () => {
+      mockDetectIntent.mockResolvedValueOnce({
         intent: 'find_nearby',
         confidence: 0.85,
-        entities: { location: 'Warsaw' }
+        entities: { location: 'Warsaw' },
       });
 
       const result = await smartResolveIntent({
-        text: 'co jest dostępne w pobliżu',
+        text: 'co jest dostepne w poblizu',
         session: {},
         restaurants: [],
-        previousIntent: null
+        previousIntent: null,
       });
 
       expect(result.intent).toBe('find_nearby');
       expect(result.confidence).toBe(0.85);
       expect(result.source).toBe('classic');
       expect(result.slots).toEqual({ location: 'Warsaw' });
+      expect(mockGenerateJsonWithVertex).not.toHaveBeenCalled();
     });
 
-    it('should use classic NLU result when expectedContext exists', async () => {
-      detectIntent.mockResolvedValueOnce({
+    it('skips LLM when expectedContext exists', async () => {
+      mockDetectIntent.mockResolvedValueOnce({
         intent: 'none',
         confidence: 0.5,
-        entities: {}
+        entities: {},
       });
 
       const result = await smartResolveIntent({
-        text: 'pokaż więcej',
+        text: 'pokaz wiecej',
         session: { expectedContext: 'show_more_options' },
         restaurants: [],
-        previousIntent: null
+        previousIntent: null,
       });
 
-      // Should skip LLM because of expectedContext
       expect(result.source).toBe('classic');
-      expect(detectIntent).toHaveBeenCalled();
+      expect(mockGenerateJsonWithVertex).not.toHaveBeenCalled();
     });
 
-    it('should handle classic NLU errors gracefully', async () => {
-      detectIntent.mockRejectedValueOnce(new Error('NLU failed'));
+    it('handles classic NLU errors gracefully', async () => {
+      mockDetectIntent.mockRejectedValueOnce(new Error('NLU failed'));
 
       const result = await smartResolveIntent({
         text: 'test',
         session: {},
         restaurants: [],
-        previousIntent: null
+        previousIntent: null,
       });
 
       expect(result.intent).toBe('unknown');
       expect(result.confidence).toBe(0);
       expect(result.source).toBe('classic');
     });
-
-    it('should skip LLM for high confidence non-none intents', async () => {
-      detectIntent.mockResolvedValueOnce({
-        intent: 'menu_request',
-        confidence: 0.8,
-        entities: {}
-      });
-
-      const result = await smartResolveIntent({
-        text: 'pokaż menu',
-        session: {},
-        restaurants: [],
-        previousIntent: null
-      });
-
-      expect(result.intent).toBe('menu_request');
-      expect(result.source).toBe('classic');
-    });
-
-    it('should NOT skip LLM for high confidence "none" intent', async () => {
-      detectIntent.mockResolvedValueOnce({
-        intent: 'none',
-        confidence: 0.9, // High but useless
-        entities: {}
-      });
-
-      // Mock fetch for LLM call (but it won't be called if no API key)
-      global.fetch = vi.fn();
-
-      const result = await smartResolveIntent({
-        text: 'niezrozumiały tekst',
-        session: {},
-        restaurants: [],
-        previousIntent: null
-      });
-
-      // Should return classic result because no LLM API key
-      expect(result.intent).toBe('none');
-      expect(result.source).toBe('classic');
-      expect(global.fetch).not.toHaveBeenCalled();
-    });
   });
 
   describe('LLM Fallback Path', () => {
-    beforeEach(() => {
-      // Setup LLM environment
-      process.env.OPENAI_API_KEY = 'test-key';
-      global.fetch = vi.fn();
-    });
-
-    it('should call LLM when classic confidence is low', async () => {
-      detectIntent.mockResolvedValueOnce({
+    it('calls Vertex fallback when classic confidence is low', async () => {
+      mockDetectIntent.mockResolvedValueOnce({
         intent: 'none',
         confidence: 0.4,
-        entities: {}
+        entities: {},
       });
 
-      // Mock successful LLM response
-      global.fetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          choices: [{
-            message: {
-              content: JSON.stringify({
-                intent: 'find_nearby',
-                confidence: 0.9,
-                slots: { cuisine: 'pizza' }
-              })
-            }
-          }]
-        })
+      mockGenerateJsonWithVertex.mockResolvedValueOnce({
+        intent: 'find_nearby',
+        confidence: 0.9,
+        slots: { cuisine: 'pizza' },
       });
 
       const result = await smartResolveIntent({
-        text: 'gdzie mogę zjeść pizzę',
+        text: 'gdzie moge zjesc pizze',
         session: {},
         restaurants: [],
-        previousIntent: null
+        previousIntent: null,
       });
 
       expect(result.intent).toBe('find_nearby');
       expect(result.confidence).toBe(0.9);
       expect(result.source).toBe('llm');
       expect(result.slots).toMatchObject({ cuisine: 'pizza' });
-      expect(global.fetch).toHaveBeenCalled();
+      expect(mockGenerateJsonWithVertex).toHaveBeenCalledTimes(1);
     });
 
-    it('should include context in LLM request', async () => {
-      detectIntent.mockResolvedValueOnce({
-        intent: 'none',
-        confidence: 0.4,
-        entities: {}
-      });
-
-      global.fetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          choices: [{
-            message: {
-              content: JSON.stringify({
-                intent: 'show_menu',
-                confidence: 0.85,
-                slots: {}
-              })
-            }
-          }]
-        })
+    it('includes context in Vertex prompt', async () => {
+      mockDetectIntent.mockResolvedValueOnce({ intent: 'none', confidence: 0.4, entities: {} });
+      mockGenerateJsonWithVertex.mockResolvedValueOnce({
+        intent: 'show_menu',
+        confidence: 0.85,
+        slots: {},
       });
 
       await smartResolveIntent({
-        text: 'pokaż menu',
+        text: 'pokaz menu',
         session: {
           lastRestaurant: { name: 'Pizzeria Roma' },
-          last_location: 'Warsaw'
+          last_location: 'Warsaw',
         },
         restaurants: [],
-        previousIntent: 'find_nearby'
+        previousIntent: 'find_nearby',
       });
 
-      const fetchCall = global.fetch.mock.calls[0];
-      const body = JSON.parse(fetchCall[1].body);
-      
-      expect(body.messages[0].content).toContain('lastIntent');
-      expect(body.messages[0].content).toContain('Pizzeria Roma');
-      expect(body.messages[0].content).toContain('Warsaw');
+      const arg = mockGenerateJsonWithVertex.mock.calls[0][0];
+      expect(arg.systemPrompt).toContain('lastIntent');
+      expect(arg.systemPrompt).toContain('Pizzeria Roma');
+      expect(arg.systemPrompt).toContain('Warsaw');
     });
 
-    it('should fallback to classic when LLM returns unknown', async () => {
-      detectIntent.mockResolvedValueOnce({
-        intent: 'none',
-        confidence: 0.4,
-        entities: {}
-      });
-
-      global.fetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          choices: [{
-            message: {
-              content: JSON.stringify({
-                intent: 'unknown',
-                confidence: 0.3,
-                slots: {}
-              })
-            }
-          }]
-        })
-      });
+    it('falls back to classic when Vertex returns unknown', async () => {
+      mockDetectIntent.mockResolvedValueOnce({ intent: 'none', confidence: 0.4, entities: {} });
+      mockGenerateJsonWithVertex.mockResolvedValueOnce({ intent: 'unknown', confidence: 0.3, slots: {} });
 
       const result = await smartResolveIntent({
         text: 'random gibberish',
         session: {},
         restaurants: [],
-        previousIntent: null
+        previousIntent: null,
       });
 
-      // Should return classic result because LLM returned unknown
       expect(result.intent).toBe('none');
       expect(result.source).toBe('classic');
     });
 
-    it('should handle LLM API errors gracefully', async () => {
-      detectIntent.mockResolvedValueOnce({
-        intent: 'none',
-        confidence: 0.4,
-        entities: {}
-      });
-
-      global.fetch.mockRejectedValueOnce(new Error('API error'));
+    it('handles Vertex errors gracefully', async () => {
+      mockDetectIntent.mockResolvedValueOnce({ intent: 'none', confidence: 0.4, entities: {} });
+      mockGenerateJsonWithVertex.mockRejectedValueOnce(new Error('vertex_error'));
 
       const result = await smartResolveIntent({
         text: 'test',
         session: {},
         restaurants: [],
-        previousIntent: null
+        previousIntent: null,
       });
 
-      // Should fallback to classic
       expect(result.intent).toBe('none');
       expect(result.source).toBe('classic');
     });
 
-    it('should handle LLM non-OK responses', async () => {
-      detectIntent.mockResolvedValueOnce({
-        intent: 'none',
-        confidence: 0.4,
-        entities: {}
-      });
-
-      global.fetch.mockResolvedValueOnce({
-        ok: false,
-        status: 429
-      });
+    it('handles empty Vertex payload', async () => {
+      mockDetectIntent.mockResolvedValueOnce({ intent: 'none', confidence: 0.4, entities: {} });
+      mockGenerateJsonWithVertex.mockResolvedValueOnce(null);
 
       const result = await smartResolveIntent({
         text: 'test',
         session: {},
         restaurants: [],
-        previousIntent: null
+        previousIntent: null,
       });
 
       expect(result.source).toBe('classic');
     });
 
-    it('should merge classic slots with LLM slots', async () => {
-      detectIntent.mockResolvedValueOnce({
+    it('merges classic and Vertex slots', async () => {
+      mockDetectIntent.mockResolvedValueOnce({
         intent: 'none',
         confidence: 0.4,
-        entities: { location: 'Warsaw' }
+        entities: { location: 'Warsaw' },
       });
 
-      global.fetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          choices: [{
-            message: {
-              content: JSON.stringify({
-                intent: 'find_nearby',
-                confidence: 0.9,
-                slots: { cuisine: 'pizza' }
-              })
-            }
-          }]
-        })
+      mockGenerateJsonWithVertex.mockResolvedValueOnce({
+        intent: 'find_nearby',
+        confidence: 0.9,
+        slots: { cuisine: 'pizza' },
       });
 
       const result = await smartResolveIntent({
         text: 'gdzie pizza w Warszawie',
         session: {},
         restaurants: [],
-        previousIntent: null
+        previousIntent: null,
       });
 
       expect(result.slots).toMatchObject({
         location: 'Warsaw',
-        cuisine: 'pizza'
+        cuisine: 'pizza',
       });
     });
   });
 
   describe('Environment Configuration', () => {
-    it('should skip LLM when USE_LLM_INTENT is not set and no API key', async () => {
+    it('skips LLM when USE_LLM_INTENT is not set and Vertex is not configured', async () => {
       delete process.env.USE_LLM_INTENT;
-      delete process.env.OPENAI_API_KEY;
-      
-      detectIntent.mockResolvedValueOnce({
-        intent: 'none',
-        confidence: 0.4,
-        entities: {}
-      });
+      mockIsVertexTextConfigured.mockReturnValue(false);
 
-      global.fetch = vi.fn();
+      mockDetectIntent.mockResolvedValueOnce({ intent: 'none', confidence: 0.4, entities: {} });
 
       const result = await smartResolveIntent({
         text: 'test',
         session: {},
         restaurants: [],
-        previousIntent: null
+        previousIntent: null,
       });
 
       expect(result.source).toBe('classic');
-      expect(global.fetch).not.toHaveBeenCalled();
+      expect(mockGenerateJsonWithVertex).not.toHaveBeenCalled();
     });
 
-    it('should use LLM when USE_LLM_INTENT is true', async () => {
+    it('attempts LLM when USE_LLM_INTENT is true', async () => {
       process.env.USE_LLM_INTENT = 'true';
-      delete process.env.OPENAI_API_KEY;
-      
-      detectIntent.mockResolvedValueOnce({
-        intent: 'none',
-        confidence: 0.4,
-        entities: {}
-      });
-
-      global.fetch = vi.fn().mockRejectedValueOnce(new Error('No API key'));
+      mockIsVertexTextConfigured.mockReturnValue(false);
+      mockDetectIntent.mockResolvedValueOnce({ intent: 'none', confidence: 0.4, entities: {} });
+      mockGenerateJsonWithVertex.mockRejectedValueOnce(new Error('Missing Vertex project id'));
 
       await smartResolveIntent({
         text: 'test',
         session: {},
         restaurants: [],
-        previousIntent: null
+        previousIntent: null,
       });
 
-      // Should attempt LLM call even without API key if USE_LLM_INTENT is set
-      // (will fail but attempt was made)
-      expect(global.fetch).toHaveBeenCalled();
+      expect(mockGenerateJsonWithVertex).toHaveBeenCalled();
     });
   });
 
   describe('Intent Mapping', () => {
-    it('should map classic intents correctly', async () => {
-      detectIntent.mockResolvedValueOnce({
-        intent: 'menu_request',
-        confidence: 0.8,
-        entities: {}
-      });
+    it('maps classic intents correctly', async () => {
+      mockDetectIntent.mockResolvedValueOnce({ intent: 'menu_request', confidence: 0.8, entities: {} });
 
       const result = await smartResolveIntent({
-        text: 'pokaż menu',
+        text: 'pokaz menu',
         session: {},
         restaurants: [],
-        previousIntent: null
+        previousIntent: null,
       });
 
       expect(result.intent).toBe('menu_request');
       expect(result.source).toBe('classic');
     });
 
-    it('should handle missing confidence gracefully', async () => {
-      detectIntent.mockResolvedValueOnce({
-        intent: 'find_nearby',
-        entities: {}
-        // No confidence field
-      });
+    it('handles missing confidence gracefully', async () => {
+      mockDetectIntent.mockResolvedValueOnce({ intent: 'find_nearby', entities: {} });
 
       const result = await smartResolveIntent({
-        text: 'co w pobliżu',
+        text: 'co w poblizu',
         session: {},
         restaurants: [],
-        previousIntent: null
+        previousIntent: null,
       });
 
       expect(result.confidence).toBe(0);
       expect(result.intent).toBe('find_nearby');
     });
 
-    it('should handle missing entities gracefully', async () => {
-      detectIntent.mockResolvedValueOnce({
-        intent: 'create_order',
-        confidence: 0.7
-        // No entities field
-      });
+    it('handles missing entities gracefully', async () => {
+      mockDetectIntent.mockResolvedValueOnce({ intent: 'create_order', confidence: 0.7 });
 
       const result = await smartResolveIntent({
-        text: 'zamów pizzę',
+        text: 'zamow pizze',
         session: {},
         restaurants: [],
-        previousIntent: null
+        previousIntent: null,
       });
 
       expect(result.slots).toEqual({});
     });
   });
 });
-
-
-
-
-

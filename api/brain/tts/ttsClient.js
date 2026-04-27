@@ -2,6 +2,7 @@ import { getVertexAccessToken } from "../utils/googleAuth.js";
 import OpenAI from "openai";
 import { VertexAI } from "@google-cloud/vertexai";
 import { getConfig } from "../../config/configService.js";
+import { generateTextWithVertex, isVertexTextConfigured } from "../ai/vertexTextClient.js";
 
 let openaiClient = null;
 let geminiModel = null;
@@ -26,32 +27,18 @@ function _emitStyleTrace(provider, status, fallbackUsed) {
     } catch { }
 }
 
-async function _stylizeWithGemini(rawText, system) {
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) return null;
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 5000);
+async function _stylizeWithVertex(rawText, system) {
+    if (!isVertexTextConfigured()) return null;
     try {
-        const resp = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(apiKey)}`,
-            {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                signal: ctrl.signal,
-                body: JSON.stringify({
-                    system_instruction: { parts: [{ text: system }] },
-                    contents: [{ role: 'user', parts: [{ text: `Przeredaguj na mowę rozmowną:\n${rawText}` }] }],
-                    generationConfig: { temperature: 0.6, maxOutputTokens: 200 },
-                }),
-            }
-        );
-        if (!resp.ok) return null;
-        const data = await resp.json();
-        return data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || null;
+        return await generateTextWithVertex({
+            systemPrompt: system,
+            userPrompt: `Przeredaguj na mowe rozmowna:\n${rawText}`,
+            model: process.env.GEMINI_TEXT_MODEL || "gemini-2.5-flash",
+            temperature: 0.6,
+            timeoutMs: 5000,
+        });
     } catch {
         return null;
-    } finally {
-        clearTimeout(timer);
     }
 }
 
@@ -66,18 +53,20 @@ function normalizeGoogleVoice(engineRaw, voice) {
 function getVertexClient() {
   if (vertexClient) return vertexClient;
   const project =
+    process.env.GCP_PROJECT_ID ||
     process.env.GOOGLE_PROJECT_ID ||
     process.env.GCLOUD_PROJECT ||
     process.env.GOOGLE_PROJECT ||
     process.env.GOOGLE_CLOUD_PROJECT;
   const location =
+    process.env.GCP_LOCATION ||
     process.env.GOOGLE_TTS_LOCATION ||
     process.env.GCLOUD_LOCATION ||
     process.env.GEMINI_TTS_LOCATION ||
     process.env.GOOGLE_VERTEX_LOCATION ||
     "global";
   if (!project) {
-    throw new Error("Brak GOOGLE_PROJECT_ID / GCLOUD_PROJECT – VertexAI wymaga jawnego project id");
+    throw new Error("Brak GCP_PROJECT_ID / GOOGLE_PROJECT_ID – VertexAI wymaga jawnego project id");
   }
   vertexClient = new VertexAI({ project, location });
   return vertexClient;
@@ -290,8 +279,8 @@ Nie zmieniaj faktów ani liczb. Intencja użytkownika: “${intent}”.`;
 
         // Fallback: Gemini (if OpenAI unavailable, suppressed, or failed)
         if (out === null) {
-            out = await _stylizeWithGemini(rawText, system);
-            if (out) _emitStyleTrace('gemini', 'ok', true);
+      out = await _stylizeWithVertex(rawText, system);
+      if (out) _emitStyleTrace('vertex', 'ok', true);
         }
 
         // Final deterministic fallback — never throws, never loses the message

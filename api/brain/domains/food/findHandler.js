@@ -39,7 +39,11 @@ async function loadDiscoveryEngine() {
 
 // --- Configuration & Constants ---
 
-const KNOWN_CITIES = ['Piekary Śląskie', 'Bytom', 'Radzionków', 'Chorzów', 'Katowice', 'Siemianowice Śląskie', 'Świerklaniec', 'Zabrze', 'Tarnowskie Góry', 'Świętochłowice', 'Mysłowice'];
+const SERVICE_CITY = 'Piekary Śląskie';
+const SERVICE_CITY_KEYWORD = 'piekar';
+const ALLOW_NEARBY_CITY_FALLBACK = false;
+
+const KNOWN_CITIES = [SERVICE_CITY, 'Bytom', 'Radzionków', 'Chorzów', 'Katowice', 'Siemianowice Śląskie', 'Świerklaniec', 'Zabrze', 'Tarnowskie Góry', 'Świętochłowice', 'Mysłowice'];
 
 const NEARBY_CITY_MAP = {
     'piekary śląskie': ['Bytom', 'Radzionków', 'Chorzów', 'Siemianowice Śląskie', 'Świerklaniec'],
@@ -50,6 +54,23 @@ const NEARBY_CITY_MAP = {
 };
 
 // --- Helper Functions (Pure Logic) ---
+
+function isSupportedServiceCity(value) {
+    const normalized = normalizeLooseText(value);
+    return normalized.includes(SERVICE_CITY_KEYWORD);
+}
+
+function buildServiceCityOnlyReply(requestedCity = null) {
+    if (requestedCity) {
+        return `Na razie działamy tylko w ${SERVICE_CITY}. Dla "${requestedCity}" nie mam jeszcze restauracji.`;
+    }
+    return `Na razie działamy tylko w ${SERVICE_CITY}.`;
+}
+
+function filterRestaurantsToServiceCity(restaurants) {
+    if (!Array.isArray(restaurants) || restaurants.length === 0) return [];
+    return restaurants.filter((restaurant) => isSupportedServiceCity(restaurant?.city || ''));
+}
 
 function normalizeLocation(loc) {
     if (!loc) return null;
@@ -106,7 +127,9 @@ function resolveSessionCityFallback(session) {
     const candidate = session?.last_location || session?.default_city || null;
     if (!candidate) return null;
     if (isAddressLikeLocation(candidate)) return null;
-    return normalizeLocation(candidate) || candidate;
+    const normalized = normalizeLocation(candidate) || candidate;
+    if (!isSupportedServiceCity(normalized)) return null;
+    return SERVICE_CITY;
 }
 
 const CUISINE_NORMALIZATION_RULES = [
@@ -657,8 +680,9 @@ function resolveDiscoveryMode(ctx) {
         rawLocation = fallbackCity;
     }
 
-    // Live fallback: re-use last resolved city only when we are not in a direct GPS tool call.
-    if (!rawLocation && !preferGpsForLiveNearby) {
+    // Fallback to session city only when GPS is unavailable.
+    // If coordinates exist, keep location empty so resolver can use GPS mode and distance ranking.
+    if (!rawLocation && !preferGpsForLiveNearby && !coords) {
         rawLocation = resolveSessionCityFallback(session);
     }
 
@@ -700,11 +724,38 @@ function resolveDiscoveryMode(ctx) {
         };
     }
 
+    // Generic GPS override:
+    // Even outside strict live-tool metadata, when we have coordinates and no explicit city,
+    // prefer GPS to preserve "nearby" behavior and distance output.
+    if (coords && !normalizedLoc && shouldForceGpsForLive) {
+        console.log('[DISCOVERY_GPS_OVERRIDE]', JSON.stringify({
+            rawLocation,
+            normalizedLoc,
+            hasNearbyIntentSignal,
+            locationLooksLikePlaceholder,
+            coords,
+        }));
+        return {
+            mode: 'GPS',
+            coords,
+            cuisine: cuisineType
+        };
+    }
+
     // 2. Determine Mode
     if (normalizedLoc) {
+        if (!isSupportedServiceCity(normalizedLoc)) {
+            return {
+                mode: 'UNSUPPORTED_CITY',
+                requestedLocation: normalizedLoc,
+                cuisine: cuisineType,
+                coords
+            };
+        }
+
         return {
             mode: 'CITY',
-            location: normalizedLoc,
+            location: SERVICE_CITY,
             cuisine: cuisineType,
             originalLocation: rawLocation,
             coords
@@ -718,6 +769,18 @@ function resolveDiscoveryMode(ctx) {
             cuisine: cuisineType
         };
     }
+
+    // Single-service-city mode:
+    // If user did not provide city and we have no GPS, default to the only supported city
+    // instead of asking for location again.
+    return {
+        mode: 'CITY',
+        location: SERVICE_CITY,
+        cuisine: cuisineType,
+        originalLocation: null,
+        coords: null,
+        inferredServiceCity: true
+    };
 
     // 3. Fallback Analysis (Implicit Order vs General)
     // Regex fix: \b doesn't work well with polish chars like 'ę' in standard JS regex without unicode flag.
@@ -793,6 +856,17 @@ export class FindRestaurantHandler {
         let foundInNearby = false;
         let nearbySourceCity = null;
 
+        if (mode === 'UNSUPPORTED_CITY') {
+            return {
+                reply: `${buildServiceCityOnlyReply(discoveryParams.requestedLocation)} Powiedz proszę "${SERVICE_CITY}", a pokażę dostępne restauracje.`,
+                contextUpdates: {
+                    expectedContext: 'find_nearby_ask_location',
+                    awaiting: 'location',
+                    pendingDish: dishEntity || ctx.session?.pendingDish || null
+                }
+            };
+        }
+
         if (mode === 'CITY') {
             try {
                 const itemQueryCandidate = extractItemQueryCandidate(ctx, discoveryParams);
@@ -850,7 +924,7 @@ export class FindRestaurantHandler {
                 }
 
                 // Internal Fallback: Nearby Cities
-                if (!usedItemLedDiscovery && (!restaurants || restaurants.length === 0)) {
+                if (ALLOW_NEARBY_CITY_FALLBACK && !usedItemLedDiscovery && (!restaurants || restaurants.length === 0)) {
                     const normalizedKey = location.toLowerCase();
                     const suggestions = NEARBY_CITY_MAP[normalizedKey] || [];
 
@@ -865,6 +939,8 @@ export class FindRestaurantHandler {
                         }
                     }
                 }
+
+                restaurants = filterRestaurantsToServiceCity(restaurants);
             } catch (error) {
                 console.error('Repo Error (City):', error);
                 return { reply: "Mam problem z bazą danych. Spróbuj później.", error: 'db_error' };
@@ -956,11 +1032,13 @@ export class FindRestaurantHandler {
                 }
             }
 
+            restaurants = filterRestaurantsToServiceCity(restaurants);
+
             if (!restaurants || restaurants.length === 0) {
                 return {
                     reply: cuisine
-                        ? `Nie widzę restauracji ${cuisine} w Twojej okolicy.`
-                        : "Nie widzę żadnych restauracji w pobliżu.",
+                        ? `Nie widzę restauracji ${cuisine} w Twojej okolicy. ${buildServiceCityOnlyReply()}`
+                        : `Nie widzę żadnych restauracji w pobliżu. ${buildServiceCityOnlyReply()}`,
                     contextUpdates: {}
                 };
             }
@@ -968,8 +1046,8 @@ export class FindRestaurantHandler {
         } else {
             // FALLBACK MODE
             const prompt = (isImplicitOrder && dishEntity)
-                ? `Chętnie przyjmę zamówienie ${dishEntity}, ale najpierw podaj miasto. Gdzie szukamy?`
-                : "Gdzie mam szukać? Podaj miasto lub powiedz 'w pobliżu'.";
+                ? `Chętnie przyjmę zamówienie ${dishEntity}, ale najpierw podaj miasto. Obecnie obsługuję tylko ${SERVICE_CITY}.`
+                : `Gdzie mam szukać? Podaj miasto lub powiedz 'w pobliżu'. Obecnie obsługuję tylko ${SERVICE_CITY}.`;
 
             return {
                 reply: prompt,
