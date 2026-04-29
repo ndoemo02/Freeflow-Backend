@@ -24,6 +24,8 @@ export default async function handler(req, res) {
   const args = body.args || {};
   const requestId = body.request_id || null;
   const turnId = body.turn_id || requestId || null;
+  const transcript = body.transcript || body.transcript_text || null;
+  const userText = body.user_text || body.userText || null;
   const originCheck = validateLiveOrigin(req.headers?.origin);
   if (!originCheck.ok) {
     return res.status(403).json({
@@ -64,6 +66,8 @@ export default async function handler(req, res) {
       args,
       requestId,
       turnId,
+      transcript,
+      userText,
     });
 
     const status = result.ok ? 200 : 400;

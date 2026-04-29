@@ -223,6 +223,13 @@ function hasNearbyCue(text = '') {
     return /\b(w pobliżu|w poblizu|w okolicy|blisko|nearby|obok)\b/i.test(t);
 }
 
+function hasLastMenuContext(session = {}) {
+    if (Array.isArray(session?.lastMenu) && session.lastMenu.length > 0) return true;
+    if (Array.isArray(session?.last_menu) && session.last_menu.length > 0) return true;
+    if (Array.isArray(session?.last_menu?.items) && session.last_menu.items.length > 0) return true;
+    return false;
+}
+
 function normalizeLoose(value = '') {
     return String(value || '')
         .toLowerCase()
@@ -236,6 +243,7 @@ function normalizeLoose(value = '') {
 const COMPARE_CUE_RE = /\b(porown|porownaj|porownac|porownanie|kilku restaurac|kilka restaurac|w wielu restaurac|najtans|najtaniej|cheapest|lowest|po\s+\d+\s+(dani|pozycj)|\d+\s+restaurac)\b/i;
 const GENERIC_COMPARE_QUERY_RE = /\b(cena|ceny|cen|miedzy nimi|miedzy nimi|nimi|tymi|tych restaurac|porownanie|ranking)\b/i;
 const PLACEHOLDER_LOCATION_RE = /\b(current location|my location|here|nearby|w poblizu|blisko|biezaca lokalizacja)\b/i;
+const ORDER_LOCATIONISH_RE = /\b(piekar\w*|slask\w*|bytom\w*|katowic\w*|zabrz\w*|gliwic\w*|chorzow\w*|siemianowic\w*|tarnowsk\w*|miast\w*)\b/i;
 const DISH_COMPARE_CUISINE_HINTS = new Set([
     'pierogi',
     'pierog',
@@ -413,6 +421,27 @@ function shouldDropLocationForGps({ locationCandidate, cuisineCandidate, transcr
         || transcriptNearbyCue
     );
 }
+
+function transcriptMentionsLocation(transcriptText = '', locationCandidate = '') {
+    const transcript = normalizeLoose(transcriptText);
+    const location = normalizeLoose(locationCandidate);
+    if (!transcript || !location) return false;
+    if (transcript.includes(location) || location.includes(transcript)) return true;
+
+    const locationTokens = location.split(' ').filter((token) => token.length >= 4);
+    if (locationTokens.length === 0) return false;
+    return locationTokens.some((token) => transcript.includes(token));
+}
+
+function looksLikeOrderLocationPhrase(value = '') {
+    const normalized = normalizeLoose(value);
+    if (!normalized) return false;
+    if (PLACEHOLDER_LOCATION_RE.test(normalized)) return true;
+    if (ORDER_LOCATIONISH_RE.test(normalized)) return true;
+    if (/\b[a-z]{4,}(?:skich|skiej|skim)\b/i.test(normalized)) return true;
+    return false;
+}
+
 function buildClarifyResponse(activeSessionId, intent, reason, trace = []) {
     const fallbackReply = reason === 'state_requirements_not_met'
         ? 'Brakuje wymaganego kontekstu tej akcji. Najpierw wybierz restauracjĂ„â„˘ lub menu.'
@@ -894,17 +923,52 @@ export class ToolRouter {
         const entities = mapped.entities || {};
         const textCameFromTranscript = Boolean(transcriptText && mapped.text === transcriptText);
         const sessionSnapshotForIVL = this.getSession(sessionId) || {};
+        const isAddToCartTool = toolName === 'add_item_to_cart' || toolName === 'add_items_to_cart';
         if (textCameFromTranscript) {
             trace.push('live_transcript_hint:used');
         } else if (transcriptText && toolName === 'find_nearby') {
             trace.push('live_transcript_hint:ignored_for_find_nearby');
         }
 
+        // LIVE order robustness:
+        // If model filled restaurant_name with a location-like phrase (e.g. "Piekary Slaskie")
+        // but transcript clearly contains a known restaurant alias, recover restaurant scope
+        // from transcript before IVL/ICM and downstream handlers.
+        if (isAddToCartTool && transcriptText) {
+            const explicitRestaurantName = String(args?.restaurant_name || entities?.restaurant || '').trim();
+            const explicitRestaurantId = String(args?.restaurant_id || entities?.restaurantId || '').trim();
+            const transcriptRestaurant = findRestaurantInText(transcriptText);
+            let restaurantFromArgs = null;
+
+            if (explicitRestaurantId) {
+                restaurantFromArgs = {
+                    id: explicitRestaurantId,
+                    name: explicitRestaurantName || null,
+                };
+            } else if (explicitRestaurantName) {
+                restaurantFromArgs = findRestaurantInText(explicitRestaurantName);
+            }
+
+            if (!restaurantFromArgs && transcriptRestaurant) {
+                args.restaurant_name = transcriptRestaurant.name || null;
+                args.restaurant_id = transcriptRestaurant.id || null;
+                entities.restaurant = transcriptRestaurant.name || null;
+                entities.restaurantId = transcriptRestaurant.id || null;
+                trace.push(`live_order_restaurant_recovered:${transcriptRestaurant.id || 'name_only'}`);
+            } else if (!restaurantFromArgs && explicitRestaurantName && looksLikeOrderLocationPhrase(explicitRestaurantName)) {
+                if (Object.prototype.hasOwnProperty.call(args, 'restaurant_name')) delete args.restaurant_name;
+                if (Object.prototype.hasOwnProperty.call(args, 'restaurant_id')) delete args.restaurant_id;
+                entities.restaurant = null;
+                entities.restaurantId = null;
+                trace.push('live_order_restaurant_dropped:location_like');
+            }
+        }
+
         // LIVE order convenience:
         // If model omits restaurant in add-to-cart args but user transcript contains
         // an explicit restaurant name, infer it from catalog and inject before IVL.
         const canInferOrderRestaurant =
-            (toolName === 'add_item_to_cart' || toolName === 'add_items_to_cart')
+            isAddToCartTool
             && !entities?.restaurant
             && !entities?.restaurantId
             && !args?.restaurant_name
@@ -923,6 +987,38 @@ export class ToolRouter {
                 }
                 console.log(`[LIVE_ORDER_SCOPE_INFER] tool=${toolName} restaurant="${inferredRestaurant.name || 'unknown'}" id=${inferredRestaurant.id || 'n/a'}`);
                 trace.push(`live_order_restaurant_inferred:${inferredRestaurant.id || 'name_only'}`);
+            }
+        }
+
+        // If user says only restaurant name in add_item_to_cart (e.g. "Lawasz Kebab"),
+        // reroute to show_menu instead of forcing create_order with an invalid dish.
+        if (toolName === 'add_item_to_cart') {
+            const dishCandidate = String(args?.dish || entities?.dish || '').trim();
+            const dishRestaurantMatch = dishCandidate ? findRestaurantInText(dishCandidate) : null;
+            const scopedRestaurantId = String(args?.restaurant_id || entities?.restaurantId || '').trim();
+            const menuContextPresent = hasLastMenuContext(sessionSnapshotForIVL);
+            const dishLooksLikeRestaurant = Boolean(dishRestaurantMatch)
+                && (!scopedRestaurantId || scopedRestaurantId === String(dishRestaurantMatch?.id || ''));
+
+            if (dishLooksLikeRestaurant && !menuContextPresent) {
+                const rerouteArgs = {};
+                const targetRestaurantId = scopedRestaurantId || String(dishRestaurantMatch?.id || '').trim();
+                const targetRestaurantName = String(args?.restaurant_name || entities?.restaurant || dishRestaurantMatch?.name || '').trim();
+                if (targetRestaurantId) rerouteArgs.restaurant_id = targetRestaurantId;
+                if (targetRestaurantName) rerouteArgs.restaurant_name = targetRestaurantName;
+                trace.push(`live_order_dish_is_restaurant:reroute_show_menu:${targetRestaurantId || 'name_only'}`);
+
+                const rerouted = await this.executeToolCall({
+                    sessionId,
+                    toolName: 'show_menu',
+                    args: rerouteArgs,
+                    requestId,
+                    turnId,
+                    transcript,
+                    userText,
+                });
+                rerouted.trace = [...trace, ...(Array.isArray(rerouted?.trace) ? rerouted.trace : [])];
+                return rerouted;
             }
         }
 
@@ -1085,8 +1181,7 @@ export class ToolRouter {
         const canPromoteRestaurantSelection =
             runtimeIntent === 'find_nearby'
             && !!transcriptText
-            && (!args?.location || !!locationLooksLikeRestaurant)
-            && !hasGeoArgs;
+            && (!args?.location || !!locationLooksLikeRestaurant || hasGeoArgs);
         const transcriptRestaurantMatch = canPromoteRestaurantSelection
             ? (findRestaurantInText(transcriptText) || locationLooksLikeRestaurant)
             : null;
@@ -1113,11 +1208,16 @@ export class ToolRouter {
                 transcriptText,
                 locationLooksLikeRestaurant: !!locationLooksLikeRestaurant,
             });
+            const locationMentionedByUser = transcriptMentionsLocation(transcriptText, locationToCheck);
+            const locationLooksHallucinated = Boolean(locationToCheck)
+                && Boolean(transcriptText)
+                && !locationMentionedByUser
+                && !locationLooksLikeRestaurant;
 
-            if (shouldDropLocation) {
+            if (shouldDropLocation || locationLooksHallucinated) {
                 entities.location = null;
                 if (Object.prototype.hasOwnProperty.call(args, 'location')) delete args.location;
-                trace.push('live_find_location_dropped_for_gps');
+                trace.push(shouldDropLocation ? 'live_find_location_dropped_for_gps' : 'live_find_location_hallucinated_dropped_for_gps');
 
                 if (!textCameFromTranscript) {
                     if (entities.cuisine) {

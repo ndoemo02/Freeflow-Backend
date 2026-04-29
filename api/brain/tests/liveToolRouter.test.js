@@ -393,6 +393,37 @@ describe('Live ToolRouter', () => {
         expect(result.trace.some((entry) => entry.includes('live_find_location_rejected:restaurant_alias'))).toBe(true);
     });
 
+    it('promotes find_nearby to select_restaurant even when GPS args are present', async () => {
+        const sessions = new Map([
+            ['sess_live_promote_gps', { conversationPhase: 'neutral', orderMode: 'neutral' }],
+        ]);
+
+        const getSession = (id) => sessions.get(id) || {};
+        const updateSession = (id, patch) => {
+            const prev = sessions.get(id) || {};
+            const next = { ...prev, ...patch };
+            sessions.set(id, next);
+            return next;
+        };
+
+        const router = new ToolRouter({
+            handlers: makeFakeHandlers(),
+            getSession,
+            updateSession,
+        });
+
+        const result = await router.executeToolCall({
+            sessionId: 'sess_live_promote_gps',
+            toolName: 'find_nearby',
+            args: { location: 'Piekary Slaskie', lat: 50.39, lng: 18.95 },
+            transcript: 'chce zamowic w lawasz kebab w piekarach slaskich',
+        });
+
+        expect(result.ok).toBe(true);
+        expect(result.response.intent).toBe('select_restaurant');
+        expect(result.trace.some((entry) => entry.includes('live_find_promoted:select_restaurant'))).toBe(true);
+    });
+
     it('sanitizes address-like location in live find_nearby and uses session city fallback', async () => {
         const sessions = new Map([
             ['sess_live_location_address', {
@@ -548,6 +579,127 @@ describe('Live ToolRouter', () => {
         expect(capturedEntities?.location).toBeNull();
         expect(capturedText).toBe('szukam Polish');
         expect(result.trace.some((entry) => entry.includes('live_find_location_dropped_for_gps'))).toBe(true);
+    });
+
+    it('drops hallucinated location in find_nearby when GPS exists and transcript does not mention city', async () => {
+        const sessions = new Map([
+            ['sess_live_gps_hallucinated_location', {
+                conversationPhase: 'neutral',
+                orderMode: 'neutral',
+            }],
+        ]);
+
+        const getSession = (id) => sessions.get(id) || {};
+        const updateSession = (id, patch) => {
+            const prev = sessions.get(id) || {};
+            const next = { ...prev, ...patch };
+            sessions.set(id, next);
+            return next;
+        };
+
+        let capturedText = null;
+        let capturedEntities = null;
+        const handlers = makeFakeHandlers();
+        handlers.food.find_nearby = {
+            execute: async (ctx) => {
+                capturedText = ctx.text;
+                capturedEntities = ctx.entities;
+                return {
+                    reply: 'OK',
+                    restaurants: [{ id: 'r1', name: 'Rest 1' }],
+                    contextUpdates: { expectedContext: 'select_restaurant' },
+                };
+            },
+        };
+
+        const router = new ToolRouter({
+            handlers,
+            getSession,
+            updateSession,
+        });
+
+        const result = await router.executeToolCall({
+            sessionId: 'sess_live_gps_hallucinated_location',
+            toolName: 'find_nearby',
+            args: { location: 'Jozefow', cuisine: 'Kebab', lat: 50.39, lng: 18.95 },
+            transcript: 'kebab',
+        });
+
+        expect(result.ok).toBe(true);
+        expect(capturedEntities?.location).toBeNull();
+        expect(capturedText).toBe('szukam Kebab');
+        expect(result.trace.some((entry) => entry.includes('live_find_location_hallucinated_dropped_for_gps'))).toBe(true);
+    });
+
+    it('recovers add_items restaurant scope from transcript when model passes location-like restaurant_name', async () => {
+        const sessions = new Map([
+            ['sess_live_order_recover', {
+                conversationPhase: 'neutral',
+                orderMode: 'neutral',
+            }],
+        ]);
+
+        const getSession = (id) => sessions.get(id) || {};
+        const updateSession = (id, patch) => {
+            const prev = sessions.get(id) || {};
+            const next = { ...prev, ...patch };
+            sessions.set(id, next);
+            return next;
+        };
+
+        const router = new ToolRouter({
+            handlers: makeFakeHandlers(),
+            getSession,
+            updateSession,
+        });
+
+        const result = await router.executeToolCall({
+            sessionId: 'sess_live_order_recover',
+            toolName: 'add_items_to_cart',
+            args: {
+                restaurant_name: 'Piekary Slaskie',
+                items: [{ dish: 'Karkowka XL', quantity: 1 }],
+            },
+            transcript: 'chcialbym zlozyc zamowienie w lawasz kebab w piekarach slaskich',
+        });
+
+        expect(result.ok).toBe(true);
+        expect(result.response.intent).toBe('create_order');
+        expect(result.trace.some((entry) => entry.includes('live_order_restaurant_recovered:'))).toBe(true);
+    });
+
+    it('reroutes add_item_to_cart to show_menu when dish is actually a restaurant name', async () => {
+        const sessions = new Map([
+            ['sess_live_order_menu_reroute', {
+                conversationPhase: 'neutral',
+                orderMode: 'neutral',
+            }],
+        ]);
+
+        const getSession = (id) => sessions.get(id) || {};
+        const updateSession = (id, patch) => {
+            const prev = sessions.get(id) || {};
+            const next = { ...prev, ...patch };
+            sessions.set(id, next);
+            return next;
+        };
+
+        const router = new ToolRouter({
+            handlers: makeFakeHandlers(),
+            getSession,
+            updateSession,
+        });
+
+        const result = await router.executeToolCall({
+            sessionId: 'sess_live_order_menu_reroute',
+            toolName: 'add_item_to_cart',
+            args: { dish: 'Lawasz Kebab' },
+            transcript: 'lawasz kebab',
+        });
+
+        expect(result.ok).toBe(true);
+        expect(result.response.intent).toBe('menu_request');
+        expect(result.trace.some((entry) => entry.includes('live_order_dish_is_restaurant:reroute_show_menu'))).toBe(true);
     });
 });
 

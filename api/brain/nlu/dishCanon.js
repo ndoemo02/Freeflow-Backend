@@ -359,8 +359,15 @@ export function canonicalizeDish(text, sessionContext = null) {
         }
     }
 
+    // Find matching alias at word boundaries. First match wins (insertion order).
+    // Prevents substring false-positives (e.g. "kebab rollo" matching "kebab"
+    // when the user meant a rollo kebab, not "Kebab amerykański").
     for (const [dbName, alias] of Object.entries(dishCanon)) {
-        if (normalized.includes(alias)) {
+        const idx = normalized.indexOf(alias);
+        if (idx === -1) continue;
+        const beforeOk = idx === 0 || normalized[idx - 1] === ' ';
+        const afterOk = idx + alias.length === normalized.length || normalized[idx + alias.length] === ' ';
+        if (beforeOk && afterOk) {
             return dbName;
         }
     }

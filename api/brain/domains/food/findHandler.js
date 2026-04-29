@@ -1090,8 +1090,12 @@ export class FindRestaurantHandler {
 
         const discoveryEngineReady = await loadDiscoveryEngine();
 
-        if (!usedItemLedDiscovery && discoveryEngineReady && restaurants.length > 0) {
-            const rawText = ctx.text || '';
+        // Pomiń filtr taksonomii gdy brak cuisine — nie ma sygnału do filtrowania.
+        // Dla CITY/GPS + cuisine=null restauracje z SQL są poprawne bez filtra.
+        const hasCuisineSignal = Boolean(cuisine);
+        if (!usedItemLedDiscovery && discoveryEngineReady && restaurants.length > 0 && hasCuisineSignal) {
+            // Buduj query tylko z cuisine, nie z pełnego transkryptu.
+            const rawText = cuisine || ctx.text || '';
             const parsed = _matchQueryToTaxonomy(rawText);
 
             // ── FAZA 1: SHADOW LOG ──

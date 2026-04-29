@@ -126,7 +126,7 @@ function buildActionSummary({ toolName, response }) {
         return `Załadowano menu (${menuItemsCount} pozycji).`;
     }
     if (toolName === 'compare_restaurants' && restaurantsCount != null) {
-        return `Porownano ${restaurantsCount} restauracji.`;
+        return `Poównano ${restaurantsCount} restauracji.`;
     }
     if (toolName === 'add_item_to_cart' || toolName === 'add_items_to_cart' || runtimeIntent === 'create_order') {
         if (cartItemsCount != null) return `Zaktualizowano koszyk (${cartItemsCount} pozycji).`;
@@ -157,6 +157,16 @@ export class GeminiLiveGateway {
         if (this.wss) return this.wss;
 
         this.wss = new WebSocketServer({ server, path });
+        this._activeSockets = new Map();
+
+        // Keepalive — ping wszystkich klientów co 30s, zapobiega terminacji
+        // idle połączeń przez Vercel proxy (1001/1006).
+        this._keepaliveInterval = setInterval(() => {
+            this.wss?.clients.forEach((ws) => {
+                if (ws.readyState === ws.OPEN) ws.ping();
+            });
+        }, 30000);
+        this._keepaliveInterval.unref?.();
 
         this.wss.on('connection', async (socket, req) => {
             if (!this.isLiveEnabled()) {
@@ -178,25 +188,20 @@ export class GeminiLiveGateway {
                 return;
             }
 
+            // Deduplikacja: zamknij poprzedni socket dla tego samego sessionId
+            // przed rejestracją nowego — zapobiega data race w sessionStore.
+            const existingSocket = this._activeSockets.get(sessionId);
+            if (existingSocket && existingSocket !== socket) {
+                try {
+                    existingSocket.close(4000, 'duplicate_session_replaced');
+                } catch { /* socket already closing */ }
+            }
+            this._activeSockets.set(sessionId, socket);
+
             liveLog.wsConnect({ sessionId });
-            const runtimeModel = await resolveRuntimeLiveModel();
-            console.log(`[LIVE BACK MODEL] ${runtimeModel} sessionId=${sessionId}`);
-            liveMetricsSessionStart({
-                sessionId,
-                model: runtimeModel,
-            });
 
-            socket.on('close', (code) => {
-                liveLog.wsDisconnect({ sessionId, code });
-                liveMetricsSessionClose({ sessionId });
-            });
-
-            socket.send(JSON.stringify({
-                type: 'live_ready',
-                session_id: sessionId,
-                tools: LIVE_TOOL_SCHEMAS.map((tool) => tool.name),
-            }));
-
+            // Rejestruj handler message PRZED await resolveRuntimeLiveModel.
+            // Eliminuje okno ~200ms gdzie przychodzące wiadomości były gubione.
             socket.on('message', async (rawPayload) => {
                 const parsed = safeJsonParse(rawPayload.toString());
 
@@ -462,6 +467,24 @@ export class GeminiLiveGateway {
                     }));
                 }
             });
+
+            socket.on('close', (code) => {
+                if (this._activeSockets.get(sessionId) === socket) {
+                    this._activeSockets.delete(sessionId);
+                }
+                liveLog.wsDisconnect({ sessionId, code });
+                liveMetricsSessionClose({ sessionId });
+            });
+
+            const runtimeModel = await resolveRuntimeLiveModel();
+            console.log(`[LIVE BACK MODEL] ${runtimeModel} sessionId=${sessionId}`);
+            liveMetricsSessionStart({ sessionId, model: runtimeModel });
+
+            socket.send(JSON.stringify({
+                type: 'live_ready',
+                session_id: sessionId,
+                tools: LIVE_TOOL_SCHEMAS.map((tool) => tool.name),
+            }));
         });
 
         return this.wss;

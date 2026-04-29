@@ -994,9 +994,6 @@ async function resolveOrderCandidate({
     const modifierBaseIsAddon =
         isExplicitAddonRequest(modifierSourceText) ||
         isGenericTokenOnly(modifierSourceText);
-    const shouldApplyModifierPriority =
-        Boolean(modifierHint) &&
-        (addonContext || explicitAddonRequest || modifierBaseIsAddon || genericTokenBlocked);
 
     const explicitAddonRequest =
         addonContext ||
@@ -1008,6 +1005,10 @@ async function resolveOrderCandidate({
     const genericTokenBlocked =
         isGenericTokenOnly(rawRequestedDish) ||
         isGenericTokenOnly(requestedDish);
+
+    const shouldApplyModifierPriority =
+        Boolean(modifierHint) &&
+        (addonContext || explicitAddonRequest || modifierBaseIsAddon || genericTokenBlocked);
     const shouldBlockGenericToken = genericTokenBlocked && !modifierHint;
 
     if (shouldBlockGenericToken) {
