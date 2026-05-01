@@ -19,7 +19,7 @@ import {
 import { getSession } from '../../brain/session/sessionStore.js';
 
 const TOOL_EXECUTION_TIMEOUT_MS = 12000;
-const DEFAULT_LIVE_MODEL = process.env.GEMINI_LIVE_MODEL || process.env.LIVE_MODEL || 'gemini-2.5-flash-live-001';
+const DEFAULT_LIVE_MODEL = process.env.GEMINI_LIVE_MODEL || process.env.LIVE_MODEL || 'gemini-2.5-flash-native-audio-preview-12-2025';
 const GPS_SOFT_RESET_DISTANCE_KM = 0.8;
 
 async function resolveRuntimeLiveModel() {
