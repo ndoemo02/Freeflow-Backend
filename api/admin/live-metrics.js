@@ -23,7 +23,7 @@ export default async function handler(req, res) {
     } catch (error) {
         return res.status(200).json({
             ok: true,
-            liveModel: process.env.GEMINI_LIVE_MODEL || process.env.LIVE_MODEL || 'gemini-2.5-flash-native-audio-preview-12-2025',
+            liveModel: process.env.GEMINI_LIVE_MODEL || process.env.LIVE_MODEL || 'gemini-2.5-flash-live-001',
             sessionsOpened: 0,
             sessionsClosed: 0,
             reconnects: 0,

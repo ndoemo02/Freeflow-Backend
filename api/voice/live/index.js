@@ -15,7 +15,7 @@ export function registerLiveRoutes(app) {
         const fallbackModel =
             process.env.GEMINI_LIVE_MODEL ||
             process.env.LIVE_MODEL ||
-            'gemini-2.5-flash-native-audio-preview-12-2025';
+            'gemini-2.5-flash-live-001';
 
         try {
             const { getConfig } = await import('../../config/configService.js');

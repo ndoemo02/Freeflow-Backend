@@ -32,7 +32,7 @@ const DEFAULT_CONFIG = {
   live_model:
     process.env.GEMINI_LIVE_MODEL ||
     process.env.LIVE_MODEL ||
-    "gemini-2.5-flash-native-audio-preview-12-2025",
+    "gemini-2.5-flash-live-001",
   streaming: { enabled: true },
   tts_enabled: true,
   cache_enabled: true,

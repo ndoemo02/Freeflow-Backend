@@ -591,7 +591,7 @@ app.get('/api/admin/live', async (req, res) => {
 });
 app.get('/api/admin/live/metrics', async (req, res) => {
   try { const mod = await import('./admin/live-metrics.js'); return mod.default(req, res); }
-  catch (err) { res.status(200).json({ ok: true, liveModel: process.env.GEMINI_LIVE_MODEL || process.env.LIVE_MODEL || 'gemini-2.5-flash-native-audio-preview-12-2025', sessionsOpened: 0, sessionsClosed: 0, reconnects: 0, toolCalls: 0, toolCallsByName: {}, audioFramesSent: 0, audioBytesSent: 0, avgSessionDurationSec: 0, estimatedCostSession: 0, estimatedCostToday: 0, estimatedCostMonth: 0, burnRateLastHour: 0, error: err.message }); }
+  catch (err) { res.status(200).json({ ok: true, liveModel: process.env.GEMINI_LIVE_MODEL || process.env.LIVE_MODEL || 'gemini-2.5-flash-live-001', sessionsOpened: 0, sessionsClosed: 0, reconnects: 0, toolCalls: 0, toolCallsByName: {}, audioFramesSent: 0, audioBytesSent: 0, avgSessionDurationSec: 0, estimatedCostSession: 0, estimatedCostToday: 0, estimatedCostMonth: 0, burnRateLastHour: 0, error: err.message }); }
 });
 app.get('/api/admin/prompt', async (req, res) => {
   try { const mod = await import('./admin/prompt.js'); return mod.default(req, res); }
