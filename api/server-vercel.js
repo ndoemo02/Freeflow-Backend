@@ -20,9 +20,8 @@ global.BRAIN_DEBUG = process.env.BRAIN_DEBUG === 'true';
 // --- App setup ---
 const app = express();
 app.use(express.json());
-registerLiveRoutes(app);
 
-// CORS configuration
+// CORS — MUST be before any route registration
 const CORS_ORIGINS_PROD = [
   'https://freeflow-frontend-seven.vercel.app',
   'https://freeflow-frontend.vercel.app',
@@ -60,6 +59,9 @@ app.options(/.*/, (req, res) => {
   res.status(200).end();
 });
 // app.use(morgan('tiny'));
+
+// Routes — registered AFTER CORS middleware
+registerLiveRoutes(app);
 
 // --- Env sanity ---
 console.log('🚀 Booting FreeFlow Serverless...');
