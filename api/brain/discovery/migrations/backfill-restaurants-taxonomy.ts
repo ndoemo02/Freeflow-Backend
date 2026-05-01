@@ -18,6 +18,13 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
+import {
+  TOP_GROUP_KEYWORDS,
+  CATEGORY_KEYWORDS,
+  CORE_TAG_KEYWORDS,
+  VIBE_KEYWORDS,
+  DIETARY_KEYWORDS,
+} from '../queryUnderstanding.js';
 
 // ─── Config ────────────────────────────────────────────────────
 
@@ -32,50 +39,6 @@ const DRY_RUN = process.env.DRY_RUN !== 'false'; // default: true
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// ─── Inline taxonomy maps (from taxonomy.runtime.ts) ──────────
-
-const TOP_GROUP_KEYWORDS: Record<string, string[]> = {
-  fast_food:     ['fast food', 'burger', 'burgery', 'hot dog', 'hotdog', 'zapiekanka', 'frytki', 'nuggets', 'szybkie jedzenie', 'na szybko'],
-  pizza_italian: ['pizza', 'pizzę', 'pizzy', 'pizzeria', 'pizzerii', 'pizzerię', 'pasta', 'spaghetti', 'carbonara', 'bolognese', 'lasagne', 'risotto', 'włoska', 'włoskie'],
-  asian:         ['sushi', 'ramen', 'wok', 'maki', 'nigiri', 'pho', 'pad thai', 'dim sum', 'azjatyckie', 'azja', 'chińskie', 'chinka', 'tajskie', 'japońskie', 'wietnamskie', 'wietnamska', 'wietnam'],
-  polish:        ['pierogi', 'żurek', 'barszcz', 'schabowy', 'bigos', 'kotlet', 'rosół', 'gołąbki', 'polskie', 'polska kuchnia', 'domowe', 'tradycyjne', 'polska', 'śląska', 'kuchnia polska'],
-  grill:         ['kebab', 'döner', 'doner', 'stek', 'steki', 'wołowina', 'żeberka', 'bbq', 'z rusztu', 'grill', 'grillowane'],
-  desserts_cafe: ['kawa', 'kawę', 'cappuccino', 'latte', 'espresso', 'ciasto', 'tort', 'lody', 'naleśniki', 'waffle', 'gofry', 'deser', 'desery', 'kawiarnia', 'cukiernia'],
-};
-
-const CATEGORY_KEYWORDS: Record<string, string[]> = {
-  burgers:        ['burger', 'burgery', 'hamburger', 'cheeseburger', 'smash burger'],
-  kebab:          ['kebab', 'döner', 'doner', 'shawarma', 'falafel', 'gyros'],
-  pizza_takeaway: ['pizza na wynos', 'pizza z dostawą'],
-  hot_snacks:     ['frytki', 'nuggets', 'hot dog', 'hotdog', 'zapiekanka', 'tortilla'],
-  pizza:          ['pizza', 'pizzę', 'pizzy', 'pizzeria', 'pizzerii', 'pizzerię', 'neapolitańska', 'margarita'],
-  pasta:          ['pasta', 'spaghetti', 'carbonara', 'bolognese', 'lasagne', 'tagliatelle'],
-  risotto:        ['risotto', 'bruschetta', 'tiramisu'],
-  sushi:          ['sushi', 'maki', 'nigiri', 'temaki', 'sashimi', 'uramaki', 'japońskie'],
-  ramen_noodles:  ['ramen', 'udon', 'soba', 'pad thai', 'lo mein', 'makaron azjatycki'],
-  vietnamese:     ['pho', 'bun bo', 'banh mi', 'wietnamskie', 'wietnam'],
-  chinese:        ['chińskie', 'wok', 'dim sum', 'chow mein', 'chinka'],
-  thai:           ['tajskie', 'pad thai', 'green curry', 'tom yum'],
-  pierogi:        ['pierogi', 'kopytka', 'uszka'],
-  zupy:           ['żurek', 'barszcz', 'rosół', 'zupa', 'flaki', 'grochówka', 'zupy'],
-  tradycyjne:     ['schabowy', 'bigos', 'kotlet', 'gołąbki', 'zrazy', 'tradycyjne'],
-  kebab_grill:    ['kebab z grilla', 'kebab sit-down'],
-  steak:          ['stek', 'steki', 'wołowina', 't-bone', 'ribeye', 'antrykot'],
-  bbq:            ['bbq', 'żeberka', 'pulled pork', 'smoker', 'wędzony'],
-  cafe:           ['kawa', 'kawę', 'espresso', 'cappuccino', 'latte', 'americano', 'kawiarnia'],
-  cake_bakery:    ['ciasto', 'tort', 'croissant', 'muffin', 'chleb', 'piekarnia', 'cukiernia'],
-  ice_cream:      ['lody', 'gelato', 'naleśniki', 'waffle', 'gofry'],
-};
-
-// open_now is NEVER stored — filtered out below
-const CORE_TAG_KEYWORDS: Record<string, string[]> = {
-  spicy:    ['ostre', 'pikantne', 'pikantny', 'chilli', 'sriracha', 'piekące'],
-  vege:     ['wege', 'wegetariańskie', 'wegetariański', 'bez mięsa', 'wegańskie', 'vegan', 'roślinne'],
-  quick:    ['szybko', 'szybkie', 'szybki', 'na szybko', 'express', 'fast'],
-  delivery: ['dostawa', 'dowóz', 'przynieś', 'wolt', 'uber eats', 'glovo', 'z dostawą', 'na wynos z dostawą'],
-  // open_now intentionally omitted
-};
-
 // ─── Inline inference logic (mirrors adapter) ───────────────────
 
 type RestaurantRow = {
@@ -85,6 +48,8 @@ type RestaurantRow = {
   delivery_available?: boolean | null;
   price_level?: number | null;
   taxonomy_groups?: string[] | null;
+  taxonomy_vibes?: string[] | null;
+  taxonomy_dietarys?: string[] | null;
 };
 
 function buildCorpus(r: RestaurantRow): string {
@@ -95,10 +60,14 @@ function inferFromCorpus(corpus: string): {
   taxonomy_groups: string[];
   taxonomy_cats: string[];
   taxonomy_tags: string[];
+  taxonomy_vibes: string[];
+  taxonomy_dietarys: string[];
 } {
   const groups: string[] = [];
   const cats: string[] = [];
   const tags: string[] = [];
+  const vibes: string[] = [];
+  const dietarys: string[] = [];
 
   for (const [group, keywords] of Object.entries(TOP_GROUP_KEYWORDS)) {
     if (keywords.some((kw) => corpus.includes(kw))) groups.push(group);
@@ -112,11 +81,18 @@ function inferFromCorpus(corpus: string): {
     if (keywords.some((kw) => corpus.includes(kw))) tags.push(tag);
   }
 
+  for (const [vibe, keywords] of Object.entries(VIBE_KEYWORDS)) {
+    if (keywords.some((kw) => corpus.includes(kw))) vibes.push(vibe);
+  }
+
+  for (const [diet, keywords] of Object.entries(DIETARY_KEYWORDS)) {
+    if (keywords.some((kw) => corpus.includes(kw))) dietarys.push(diet);
+  }
+
   // fast_food → always add 'quick' tag
   if (groups.includes('fast_food') && !tags.includes('quick')) tags.push('quick');
 
-  // delivery signal from existing column
-  return { taxonomy_groups: groups, taxonomy_cats: cats, taxonomy_tags: tags };
+  return { taxonomy_groups: groups, taxonomy_cats: cats, taxonomy_tags: tags, taxonomy_vibes: vibes, taxonomy_dietarys: dietarys };
 }
 
 function resolvePriceLevel(r: RestaurantRow, corpus: string): number {
@@ -165,6 +141,8 @@ async function main() {
     taxonomy_groups: string[];
     taxonomy_cats: string[];
     taxonomy_tags: string[];
+    taxonomy_vibes: string[];
+    taxonomy_dietarys: string[];
     price_level: number;
     uncertain: boolean;
   }> = [];
@@ -193,9 +171,11 @@ async function main() {
     const status = isUncertain ? '⚠️  UNCERTAIN' : '✅';
     console.log(`${status} ${r.name}`);
     if (inferred.taxonomy_groups.length > 0) {
-      console.log(`   groups: [${inferred.taxonomy_groups.join(', ')}]`);
-      console.log(`   cats:   [${inferred.taxonomy_cats.join(', ')}]`);
-      console.log(`   tags:   [${inferred.taxonomy_tags.join(', ')}]`);
+      console.log(`   groups:   [${inferred.taxonomy_groups.join(', ')}]`);
+      console.log(`   cats:     [${inferred.taxonomy_cats.join(', ')}]`);
+      console.log(`   tags:     [${inferred.taxonomy_tags.join(', ')}]`);
+      if (inferred.taxonomy_vibes.length > 0) console.log(`   vibes:    [${inferred.taxonomy_vibes.join(', ')}]`);
+      if (inferred.taxonomy_dietarys.length > 0) console.log(`   dietarys: [${inferred.taxonomy_dietarys.join(', ')}]`);
     } else {
       console.log(`   corpus: "${corpus.slice(0, 80)}..."`);
       console.log(`   → No taxonomy match. Will store empty arrays.`);
@@ -228,6 +208,8 @@ async function main() {
         taxonomy_groups: u.taxonomy_groups,
         taxonomy_cats: u.taxonomy_cats,
         taxonomy_tags: u.taxonomy_tags,
+        taxonomy_vibes: u.taxonomy_vibes,
+        taxonomy_dietarys: u.taxonomy_dietarys,
         price_level: u.price_level,
       })
       .eq('id', u.id);

@@ -159,6 +159,24 @@ function detectItemFamilyFromText(text = '') {
     return null;
 }
 
+function isItemFamilyConflict(detectedFamily, restaurant) {
+    const familyNorm = toLooseAscii(detectedFamily);
+    if (!familyNorm || !restaurant) return false;
+    const aliases = [restaurant.name, ...(restaurant.aliases || [])]
+        .filter(Boolean)
+        .map(a => toLooseAscii(a));
+    return aliases.some(alias => includesWholePhrase(alias, familyNorm) || alias === familyNorm);
+}
+
+function restaurantNameMatchesAny(parsedRestaurantText, matchedRestaurant) {
+    if (!parsedRestaurantText || !matchedRestaurant) return false;
+    const textNorm = toLooseAscii(parsedRestaurantText);
+    const candidates = [matchedRestaurant.name, ...(matchedRestaurant.aliases || [])]
+        .filter(Boolean)
+        .map(a => toLooseAscii(a));
+    return candidates.some(c => includesWholePhrase(textNorm, c) || includesWholePhrase(c, textNorm));
+}
+
 const SPICY_PREFERENCE_TOKENS = new Set([
     'ostro', 'ostry', 'ostra', 'ostre', 'ostrego', 'ostrej',
     'pikantny', 'pikantna', 'pikantne', 'pikantnego', 'pikantnej',
@@ -420,6 +438,12 @@ export class NLURouter {
         const parsed = parseRestaurantAndDish(text);
         const detectedItemFamily = detectItemFamilyFromText(safeText);
 
+        // Gdy item-family (np. "lawasz", "kebab") koliduje z nazwą restauracji
+        // (np. "LAWASZ KEBAB"), nie traktujemy tego jako explicit restaurant target.
+        // Użytkownik szuka jedzenia typu "lawasz", a nie restauracji o tej nazwie.
+        const matchedRestaurantIsItemFamily = detectedItemFamily && matchedRestaurant &&
+            isItemFamilyConflict(detectedItemFamily, matchedRestaurant);
+
         if (detectedItemFamily) {
             nluLog(`[NLU_ITEM_DETECTED] family=${detectedItemFamily}`);
             BrainLogger.nlu(`[NLU_ITEM_DETECTED] family=${detectedItemFamily}`);
@@ -434,10 +458,22 @@ export class NLURouter {
             dish: parsed.dish || detectedItemFamily || null, // EXPOSE DISH GLOBALLY
             items: parsed.items || null
         };
+        // parsed.restaurant często łapie lokacje (np. "piekarach") jako nazwę restauracji.
+        // Akceptujemy tylko gdy pasuje do katalogu (matchedRestaurant).
+        const parsedRestaurantMatchesCatalog = parsed?.restaurant && matchedRestaurant &&
+            restaurantNameMatchesAny(parsed.restaurant, matchedRestaurant);
+
+        // Gdy item-family (np. "lawasz") koliduje z nazwą restauracji (np. "LAWASZ KEBAB")
+        // i tekst zawiera frazę lokacyjną (np. "w piekarach") — to discovery, nie wybór restauracji.
+        // Bez lokacji ("calzone") — to wybór restauracji.
+        const hasLocationPhrase = /\bw\s+[a-ząćęłńóśźż]{3,}/i.test(normalized);
+        const itemFamilyOverridesRestaurant = matchedRestaurantIsItemFamily &&
+            (location || explicitDiscoverySignal || hasLocationPhrase);
+
         const hasExplicitRestaurantTarget = Boolean(
-            entities.restaurantId ||
-            matchedRestaurant?.id ||
-            parsed?.restaurant
+            (entities.restaurantId && !itemFamilyOverridesRestaurant) ||
+            (matchedRestaurant?.id && !itemFamilyOverridesRestaurant) ||
+            parsedRestaurantMatchesCatalog
         );
 
         const hasSelectionSignal = hasRestaurantSelectionSignal(text, normalizedLoose, {
@@ -961,7 +997,7 @@ export class NLURouter {
             !session?.currentRestaurant &&
             !!detectedItemFamily &&
             !hasExplicitRestaurantTarget &&
-            (location || explicitDiscoverySignal || !matchedRestaurant);
+            (location || explicitDiscoverySignal || !matchedRestaurant || matchedRestaurantIsItemFamily);
 
         if (shouldForceItemDiscovery) {
             nluLog('[TEXT_ORDER_DECISION]', JSON.stringify({

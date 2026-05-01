@@ -321,6 +321,206 @@ RESTAURANTS.forEach(r => {
   reasons.forEach(reason => console.log(`       ${DIM}${reason}${RESET}`));
 });
 
+// Dodajemy mock z cechami vibe/dietary do testowania nowych wymiarów
+const EXTRA_RESTAURANTS: LegacyRestaurant[] = [
+  ...RESTAURANTS,
+  {
+    id: 'r9',
+    name: 'Tawerna Grecka',
+    city: 'Bytom',
+    cuisine_type: 'Kuchnia grecka',
+    description: 'Romantyczna kolacja przy świecach, domowa atmosfera, dania wegańskie i bezglutenowe. Muzyka na żywo, przytulnie.',
+    tags: ['grecka', 'romantyczna', 'wege'],
+    supportsDelivery: false,
+    price_level: 3,
+  },
+  {
+    id: 'r10',
+    name: 'Rodzinny Ogródek',
+    city: 'Bytom',
+    cuisine_type: 'Kuchnia polska, desery',
+    description: 'Restauracja rodzinna z placem zabaw i kącikiem dla dzieci. Dania bezglutenowe, opcje wegetariańskie.',
+    tags: ['polska', 'rodzinna', 'plac zabaw'],
+    supportsDelivery: true,
+    price_level: 2,
+  },
+];
+
+// ─── BLOK 9: Vibe Dimension Detection ─────────────────────────
+section('BLOK 9: Vibe Dimension Detection w matchQueryToTaxonomy');
+
+const qV1 = matchQueryToTaxonomy('romantyczna kolacja we dwoje');
+assert(qV1.vibes.includes('romantic'),      'qV1 → vibe: romantic (romantyczna + kolacja we dwoje)');
+assert(qV1.confidence !== 'empty',          'qV1 → confidence ≠ empty');
+
+const qV2 = matchQueryToTaxonomy('restauracja dla dzieci z placem zabaw');
+assert(qV2.vibes.includes('family'),        'qV2 → vibe: family (dla dzieci + plac zabaw)');
+
+const qV3 = matchQueryToTaxonomy('biznesowy lunch');
+assert(qV3.vibes.includes('business'),      'qV3 → vibe: business (biznesowy lunch)');
+
+const qV4 = matchQueryToTaxonomy('pub z muzyką na żywo');
+assert(qV4.vibes.includes('loud'),          'qV4 → vibe: loud (pub + muzyka na żywo)');
+
+const qV5 = matchQueryToTaxonomy('przytulna kameralna knajpka');
+assert(qV5.vibes.includes('cozy'),          'qV5 → vibe: cozy (przytulna + kameralna)');
+
+// Vibe nie zakłóca detekcji kuchni
+const qV6 = matchQueryToTaxonomy('romantyczna pizzeria');
+assert(qV6.vibes.includes('romantic'),      'qV6 → vibe: romantic');
+assert(qV6.topGroups.includes('pizza_italian'), 'qV6 → topGroup: pizza_italian (wciąż działa)');
+assert(qV6.categories.includes('pizza'),    'qV6 → category: pizza (wciąż działa)');
+
+// ─── BLOK 10: Dietary Dimension Detection ─────────────────────
+section('BLOK 10: Dietary Dimension Detection');
+
+const qD1 = matchQueryToTaxonomy('dania bezglutenowe');
+assert(qD1.dietarys.includes('gluten_free'), 'qD1 → dietary: gluten_free');
+
+const qD2 = matchQueryToTaxonomy('restauracja keto');
+assert(qD2.dietarys.includes('keto'),       'qD2 → dietary: keto');
+
+const qD3 = matchQueryToTaxonomy('halal friendly');
+assert(qD3.dietarys.includes('halal'),      'qD3 → dietary: halal');
+
+const qD4 = matchQueryToTaxonomy('bez laktozy');
+assert(qD4.dietarys.includes('lactose_free'), 'qD4 → dietary: lactose_free');
+
+const qD5 = matchQueryToTaxonomy('wege');
+assert(qD5.tags.includes('vege'),           'qD5 → tag: vege (backward compat)');
+assert(qD5.dietarys.includes('vegetarian'), 'qD5 → dietary: vegetarian (cross-cutting)');
+
+const qD6 = matchQueryToTaxonomy('vegańskie dania');
+assert(qD6.dietarys.includes('vegan'),      'qD6 → dietary: vegan');
+
+// Dietary + kuchnia razem
+const qD7 = matchQueryToTaxonomy('wege burgery bez glutenu');
+assert(qD7.dietarys.includes('vegetarian'), 'qD7 → dietary: vegetarian');
+assert(qD7.dietarys.includes('gluten_free'),'qD7 → dietary: gluten_free');
+assert(qD7.tags.includes('vege'),           'qD7 → tag: vege');
+assert(qD7.confidence === 'deterministic',  'qD7 → confidence: deterministic (≥2 sygnały)');
+
+// ─── BLOK 11: Vibe/Dietary Scoring ────────────────────────────
+section('BLOK 11: Vibe/Dietary Scoring');
+
+const qRomantic = matchQueryToTaxonomy('romantyczna kolacja');
+const scoreGreekRomantic = scoreRestaurant(qRomantic, EXTRA_RESTAURANTS[8]); // Tawerna Grecka
+const scoreFamily = scoreRestaurant(qRomantic, EXTRA_RESTAURANTS[9]); // Rodzinny Ogródek
+
+console.log(`\n  ${DIM}Query: "romantyczna kolacja"${RESET}`);
+console.log(`  Tawerna Grecka: score=${scoreGreekRomantic.total} (vibe:${scoreGreekRomantic.vibeScore})`);
+console.log(`  Rodzinny Ogródek: score=${scoreFamily.total} (vibe:${scoreFamily.vibeScore})`);
+
+assert(scoreGreekRomantic.vibeScore > 0,    'Tawerna Grecka → vibeScore > 0 (ma "romantyczna" w opisie)');
+assert(scoreGreekRomantic.total > scoreFamily.total, 'Tawerna Grecka → wyższy score niż Rodzinny Ogródek dla romantic');
+
+// Dietary filtering — hard AND
+const qGlutenFree = matchQueryToTaxonomy('dania bezglutenowe');
+const resGF = filterRestaurantsByDiscovery(qGlutenFree, EXTRA_RESTAURANTS);
+assert(resGF.some(r => r.id === 'r10'),     'Gluten-free → Rodzinny Ogródek przechodzi (ma "bezglutenowe" w opisie)');
+assert(!resGF.some(r => r.id === 'r2'),     'Gluten-free → Kebab u Mustafy ODPADA (brak gluten-free)');
+
+// Dietary + Vibe combined
+const qVeganRomantic = matchQueryToTaxonomy('romantyczna kolacja wegańska');
+const scoreTawerna = scoreRestaurant(qVeganRomantic, EXTRA_RESTAURANTS[8]);
+console.log(`\n  ${DIM}Query: "romantyczna kolacja wegańska"${RESET}`);
+console.log(`  Tawerna Grecka: score=${scoreTawerna.total} (vibe:${scoreTawerna.vibeScore} dietary:${scoreTawerna.dietaryScore})`);
+// Tawerna ma "wegańskie" w opisie
+assert(scoreTawerna.vibeScore > 0,          'Tawerna Grecka → vibeScore > 0 dla romantic');
+assert(scoreTawerna.dietaryScore > 0,       'Tawerna Grecka → dietaryScore > 0 dla vegan');
+
+// ─── BLOK 12: Display Map — emoji + etykiety ──────────────────
+section('BLOK 12: TAXONOMY_DISPLAY — emoji i etykiety');
+
+// Dynamiczny import z nowego modułu
+import { TAXONOMY_DISPLAY } from './queryUnderstanding.js';
+
+// Wszystkie TopGroupID mają wpis
+const allTopGroups: string[] = ['fast_food', 'pizza_italian', 'asian', 'polish', 'grill', 'desserts_cafe'];
+for (const id of allTopGroups) {
+  assert(!!TAXONOMY_DISPLAY[id],           `TAXONOMY_DISPLAY['${id}'] istnieje`);
+  assert(TAXONOMY_DISPLAY[id].emoji.length > 0, `TAXONOMY_DISPLAY['${id}'].emoji niepuste`);
+  assert(TAXONOMY_DISPLAY[id].labelPl.length > 0, `TAXONOMY_DISPLAY['${id}'].labelPl niepuste`);
+}
+
+// Wszystkie VibeID mają wpis
+const allVibes: string[] = ['romantic', 'cozy', 'business', 'loud', 'family'];
+for (const id of allVibes) {
+  assert(!!TAXONOMY_DISPLAY[id],           `TAXONOMY_DISPLAY['${id}'] istnieje`);
+  assert(TAXONOMY_DISPLAY[id].emoji.length > 0, `TAXONOMY_DISPLAY['${id}'].emoji niepuste`);
+}
+
+// Wszystkie DietaryID mają wpis
+const allDietarys: string[] = ['vegan', 'vegetarian', 'gluten_free', 'keto', 'halal', 'lactose_free'];
+for (const id of allDietarys) {
+  assert(!!TAXONOMY_DISPLAY[id],           `TAXONOMY_DISPLAY['${id}'] istnieje`);
+  assert(TAXONOMY_DISPLAY[id].emoji.length > 0, `TAXONOMY_DISPLAY['${id}'].emoji niepuste`);
+}
+
+// Konkretne emoji
+assert(TAXONOMY_DISPLAY['romantic'].emoji === '🕯️', 'romantic → 🕯️');
+assert(TAXONOMY_DISPLAY['spicy'].emoji === '🌶️',    'spicy → 🌶️');
+assert(TAXONOMY_DISPLAY['vegan'].emoji === '🌱',     'vegan → 🌱');
+assert(TAXONOMY_DISPLAY['gluten_free'].emoji === '🌾', 'gluten_free → 🌾');
+assert(TAXONOMY_DISPLAY['pizza'].emoji === '🍕',     'pizza → 🍕');
+assert(TAXONOMY_DISPLAY['family'].emoji === '👨‍👩‍👧‍👦', 'family → 👨‍👩‍👧‍👦');
+
+// ─── BLOK 13: Backward Compatibility Regression ───────────────
+section('BLOK 13: Regression — wszystkie asercje z BLOK 1-8');
+
+// BLOK 1: mapRestaurantToFeatures
+const fBurger3  = mapRestaurantToFeatures(RESTAURANTS[0]);
+const fKebab3   = mapRestaurantToFeatures(RESTAURANTS[1]);
+const fVege3    = mapRestaurantToFeatures(RESTAURANTS[2]);
+const fSushi3   = mapRestaurantToFeatures(RESTAURANTS[3]);
+const fGrill3   = mapRestaurantToFeatures(RESTAURANTS[5]);
+const fPho3     = mapRestaurantToFeatures(RESTAURANTS[7]);
+
+assert(fBurger3.topGroups.includes('fast_food'),  'REGR: BurgerHouse → fast_food');
+assert(fBurger3.tags.includes('quick'),           'REGR: BurgerHouse → quick');
+assert(fBurger3.tags.includes('delivery'),        'REGR: BurgerHouse → delivery');
+assert(fKebab3.tags.includes('spicy'),            'REGR: Kebab → spicy');
+assert(!fKebab3.tags.includes('delivery'),        'REGR: Kebab → NIE delivery');
+assert(fVege3.tags.includes('vege'),              'REGR: Zielony Talerz → vege');
+assert(fSushi3.tags.includes('spicy'),            'REGR: Sushi Sakura → spicy');
+assert(fSushi3.tags.includes('delivery'),         'REGR: Sushi Sakura → delivery');
+assert(fGrill3.categories.includes('steak'),      'REGR: Grillhouse → steak');
+assert(fGrill3.categories.includes('bbq'),        'REGR: Grillhouse → bbq');
+assert(fPho3.categories.includes('vietnamese'),   'REGR: Pho Hanoi → vietnamese');
+assert(fPho3.tags.includes('vege'),               'REGR: Pho Hanoi → vege');
+
+// BLOK 2: matchQueryToTaxonomy regression
+const q1r = matchQueryToTaxonomy('ostre sushi z dostawą');
+assert(q1r.confidence === 'deterministic',   'REGR: q1 → deterministic');
+assert(q1r.topGroups.includes('asian'),       'REGR: q1 → asian');
+
+const q3r = matchQueryToTaxonomy('co macie dzisiaj');
+assert(q3r.confidence === 'empty',           'REGR: q3 → empty');
+
+const q4r = matchQueryToTaxonomy('pizzeria');
+assert(q4r.confidence !== 'empty',           'REGR: q4 → not empty');
+assert(q4r.topGroups.includes('pizza_italian'), 'REGR: q4 → pizza_italian');
+
+// BLOK 3: scoreRestaurant regression
+const qSr = matchQueryToTaxonomy('ostre sushi z dostawą');
+const scoreSushiR = scoreRestaurant(qSr, RESTAURANTS[3]);
+const scoreBurgerR = scoreRestaurant(qSr, RESTAURANTS[0]);
+assert(scoreSushiR.total > scoreBurgerR.total, 'REGR: Sushi > Burger');
+
+// BLOK 4: filter regression
+const resAr = filterRestaurantsByDiscovery(qSr, RESTAURANTS);
+assert(resAr.length > 0,                     'REGR: filter niepusty');
+assert(resAr[0].id === 'r4',                 'REGR: Sushi Sakura #1');
+
+const qDr = matchQueryToTaxonomy('coś pysznego');
+const resDr = filterRestaurantsByDiscovery(qDr, RESTAURANTS);
+assert(resDr.length === RESTAURANTS.length,   'REGR: empty query → wszystkie');
+
+// BLOK 6: runDiscovery fallback regression
+const qEmptyR = matchQueryToTaxonomy('co macie dzisiaj');
+const resultEmptyR = runDiscovery(qEmptyR, RESTAURANTS);
+assert(resultEmptyR.fallback === 'llm',      'REGR: empty → fallback llm');
+
 // ─── Wynik ────────────────────────────────────────────────────
 section('WYNIK');
 const total = passed + failed;

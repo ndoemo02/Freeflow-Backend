@@ -14,6 +14,7 @@ import { supabase } from '../../../_supabase.js';
 // prostu nie jest aktywne. Handler nie crasha.
 let _matchQueryToTaxonomy = null;
 let _runDiscovery = null;
+let _buildChips = null;
 let _discoveryUnavailable = false;
 
 async function loadDiscoveryEngine() {
@@ -29,6 +30,7 @@ async function loadDiscoveryEngine() {
         }
         _matchQueryToTaxonomy = mod.matchQueryToTaxonomy;
         _runDiscovery = mod.runDiscovery;
+        _buildChips = mod.buildChips || null;
         return true;
     } catch (err) {
         _discoveryUnavailable = true;
@@ -587,12 +589,19 @@ function getCuisineSearchVariants(cuisine) {
         return [base, 'Amerykanska', 'Amerykańska', 'Kebab', 'Burger', 'Burgery'];
     }
 
+    // Jeśli cuisine nie pasuje do żadnej reguły normalizacji (np. 'ostre', 'kawiarnia'),
+    // nie filtruj SQL po cuisine_type — to są sygnały taksonomiczne (tagi/kategorie),
+    // a nie cuisine_type w bazie. Discovery engine je obsłuży.
+    const matchesAnyRule = CUISINE_NORMALIZATION_RULES.some(r => r.pattern.test(normalized));
+    if (!matchesAnyRule) return [];
+
     return [base];
 }
 
 async function searchRestaurantsWithCuisineVariants(repo, location, cuisine) {
     if (!cuisine) return repo.searchRestaurants(location, null);
     const variants = getCuisineSearchVariants(cuisine);
+    if (variants.length === 0) return repo.searchRestaurants(location, null);
     let merged = [];
     for (const variant of variants) {
         const rows = await repo.searchRestaurants(location, variant);
@@ -604,6 +613,7 @@ async function searchRestaurantsWithCuisineVariants(repo, location, cuisine) {
 async function searchNearbyWithCuisineVariants(repo, lat, lng, radiusKm, cuisine) {
     if (!cuisine) return repo.searchNearby(lat, lng, radiusKm, null);
     const variants = getCuisineSearchVariants(cuisine);
+    if (variants.length === 0) return repo.searchNearby(lat, lng, radiusKm, null);
     let merged = [];
     for (const variant of variants) {
         const rows = await repo.searchNearby(lat, lng, radiusKm, variant);
@@ -851,6 +861,27 @@ export class FindRestaurantHandler {
 
         console.log(`🔎 Discovery Mode: ${mode}`, discoveryParams);
 
+        // ── EARLY CHIP PARSING ──────────────────────────────────────
+        // Parse the user's text immediately to build taxonomy chips.
+        // Chips are emitted with the response so the frontend can show
+        // emoji + labels above the Voice Bar alongside results.
+        let earlyChips = null;
+        let earlyConfidence = 'empty';
+        const discoveryEngineReady = await loadDiscoveryEngine();
+        if (discoveryEngineReady && _buildChips) {
+            const chipText = ctx?.text || cuisine || '';
+            if (chipText) {
+                try {
+                    const earlyParsed = _matchQueryToTaxonomy(chipText);
+                    earlyChips = _buildChips(earlyParsed);
+                    earlyConfidence = earlyParsed.confidence;
+                } catch (chipErr) {
+                    console.warn('[Discovery:Chips] build failed:', chipErr?.message);
+                }
+            }
+        }
+        // ─────────────────────────────────────────────────────────────
+
         // 2. Execute Strategy
         let restaurants = [];
         let foundInNearby = false;
@@ -1037,8 +1068,8 @@ export class FindRestaurantHandler {
             if (!restaurants || restaurants.length === 0) {
                 return {
                     reply: cuisine
-                        ? `Nie widzę restauracji ${cuisine} w Twojej okolicy. ${buildServiceCityOnlyReply()}`
-                        : `Nie widzę żadnych restauracji w pobliżu. ${buildServiceCityOnlyReply()}`,
+                        ? `Nie widzę restauracji ${cuisine} w Twojej okolicy. Może inna kuchnia albo szersze wyszukiwanie?`
+                        : `Nie widzę żadnych restauracji w pobliżu. Spróbuj podać miasto albo inną kuchnię.`,
                     contextUpdates: {}
                 };
             }
@@ -1088,8 +1119,6 @@ export class FindRestaurantHandler {
         //   Wszystkie zapytania przez nowy silnik + LLM fallback signal.
         // ─────────────────────────────────────────────────────────────
 
-        const discoveryEngineReady = await loadDiscoveryEngine();
-
         // Pomiń filtr taksonomii gdy brak cuisine — nie ma sygnału do filtrowania.
         // Dla CITY/GPS + cuisine=null restauracje z SQL są poprawne bez filtra.
         const hasCuisineSignal = Boolean(cuisine);
@@ -1106,6 +1135,8 @@ export class FindRestaurantHandler {
                 topGroups: parsed.topGroups,
                 categories: parsed.categories,
                 tags: parsed.tags,
+                vibes: parsed.vibes,
+                dietarys: parsed.dietarys,
                 open_now: parsed.open_now,
                 fallback: shadowResult.fallback,
                 before: shadowResult.totalBeforeFilter,
@@ -1148,11 +1179,21 @@ export class FindRestaurantHandler {
         // cityGPSRetry: CITY failed with garbage name, results found via GPS — don't persist bad city
         const finalLocation = cityGPSRetry ? 'GPS' : (nearbySourceCity || location || (mode === 'GPS' ? 'GPS' : null));
 
+        const events = [];
+        if (earlyChips && earlyChips.length > 0) {
+            events.push({
+                type: 'parser_chips',
+                chips: earlyChips,
+                confidence: earlyConfidence,
+            });
+        }
+
         return {
             reply,
             closing_question: "Którą wybierasz?",
             restaurants: restaurants,
             menuItems: [],
+            events: events.length > 0 ? events : undefined,
             contextUpdates: {
                 last_location: finalLocation !== 'GPS' ? finalLocation : null, // Don't save "GPS" string as city
                 last_restaurants_list: restaurants,

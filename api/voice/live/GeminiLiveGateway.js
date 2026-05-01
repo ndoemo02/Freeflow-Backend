@@ -159,13 +159,14 @@ export class GeminiLiveGateway {
         this.wss = new WebSocketServer({ server, path });
         this._activeSockets = new Map();
 
-        // Keepalive — ping wszystkich klientów co 30s, zapobiega terminacji
+        // Keepalive — ping wszystkich klientów co 15s, zapobiega terminacji
         // idle połączeń przez Vercel proxy (1001/1006).
+        // Vercel ma ~60s timeout na idle — 15s daje margines 4x.
         this._keepaliveInterval = setInterval(() => {
             this.wss?.clients.forEach((ws) => {
                 if (ws.readyState === ws.OPEN) ws.ping();
             });
-        }, 30000);
+        }, 15000);
         this._keepaliveInterval.unref?.();
 
         this.wss.on('connection', async (socket, req) => {
