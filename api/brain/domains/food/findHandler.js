@@ -17,6 +17,9 @@ let _runDiscovery = null;
 let _buildChips = null;
 let _discoveryUnavailable = false;
 
+// Eager preload — first execute() call pays ~0ms instead of ~50ms import latency
+const _discoveryPreload = loadDiscoveryEngine();
+
 async function loadDiscoveryEngine() {
     if (_discoveryUnavailable) return false;
     if (_matchQueryToTaxonomy) return true; // już załadowany
@@ -602,24 +605,24 @@ async function searchRestaurantsWithCuisineVariants(repo, location, cuisine) {
     if (!cuisine) return repo.searchRestaurants(location, null);
     const variants = getCuisineSearchVariants(cuisine);
     if (variants.length === 0) return repo.searchRestaurants(location, null);
-    let merged = [];
-    for (const variant of variants) {
-        const rows = await repo.searchRestaurants(location, variant);
-        merged = mergeUniqueRestaurants(merged, rows || []);
-    }
-    return merged;
+    if (variants.length === 1) return repo.searchRestaurants(location, variants[0]);
+    // Parallel queries for multiple variants (e.g. "azjatycka" → 5 variants)
+    const results = await Promise.all(
+        variants.map(v => repo.searchRestaurants(location, v).catch(() => []))
+    );
+    return results.reduce((merged, rows) => mergeUniqueRestaurants(merged, rows || []), []);
 }
 
 async function searchNearbyWithCuisineVariants(repo, lat, lng, radiusKm, cuisine) {
     if (!cuisine) return repo.searchNearby(lat, lng, radiusKm, null);
     const variants = getCuisineSearchVariants(cuisine);
     if (variants.length === 0) return repo.searchNearby(lat, lng, radiusKm, null);
-    let merged = [];
-    for (const variant of variants) {
-        const rows = await repo.searchNearby(lat, lng, radiusKm, variant);
-        merged = mergeUniqueRestaurants(merged, rows || []);
-    }
-    return merged;
+    if (variants.length === 1) return repo.searchNearby(lat, lng, radiusKm, variants[0]);
+    // Parallel queries for multiple variants
+    const results = await Promise.all(
+        variants.map(v => repo.searchNearby(lat, lng, radiusKm, v).catch(() => []))
+    );
+    return results.reduce((merged, rows) => mergeUniqueRestaurants(merged, rows || []), []);
 }
 
 function resolveDiscoveryMode(ctx) {
@@ -867,7 +870,7 @@ export class FindRestaurantHandler {
         // emoji + labels above the Voice Bar alongside results.
         let earlyChips = null;
         let earlyConfidence = 'empty';
-        const discoveryEngineReady = await loadDiscoveryEngine();
+        const discoveryEngineReady = await _discoveryPreload;
         if (discoveryEngineReady && _buildChips) {
             const chipText = ctx?.text || cuisine || '';
             if (chipText) {
@@ -899,6 +902,15 @@ export class FindRestaurantHandler {
         }
 
         if (mode === 'CITY') {
+            // ── Parallel GPS pre-fetch ──
+            // When coords are available, fire the GPS query in parallel with CITY.
+            // If CITY returns 0 results, GPS results are already waiting (no 1-2s retry gap).
+            let gpsPromise = null;
+            if (coords && !usedItemLedDiscovery) {
+                gpsPromise = searchNearbyWithCuisineVariants(this.repo, coords.lat, coords.lng, 10, cuisine)
+                    .catch(err => { console.warn('[CITY_GPS_PARALLEL] GPS prefetch failed:', err?.message || err); return []; });
+            }
+
             try {
                 const itemQueryCandidate = extractItemQueryCandidate(ctx, discoveryParams);
                 if (itemQueryCandidate) {
@@ -912,6 +924,7 @@ export class FindRestaurantHandler {
                         if (itemLedMatches.length > 0) {
                             restaurants = itemLedMatches;
                             usedItemLedDiscovery = true;
+                            gpsPromise = null; // item-led succeeded, discard GPS
                             console.log('[DISCOVERY_ITEM_LED]', JSON.stringify({
                                 location,
                                 itemQuery: itemQueryCandidate,
@@ -929,17 +942,21 @@ export class FindRestaurantHandler {
                     }
                 }
 
+                // Pizza city-wide query can also run in parallel with main CITY query
+                const wantsPizza = !usedItemLedDiscovery && isPizzaDiscoveryQuery(ctx.text, cuisine);
+                let pizzaPromise = null;
+                if (wantsPizza) {
+                    pizzaPromise = this.repo.searchRestaurants(location, null)
+                        .catch(() => []);
+                }
+
                 if (!usedItemLedDiscovery) {
                     restaurants = await searchRestaurantsWithCuisineVariants(this.repo, location, cuisine);
                 }
 
-                // Pizza-specific safeguard:
-                // - some obvious pizza places have null/legacy cuisine_type
-                // - strict cuisine filter can hide them (e.g., "Pizzeria ...")
-                // We always merge in city-level pizza candidates and rank them first.
-                const wantsPizza = !usedItemLedDiscovery && isPizzaDiscoveryQuery(ctx.text, cuisine);
-                if (wantsPizza) {
-                    const cityWide = await this.repo.searchRestaurants(location, null);
+                // Pizza merge (awaits parallel pizza query if it was fired)
+                if (wantsPizza && pizzaPromise) {
+                    const cityWide = await pizzaPromise;
                     const pizzaCandidates = (cityWide || []).filter(hasPizzaRestaurantSignal);
                     if (pizzaCandidates.length > 0) {
                         restaurants = rankPizzaFirst(mergeUniqueRestaurants(restaurants, pizzaCandidates));
@@ -966,7 +983,8 @@ export class FindRestaurantHandler {
                             restaurants = neighborRest;
                             foundInNearby = true;
                             nearbySourceCity = neighbor;
-                            break; // Stop at first neighbor with results
+                            gpsPromise = null; // nearby found results, discard GPS
+                            break;
                         }
                     }
                 }
@@ -974,13 +992,33 @@ export class FindRestaurantHandler {
                 restaurants = filterRestaurantsToServiceCity(restaurants);
             } catch (error) {
                 console.error('Repo Error (City):', error);
+                gpsPromise = null;
                 return { reply: "Mam problem z bazą danych. Spróbuj później.", error: 'db_error' };
             }
 
             // Handle "Still No Results" for CITY mode
             if (!restaurants || restaurants.length === 0) {
-                if (coords) {
-                    // CITY returned 0 (possibly garbage city name from Gemini) — retry with GPS
+                if (gpsPromise) {
+                    // GPS was already running in parallel — await it now
+                    console.log(`[CITY_GPS_PARALLEL] city="${location}" 0 results, awaiting parallel GPS lat=${coords.lat} lng=${coords.lng}`);
+                    try {
+                        restaurants = await gpsPromise;
+                    } catch (gpsErr) {
+                        console.warn('[CITY_GPS_PARALLEL] GPS await failed:', gpsErr?.message || gpsErr);
+                    }
+                    if (restaurants && restaurants.length > 0) {
+                        cityGPSRetry = true;
+                        discoveryParams.mode = 'GPS';
+                        discoveryParams.location = null;
+                    } else {
+                        const cuisineMsg = cuisine ? ` serwujących ${cuisine}` : '';
+                        return {
+                            reply: `Nie znalazłam nic w pobliżu${cuisineMsg}. Może inna kuchnia?`,
+                            contextUpdates: { pendingDish: dishEntity || ctx.session?.pendingDish || null }
+                        };
+                    }
+                } else if (coords) {
+                    // Fallback: no parallel promise but coords available (item-led path failed after setting gpsPromise=null)
                     console.log(`[CITY_GPS_FALLBACK] city="${location}" 0 results, retrying with GPS lat=${coords.lat} lng=${coords.lng}`);
                     try {
                         restaurants = await searchNearbyWithCuisineVariants(this.repo, coords.lat, coords.lng, 10, cuisine);
