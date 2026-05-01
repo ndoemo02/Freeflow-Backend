@@ -29,12 +29,12 @@ if (fs.existsSync(envPath)) {
 // ─── Supabase ────────────────────────────────────────────────
 if (!globalThis.supabase) {
     const url = process.env.SUPABASE_URL;
-    const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY;
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE || process.env.SUPABASE_KEY;
     if (url && key) {
         globalThis.supabase = createClient(url, key);
         console.log('[WS] Supabase client initialized');
     } else {
-        console.error('[WS] Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY');
+        console.error('[WS] Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY/SUPABASE_SERVICE_ROLE');
         process.exit(1);
     }
 }
