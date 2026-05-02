@@ -30,8 +30,8 @@ if (fs.existsSync(envPath)) {
 
 // ─── Supabase ────────────────────────────────────────────────
 if (!globalThis.supabase) {
-    const url = process.env.SUPABASE_URL;
-    const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE || process.env.SUPABASE_KEY;
+    const url = (process.env.SUPABASE_URL || '').trim();
+    const key = (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE || process.env.SUPABASE_KEY || '').trim();
     if (url && key) {
         globalThis.supabase = createClient(url, key);
         console.log('[WS] Supabase client initialized');

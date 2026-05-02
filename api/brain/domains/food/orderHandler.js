@@ -1570,6 +1570,10 @@ export class OrderHandler {
                         price: parseFloat(item.price_pln ?? item.price ?? 0),
                         quantity: candidateQuantity,
                         hasExplicitNumber: candidateQuantity > 1,
+                        is_vege: item.is_vege ?? false,
+                        spicy: item.spicy ?? false,
+                        item_tags: item.item_tags ?? [],
+                        dietary_flags: item.dietary_flags ?? [],
                     });
                 }
             }
@@ -1691,6 +1695,7 @@ export class OrderHandler {
                     restaurant: { id: targetRestaurant.id, name: targetRestaurant.name },
                     restaurantLockTrace,
                     unresolvedItems: unresolvedList,
+                    focusedMenuItemId: resolvedItems[0]?.id || null,
                 },
                 contextUpdates: {
                     lastRestaurant: targetRestaurant,
@@ -2205,7 +2210,11 @@ export class OrderHandler {
                 name: item.name,
                 price: parseFloat(item.price_pln ?? item.price ?? 0),
                 quantity: quantity,
-                hasExplicitNumber
+                hasExplicitNumber,
+                is_vege: item.is_vege ?? false,
+                spicy: item.spicy ?? false,
+                item_tags: item.item_tags ?? [],
+                dietary_flags: item.dietary_flags ?? [],
             };
             const total = (orderItem.price * quantity).toFixed(2);
 
@@ -2253,6 +2262,7 @@ export class OrderHandler {
                     cart: session.cart,
                     restaurant: { id: restaurant.id, name: restaurant.name },
                     restaurantLockTrace,
+                    focusedMenuItemId: item.id,
                 },
                 contextUpdates: {
                     lastRestaurant: restaurant,
