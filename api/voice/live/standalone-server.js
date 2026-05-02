@@ -1,8 +1,10 @@
 /**
  * FreeFlow WebSocket Standalone Server
  * ─────────────────────────────────────
- * Minimalny serwer HTTP + WS do deployu na Railway.
- * Vercel → API HTTP, Railway → WebSocket (persistent connections).
+ * FALLBACK BRIDGE — wyłączony na rzecz Vercel HTTP (2026-05-02).
+ * Aktywuj tylko jeśli Vercel serverless nie daje rady z latency sesji.
+ * Uruchom: node api/voice/live/standalone-server.js
+ * Wtedy: Vercel → API HTTP, Railway/ten serwer → WebSocket (persistent connections).
  *
  * Uruchom: node api/voice/live/standalone-server.js
  * Port:    process.env.PORT || 8080
