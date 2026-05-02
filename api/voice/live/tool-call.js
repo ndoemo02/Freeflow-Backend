@@ -53,9 +53,11 @@ export default async function handler(req, res) {
   }
 
   if (!sessionId || !toolName) {
+    console.log(`[TOOL_CALL_HTTP] 400 missing_session_or_tool — sessionId=${JSON.stringify(sessionId)} toolName=${JSON.stringify(toolName)} bodyKeys=${Object.keys(body).join(',')}`);
     return res.status(400).json({
       ok: false,
       error: 'missing_session_or_tool',
+      detail: { sessionId: !!sessionId, toolName: !!toolName },
     });
   }
 
