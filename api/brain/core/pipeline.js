@@ -390,6 +390,7 @@ export class BrainPipeline {
                             return {
                                 reply: 'Koszyk jest pusty. Dodaj cos do koszyka, a potem przejde do checkoutu.',
                                 intent: 'open_checkout',
+                                cart: sessionCart,
                                 contextUpdates: {
                                     conversationPhase: 'ordering',
                                     expectedContext: 'create_order',
@@ -405,6 +406,7 @@ export class BrainPipeline {
                         return {
                             reply: 'Otwieram checkout. Uzupelnij dane dostawy i potwierdz zamowienie.',
                             intent: 'open_checkout',
+                            cart: sessionCart,
                             actions: [
                                 {
                                     type: 'SHOW_CART',
