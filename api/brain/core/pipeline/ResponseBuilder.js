@@ -1,5 +1,19 @@
 import { buildCheckoutProgress } from './CheckoutDraft.js';
 
+function hashCartItems(items) {
+    if (!items || items.length === 0) return 'empty';
+    const normalized = items
+        .map((i) => `${i.id || i.menu_item_id || ''}:${i.quantity || i.qty || 1}:${i.price_pln || i.price || 0}`)
+        .sort()
+        .join('|');
+    let hash = 2166136261;
+    for (let i = 0; i < normalized.length; i++) {
+        hash ^= normalized.charCodeAt(i);
+        hash = Math.imul(hash, 16777619);
+    }
+    return (hash >>> 0).toString(16).padStart(8, '0');
+}
+
 export class ResponseBuilder {
     static build({
         domainResponse,
@@ -31,6 +45,7 @@ export class ResponseBuilder {
         const sessionSnapshot = getSession(activeSessionId) || {};
         const phase = sessionSnapshot?.conversationPhase || 'idle';
         const cart = sessionSnapshot?.cart || { items: [], total: 0 };
+        const cartHash = hashCartItems(cart?.items || []);
         const checkoutProgress = buildCheckoutProgress(sessionSnapshot);
         const safeIntent = intent || domainResponse?.intent || 'unknown';
         const safeReply = speechText || domainResponse?.reply || '';
@@ -57,6 +72,7 @@ export class ResponseBuilder {
                 source: domainMeta?.source || source || 'llm',
                 styling_ms: stylingMs,
                 tts_ms: ttsMs,
+                cartHash,
                 state: {
                     conversationPhase: phase,
                     currentRestaurant: sessionSnapshot?.currentRestaurant || null,
