@@ -17,18 +17,20 @@ export function commitPendingOrder(session) {
   session.cart.restaurantId = session.pendingOrder.restaurant_id;
 
   const toAdd = session.pendingOrder.items.map(it => ({
-    id: it.id || crypto.randomUUID?.() || String(Date.now()),
+    id: it.id || it.menu_item_id || crypto.randomUUID?.() || String(Date.now()),
     name: it.name || it.item_name || 'pozycja',
     price_pln: Number(it.price_pln ?? it.price ?? 0),
     qty: Number(it.quantity || it.qty || 1),
-    restaurant_id: session.pendingOrder.restaurant_id,
-    restaurant_name: session.pendingOrder.restaurant,
+    restaurant_id: session.pendingOrder.restaurant_id || it.restaurant_id,
+    restaurant_name: session.pendingOrder.restaurant || it.restaurant_name,
+    item_tags: Array.isArray(it.item_tags) ? it.item_tags : [],
+    category: it.category || null,
   }));
 
   // Cart Deduplication: merge same-name items from same restaurant
   for (const newItem of toAdd) {
     const existing = session.cart.items.find(
-      i => i.name === newItem.name && i.restaurant_id === newItem.restaurant_id
+      i => i.id === newItem.id && i.restaurant_id === newItem.restaurant_id
     );
     if (existing) {
       existing.qty = (existing.qty || 1) + (newItem.qty || 1);
