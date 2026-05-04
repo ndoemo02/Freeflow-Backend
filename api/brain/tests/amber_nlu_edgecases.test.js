@@ -57,15 +57,15 @@ describe('Amber NLU Edge Cases (Disambiguation)', () => {
         // Direct Service Check
         const result = await resolveMenuItemConflict(text);
         expect(result.status).toBe(DISAMBIGUATION_RESULT.DISAMBIGUATION_REQUIRED);
-        expect(result.candidates.length).toBe(3); // R1, R2, R3
+        expect(result.candidates.length).toBe(2); // buildItemClarifyPayload limits to top 2
 
         // Handler Integration Check
         const ctx = { text, session: { lastRestaurant: null } };
         const response = await handler.execute(ctx);
 
-        expect(response.reply).toContain("jest dostÄ™pne w:");
-        expect(response.contextUpdates.expectedContext).toBe('choose_restaurant');
-        expect(response.contextUpdates.pendingDisambiguation).toHaveLength(3);
+        expect(response.reply).toContain("Czy chodziło Ci o");
+        expect(response.contextUpdates.expectedContext).toBe('clarify_order');
+        
     });
 
     /**

@@ -189,6 +189,7 @@ function buildItemClarifyPayload(options = [], query = '', context = {}) {
         clarifyType: 'item',
         query: normalizeComparable(query),
         options: normalizedOptions,
+        candidates: normalizedOptions,
         candidateCount: Number(context?.candidateCount || normalizedOptions.length || 0),
         topScore: Number(Number(context?.topScore || 0).toFixed(3)),
     };
