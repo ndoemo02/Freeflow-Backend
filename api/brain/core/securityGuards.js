@@ -40,6 +40,7 @@ const INTENT_CAPABILITY_MAP = new Map([
 
     ['confirm_order', 'confirm_order'],
     ['confirm', 'confirm_order'],
+    ['confirm_restaurant_switch', 'confirm_order'],
 ]);
 
 const ALLOWED_CAPABILITIES = new Set([

@@ -411,7 +411,7 @@ export class NLURouter {
         const matchedRestaurant = findRestaurantInText(text);
         const explicitDiscoverySignal = hasDiscoverySignal(text, normalizedLoose, location);
 
-        if (session?.currentRestaurant && explicitDiscoverySignal) {
+        if (session?.currentRestaurant && explicitDiscoverySignal && !matchedRestaurant) {
             nluLog('[DISCOVERY_CONTEXT_OVERRIDE_TRACE]', JSON.stringify({
                 source: 'restaurant_navigation_override',
                 location,

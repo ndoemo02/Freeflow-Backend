@@ -20,7 +20,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
 ```json
 {
   "ok": true,
-  "session_id": "chaos-A01-1777497426572",
+  "session_id": "chaos-A01-1777868500235",
   "text": "Nie wiem którą restaurację z listy masz na myśli. Wybierz numer od 1 do 4 lub powiedz \"cofnij\".",
   "reply": "Nie wiem którą restaurację z listy masz na myśli. Wybierz numer od 1 do 4 lub powiedz \"cofnij\".",
   "tts_text": "Nie wiem którą restaurację z listy masz na myśli. Wybierz numer od 1 do 4 lub powiedz \"cofnij\".",
@@ -38,10 +38,11 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
   },
   "recommendations": [],
   "meta": {
-    "latency_total_ms": 148,
+    "latency_total_ms": 129,
     "source": "context_lock",
-    "styling_ms": 0,
+    "styling_ms": 1,
     "tts_ms": 0,
+    "cartHash": "empty",
     "state": {
       "conversationPhase": "idle",
       "currentRestaurant": null,
@@ -198,13 +199,13 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
       },
       {
         "id": "[redacted]",
-        "name": "Callzone",
+        "name": "Dwór Hubertus",
         "index": 2,
         "city": "Piekary Śląskie"
       },
       {
         "id": "[redacted]",
-        "name": "Dwór Hubertus",
+        "name": "Callzone",
         "index": 3,
         "city": "Piekary Śląskie"
       },
@@ -239,9 +240,15 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
               "lng": null,
               "delivery_available": true,
               "price_level": 2,
-              "taxonomy_groups": [],
-              "taxonomy_cats": [],
-              "taxonomy_tags": [],
+              "taxonomy_groups": [
+                "pizza_italian"
+              ],
+              "taxonomy_cats": [
+                "pizza"
+              ],
+              "taxonomy_tags": [
+                "delivery"
+              ],
               "maps_rating": 4.3,
               "maps_ratings_total": 1675,
               "opening_hours": {
@@ -349,9 +356,15 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
               "lng": 18.95647,
               "delivery_available": true,
               "price_level": 2,
-              "taxonomy_groups": [],
-              "taxonomy_cats": [],
-              "taxonomy_tags": [],
+              "taxonomy_groups": [
+                "pizza_italian"
+              ],
+              "taxonomy_cats": [
+                "pizza"
+              ],
+              "taxonomy_tags": [
+                "delivery"
+              ],
               "maps_rating": 4.2,
               "maps_ratings_total": 1452,
               "opening_hours": {
@@ -452,7 +465,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
           ],
           "menuItems": []
         },
-        "timestamp": 1777497428207
+        "timestamp": 1777868502162
       },
       {
         "role": "user",
@@ -469,7 +482,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
             "items": null
           }
         },
-        "timestamp": 1777497428332
+        "timestamp": 1777868502294
       },
       {
         "role": "assistant",
@@ -487,9 +500,15 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
               "lng": 18.94712,
               "delivery_available": true,
               "price_level": 2,
-              "taxonomy_groups": [],
-              "taxonomy_cats": [],
-              "taxonomy_tags": [],
+              "taxonomy_groups": [
+                "grill"
+              ],
+              "taxonomy_cats": [
+                "kebab"
+              ],
+              "taxonomy_tags": [
+                "delivery"
+              ],
               "maps_rating": 4.2,
               "maps_ratings_total": 1238,
               "opening_hours": {
@@ -595,6 +614,116 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
             },
             {
               "id": "[redacted]",
+              "name": "Dwór Hubertus",
+              "address": "ul. Inwalidów Wojennych 72",
+              "city": "Piekary Śląskie",
+              "cuisine_type": "Śląska / Europejska",
+              "lat": 50.39233,
+              "lng": 18.94243,
+              "delivery_available": true,
+              "price_level": 2,
+              "taxonomy_groups": [],
+              "taxonomy_cats": [],
+              "taxonomy_tags": [
+                "delivery"
+              ],
+              "maps_rating": 4.2,
+              "maps_ratings_total": 785,
+              "opening_hours": {
+                "periods": [
+                  {
+                    "open": {
+                      "day": 0,
+                      "time": "1200"
+                    },
+                    "close": {
+                      "day": 0,
+                      "time": "2000"
+                    }
+                  },
+                  {
+                    "open": {
+                      "day": 1,
+                      "time": "1100"
+                    },
+                    "close": {
+                      "day": 1,
+                      "time": "2100"
+                    }
+                  },
+                  {
+                    "open": {
+                      "day": 2,
+                      "time": "1100"
+                    },
+                    "close": {
+                      "day": 2,
+                      "time": "2100"
+                    }
+                  },
+                  {
+                    "open": {
+                      "day": 3,
+                      "time": "1100"
+                    },
+                    "close": {
+                      "day": 3,
+                      "time": "2100"
+                    }
+                  },
+                  {
+                    "open": {
+                      "day": 4,
+                      "time": "1100"
+                    },
+                    "close": {
+                      "day": 4,
+                      "time": "2100"
+                    }
+                  },
+                  {
+                    "open": {
+                      "day": 5,
+                      "time": "1100"
+                    },
+                    "close": {
+                      "day": 5,
+                      "time": "2200"
+                    }
+                  },
+                  {
+                    "open": {
+                      "day": 6,
+                      "time": "1100"
+                    },
+                    "close": {
+                      "day": 6,
+                      "time": "2200"
+                    }
+                  }
+                ],
+                "open_now": true,
+                "weekday_text": [
+                  "Monday: 11:00 AM – 9:00 PM",
+                  "Tuesday: 11:00 AM – 9:00 PM",
+                  "Wednesday: 11:00 AM – 9:00 PM",
+                  "Thursday: 11:00 AM – 9:00 PM",
+                  "Friday: 11:00 AM – 10:00 PM",
+                  "Saturday: 11:00 AM – 10:00 PM",
+                  "Sunday: 12:00 – 8:00 PM"
+                ]
+              },
+              "phone": "32 767 85 55",
+              "website": "https://dworhubertus.pl/",
+              "image_url": "/images/restaurants/[redacted].jpg",
+              "photo_gallery": null,
+              "item_match_score": 140,
+              "matched_menu_items": [
+                "Gyros z frytkami i tzatziki"
+              ]
+            },
+            {
+              "id": "[redacted]",
               "name": "Callzone",
               "address": "ul. Księdza Piotra Skargi 3",
               "city": "Piekary Śląskie",
@@ -603,9 +732,15 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
               "lng": 18.95647,
               "delivery_available": true,
               "price_level": 2,
-              "taxonomy_groups": [],
-              "taxonomy_cats": [],
-              "taxonomy_tags": [],
+              "taxonomy_groups": [
+                "pizza_italian"
+              ],
+              "taxonomy_cats": [
+                "pizza"
+              ],
+              "taxonomy_tags": [
+                "delivery"
+              ],
               "maps_rating": 4.2,
               "maps_ratings_total": 1452,
               "opening_hours": {
@@ -709,114 +844,6 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
             },
             {
               "id": "[redacted]",
-              "name": "Dwór Hubertus",
-              "address": "ul. Inwalidów Wojennych 72",
-              "city": "Piekary Śląskie",
-              "cuisine_type": "Śląska / Europejska",
-              "lat": 50.39233,
-              "lng": 18.94243,
-              "delivery_available": true,
-              "price_level": 2,
-              "taxonomy_groups": [],
-              "taxonomy_cats": [],
-              "taxonomy_tags": [],
-              "maps_rating": 4.2,
-              "maps_ratings_total": 785,
-              "opening_hours": {
-                "periods": [
-                  {
-                    "open": {
-                      "day": 0,
-                      "time": "1200"
-                    },
-                    "close": {
-                      "day": 0,
-                      "time": "2000"
-                    }
-                  },
-                  {
-                    "open": {
-                      "day": 1,
-                      "time": "1100"
-                    },
-                    "close": {
-                      "day": 1,
-                      "time": "2100"
-                    }
-                  },
-                  {
-                    "open": {
-                      "day": 2,
-                      "time": "1100"
-                    },
-                    "close": {
-                      "day": 2,
-                      "time": "2100"
-                    }
-                  },
-                  {
-                    "open": {
-                      "day": 3,
-                      "time": "1100"
-                    },
-                    "close": {
-                      "day": 3,
-                      "time": "2100"
-                    }
-                  },
-                  {
-                    "open": {
-                      "day": 4,
-                      "time": "1100"
-                    },
-                    "close": {
-                      "day": 4,
-                      "time": "2100"
-                    }
-                  },
-                  {
-                    "open": {
-                      "day": 5,
-                      "time": "1100"
-                    },
-                    "close": {
-                      "day": 5,
-                      "time": "2200"
-                    }
-                  },
-                  {
-                    "open": {
-                      "day": 6,
-                      "time": "1100"
-                    },
-                    "close": {
-                      "day": 6,
-                      "time": "2200"
-                    }
-                  }
-                ],
-                "open_now": true,
-                "weekday_text": [
-                  "Monday: 11:00 AM – 9:00 PM",
-                  "Tuesday: 11:00 AM – 9:00 PM",
-                  "Wednesday: 11:00 AM – 9:00 PM",
-                  "Thursday: 11:00 AM – 9:00 PM",
-                  "Friday: 11:00 AM – 10:00 PM",
-                  "Saturday: 11:00 AM – 10:00 PM",
-                  "Sunday: 12:00 – 8:00 PM"
-                ]
-              },
-              "phone": "32 767 85 55",
-              "website": "https://dworhubertus.pl/",
-              "image_url": "/images/restaurants/[redacted].jpg",
-              "photo_gallery": null,
-              "item_match_score": 140,
-              "matched_menu_items": [
-                "Gyros z frytkami i tzatziki"
-              ]
-            },
-            {
-              "id": "[redacted]",
               "name": "Klaps Burgers",
               "address": "ul. Piotra Skargi 15",
               "city": "Piekary Śląskie",
@@ -825,9 +852,16 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
               "lng": 18.95422,
               "delivery_available": true,
               "price_level": 2,
-              "taxonomy_groups": [],
-              "taxonomy_cats": [],
-              "taxonomy_tags": [],
+              "taxonomy_groups": [
+                "fast_food"
+              ],
+              "taxonomy_cats": [
+                "burgers"
+              ],
+              "taxonomy_tags": [
+                "quick",
+                "delivery"
+              ],
               "maps_rating": 4.3,
               "maps_ratings_total": 2693,
               "opening_hours": {
@@ -912,7 +946,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
           ],
           "menuItems": []
         },
-        "timestamp": 1777497428558
+        "timestamp": 1777868502589
       },
       {
         "role": "user",
@@ -930,7 +964,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
             "raw": "z ostrym sosem"
           }
         },
-        "timestamp": 1777497428766
+        "timestamp": 1777868502744
       },
       {
         "role": "assistant",
@@ -940,7 +974,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
           "restaurants": [],
           "menuItems": []
         },
-        "timestamp": 1777497428771
+        "timestamp": 1777868502748
       }
     ],
     "entityCache": {
@@ -949,25 +983,25 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
           "id": "[redacted]",
           "name": "Tasty King Kebab",
           "position": 1,
-          "timestamp": 1777497428558
-        },
-        {
-          "id": "[redacted]",
-          "name": "Callzone",
-          "position": 2,
-          "timestamp": 1777497428558
+          "timestamp": 1777868502589
         },
         {
           "id": "[redacted]",
           "name": "Dwór Hubertus",
+          "position": 2,
+          "timestamp": 1777868502589
+        },
+        {
+          "id": "[redacted]",
+          "name": "Callzone",
           "position": 3,
-          "timestamp": 1777497428558
+          "timestamp": 1777868502589
         },
         {
           "id": "[redacted]",
           "name": "Klaps Burgers",
           "position": 4,
-          "timestamp": 1777497428558
+          "timestamp": 1777868502589
         }
       ],
       "items": [],
@@ -975,7 +1009,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
     },
     "currentRestaurant": null,
     "lockedRestaurantId": null,
-    "lastUpdated": 1777497428767,
+    "lastUpdated": 1777868502745,
     "last_location": "Piekary Śląskie",
     "last_restaurants_list": [
       {
@@ -988,9 +1022,15 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
         "lng": 18.94712,
         "delivery_available": true,
         "price_level": 2,
-        "taxonomy_groups": [],
-        "taxonomy_cats": [],
-        "taxonomy_tags": [],
+        "taxonomy_groups": [
+          "grill"
+        ],
+        "taxonomy_cats": [
+          "kebab"
+        ],
+        "taxonomy_tags": [
+          "delivery"
+        ],
         "maps_rating": 4.2,
         "maps_ratings_total": 1238,
         "opening_hours": {
@@ -1096,6 +1136,116 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
       },
       {
         "id": "[redacted]",
+        "name": "Dwór Hubertus",
+        "address": "ul. Inwalidów Wojennych 72",
+        "city": "Piekary Śląskie",
+        "cuisine_type": "Śląska / Europejska",
+        "lat": 50.39233,
+        "lng": 18.94243,
+        "delivery_available": true,
+        "price_level": 2,
+        "taxonomy_groups": [],
+        "taxonomy_cats": [],
+        "taxonomy_tags": [
+          "delivery"
+        ],
+        "maps_rating": 4.2,
+        "maps_ratings_total": 785,
+        "opening_hours": {
+          "periods": [
+            {
+              "open": {
+                "day": 0,
+                "time": "1200"
+              },
+              "close": {
+                "day": 0,
+                "time": "2000"
+              }
+            },
+            {
+              "open": {
+                "day": 1,
+                "time": "1100"
+              },
+              "close": {
+                "day": 1,
+                "time": "2100"
+              }
+            },
+            {
+              "open": {
+                "day": 2,
+                "time": "1100"
+              },
+              "close": {
+                "day": 2,
+                "time": "2100"
+              }
+            },
+            {
+              "open": {
+                "day": 3,
+                "time": "1100"
+              },
+              "close": {
+                "day": 3,
+                "time": "2100"
+              }
+            },
+            {
+              "open": {
+                "day": 4,
+                "time": "1100"
+              },
+              "close": {
+                "day": 4,
+                "time": "2100"
+              }
+            },
+            {
+              "open": {
+                "day": 5,
+                "time": "1100"
+              },
+              "close": {
+                "day": 5,
+                "time": "2200"
+              }
+            },
+            {
+              "open": {
+                "day": 6,
+                "time": "1100"
+              },
+              "close": {
+                "day": 6,
+                "time": "2200"
+              }
+            }
+          ],
+          "open_now": true,
+          "weekday_text": [
+            "Monday: 11:00 AM – 9:00 PM",
+            "Tuesday: 11:00 AM – 9:00 PM",
+            "Wednesday: 11:00 AM – 9:00 PM",
+            "Thursday: 11:00 AM – 9:00 PM",
+            "Friday: 11:00 AM – 10:00 PM",
+            "Saturday: 11:00 AM – 10:00 PM",
+            "Sunday: 12:00 – 8:00 PM"
+          ]
+        },
+        "phone": "32 767 85 55",
+        "website": "https://dworhubertus.pl/",
+        "image_url": "/images/restaurants/[redacted].jpg",
+        "photo_gallery": null,
+        "item_match_score": 140,
+        "matched_menu_items": [
+          "Gyros z frytkami i tzatziki"
+        ]
+      },
+      {
+        "id": "[redacted]",
         "name": "Callzone",
         "address": "ul. Księdza Piotra Skargi 3",
         "city": "Piekary Śląskie",
@@ -1104,9 +1254,15 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
         "lng": 18.95647,
         "delivery_available": true,
         "price_level": 2,
-        "taxonomy_groups": [],
-        "taxonomy_cats": [],
-        "taxonomy_tags": [],
+        "taxonomy_groups": [
+          "pizza_italian"
+        ],
+        "taxonomy_cats": [
+          "pizza"
+        ],
+        "taxonomy_tags": [
+          "delivery"
+        ],
         "maps_rating": 4.2,
         "maps_ratings_total": 1452,
         "opening_hours": {
@@ -1210,114 +1366,6 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
       },
       {
         "id": "[redacted]",
-        "name": "Dwór Hubertus",
-        "address": "ul. Inwalidów Wojennych 72",
-        "city": "Piekary Śląskie",
-        "cuisine_type": "Śląska / Europejska",
-        "lat": 50.39233,
-        "lng": 18.94243,
-        "delivery_available": true,
-        "price_level": 2,
-        "taxonomy_groups": [],
-        "taxonomy_cats": [],
-        "taxonomy_tags": [],
-        "maps_rating": 4.2,
-        "maps_ratings_total": 785,
-        "opening_hours": {
-          "periods": [
-            {
-              "open": {
-                "day": 0,
-                "time": "1200"
-              },
-              "close": {
-                "day": 0,
-                "time": "2000"
-              }
-            },
-            {
-              "open": {
-                "day": 1,
-                "time": "1100"
-              },
-              "close": {
-                "day": 1,
-                "time": "2100"
-              }
-            },
-            {
-              "open": {
-                "day": 2,
-                "time": "1100"
-              },
-              "close": {
-                "day": 2,
-                "time": "2100"
-              }
-            },
-            {
-              "open": {
-                "day": 3,
-                "time": "1100"
-              },
-              "close": {
-                "day": 3,
-                "time": "2100"
-              }
-            },
-            {
-              "open": {
-                "day": 4,
-                "time": "1100"
-              },
-              "close": {
-                "day": 4,
-                "time": "2100"
-              }
-            },
-            {
-              "open": {
-                "day": 5,
-                "time": "1100"
-              },
-              "close": {
-                "day": 5,
-                "time": "2200"
-              }
-            },
-            {
-              "open": {
-                "day": 6,
-                "time": "1100"
-              },
-              "close": {
-                "day": 6,
-                "time": "2200"
-              }
-            }
-          ],
-          "open_now": true,
-          "weekday_text": [
-            "Monday: 11:00 AM – 9:00 PM",
-            "Tuesday: 11:00 AM – 9:00 PM",
-            "Wednesday: 11:00 AM – 9:00 PM",
-            "Thursday: 11:00 AM – 9:00 PM",
-            "Friday: 11:00 AM – 10:00 PM",
-            "Saturday: 11:00 AM – 10:00 PM",
-            "Sunday: 12:00 – 8:00 PM"
-          ]
-        },
-        "phone": "32 767 85 55",
-        "website": "https://dworhubertus.pl/",
-        "image_url": "/images/restaurants/[redacted].jpg",
-        "photo_gallery": null,
-        "item_match_score": 140,
-        "matched_menu_items": [
-          "Gyros z frytkami i tzatziki"
-        ]
-      },
-      {
-        "id": "[redacted]",
         "name": "Klaps Burgers",
         "address": "ul. Piotra Skargi 15",
         "city": "Piekary Śląskie",
@@ -1326,9 +1374,16 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
         "lng": 18.95422,
         "delivery_available": true,
         "price_level": 2,
-        "taxonomy_groups": [],
-        "taxonomy_cats": [],
-        "taxonomy_tags": [],
+        "taxonomy_groups": [
+          "fast_food"
+        ],
+        "taxonomy_cats": [
+          "burgers"
+        ],
+        "taxonomy_tags": [
+          "quick",
+          "delivery"
+        ],
         "maps_rating": 4.3,
         "maps_ratings_total": 2693,
         "opening_hours": {
@@ -1420,7 +1475,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
           "restaurantCount": 2
         },
         "renderedText": "Mam 2 miejsc w Piekary Śląskie. Którą restaurację wybierasz? (Możesz powiedzieć numer albo nazwę.)",
-        "timestamp": 1777497427738
+        "timestamp": 1777868501802
       },
       {
         "surfaceKey": "CHOOSE_RESTAURANT",
@@ -1429,7 +1484,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
           "restaurantCount": 2
         },
         "renderedText": "Mam 2 miejsc w Piekary Śląskie. Którą restaurację wybierasz? (Możesz powiedzieć numer albo nazwę.)",
-        "timestamp": 1777497428206
+        "timestamp": 1777868502161
       },
       {
         "surfaceKey": "CHOOSE_RESTAURANT",
@@ -1438,14 +1493,14 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
           "restaurantCount": 4
         },
         "renderedText": "Mam 4 miejsc w Piekary Śląskie. Którą restaurację wybierasz? (Możesz powiedzieć numer albo nazwę.)",
-        "timestamp": 1777497428557
+        "timestamp": 1777868502588
       }
     ],
     "dialogStackIndex": 2
   },
   "locationRestaurants": [],
-  "timestamp": "2026-04-29T21:17:08.771Z",
-  "turn_id": "turn_1777497428771_u7koi"
+  "timestamp": "2026-05-04T04:21:42.748Z",
+  "turn_id": "turn_1777868502748_xis5t"
 }
 ```
 
@@ -1458,7 +1513,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
 ```json
 {
   "ok": true,
-  "session_id": "chaos-A02-1777497428893",
+  "session_id": "chaos-A02-1777868502780",
   "text": "Nie wiem którą restaurację z listy masz na myśli. Wybierz numer od 1 do 4 lub powiedz \"cofnij\".",
   "reply": "Nie wiem którą restaurację z listy masz na myśli. Wybierz numer od 1 do 4 lub powiedz \"cofnij\".",
   "tts_text": "Nie wiem którą restaurację z listy masz na myśli. Wybierz numer od 1 do 4 lub powiedz \"cofnij\".",
@@ -1476,10 +1531,11 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
   },
   "recommendations": [],
   "meta": {
-    "latency_total_ms": 96,
+    "latency_total_ms": 115,
     "source": "context_lock",
     "styling_ms": 0,
     "tts_ms": 0,
+    "cartHash": "empty",
     "state": {
       "conversationPhase": "idle",
       "currentRestaurant": null,
@@ -1636,13 +1692,13 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
       },
       {
         "id": "[redacted]",
-        "name": "Callzone",
+        "name": "Dwór Hubertus",
         "index": 2,
         "city": "Piekary Śląskie"
       },
       {
         "id": "[redacted]",
-        "name": "Dwór Hubertus",
+        "name": "Callzone",
         "index": 3,
         "city": "Piekary Śląskie"
       },
@@ -1677,9 +1733,15 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
               "lng": null,
               "delivery_available": true,
               "price_level": 2,
-              "taxonomy_groups": [],
-              "taxonomy_cats": [],
-              "taxonomy_tags": [],
+              "taxonomy_groups": [
+                "pizza_italian"
+              ],
+              "taxonomy_cats": [
+                "pizza"
+              ],
+              "taxonomy_tags": [
+                "delivery"
+              ],
               "maps_rating": 4.3,
               "maps_ratings_total": 1675,
               "opening_hours": {
@@ -1787,9 +1849,15 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
               "lng": 18.95647,
               "delivery_available": true,
               "price_level": 2,
-              "taxonomy_groups": [],
-              "taxonomy_cats": [],
-              "taxonomy_tags": [],
+              "taxonomy_groups": [
+                "pizza_italian"
+              ],
+              "taxonomy_cats": [
+                "pizza"
+              ],
+              "taxonomy_tags": [
+                "delivery"
+              ],
               "maps_rating": 4.2,
               "maps_ratings_total": 1452,
               "opening_hours": {
@@ -1890,7 +1958,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
           ],
           "menuItems": []
         },
-        "timestamp": 1777497429953
+        "timestamp": 1777868503647
       },
       {
         "role": "user",
@@ -1907,7 +1975,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
             "items": null
           }
         },
-        "timestamp": 1777497430077
+        "timestamp": 1777868503776
       },
       {
         "role": "assistant",
@@ -1925,9 +1993,15 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
               "lng": 18.94712,
               "delivery_available": true,
               "price_level": 2,
-              "taxonomy_groups": [],
-              "taxonomy_cats": [],
-              "taxonomy_tags": [],
+              "taxonomy_groups": [
+                "grill"
+              ],
+              "taxonomy_cats": [
+                "kebab"
+              ],
+              "taxonomy_tags": [
+                "delivery"
+              ],
               "maps_rating": 4.2,
               "maps_ratings_total": 1238,
               "opening_hours": {
@@ -2033,6 +2107,116 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
             },
             {
               "id": "[redacted]",
+              "name": "Dwór Hubertus",
+              "address": "ul. Inwalidów Wojennych 72",
+              "city": "Piekary Śląskie",
+              "cuisine_type": "Śląska / Europejska",
+              "lat": 50.39233,
+              "lng": 18.94243,
+              "delivery_available": true,
+              "price_level": 2,
+              "taxonomy_groups": [],
+              "taxonomy_cats": [],
+              "taxonomy_tags": [
+                "delivery"
+              ],
+              "maps_rating": 4.2,
+              "maps_ratings_total": 785,
+              "opening_hours": {
+                "periods": [
+                  {
+                    "open": {
+                      "day": 0,
+                      "time": "1200"
+                    },
+                    "close": {
+                      "day": 0,
+                      "time": "2000"
+                    }
+                  },
+                  {
+                    "open": {
+                      "day": 1,
+                      "time": "1100"
+                    },
+                    "close": {
+                      "day": 1,
+                      "time": "2100"
+                    }
+                  },
+                  {
+                    "open": {
+                      "day": 2,
+                      "time": "1100"
+                    },
+                    "close": {
+                      "day": 2,
+                      "time": "2100"
+                    }
+                  },
+                  {
+                    "open": {
+                      "day": 3,
+                      "time": "1100"
+                    },
+                    "close": {
+                      "day": 3,
+                      "time": "2100"
+                    }
+                  },
+                  {
+                    "open": {
+                      "day": 4,
+                      "time": "1100"
+                    },
+                    "close": {
+                      "day": 4,
+                      "time": "2100"
+                    }
+                  },
+                  {
+                    "open": {
+                      "day": 5,
+                      "time": "1100"
+                    },
+                    "close": {
+                      "day": 5,
+                      "time": "2200"
+                    }
+                  },
+                  {
+                    "open": {
+                      "day": 6,
+                      "time": "1100"
+                    },
+                    "close": {
+                      "day": 6,
+                      "time": "2200"
+                    }
+                  }
+                ],
+                "open_now": true,
+                "weekday_text": [
+                  "Monday: 11:00 AM – 9:00 PM",
+                  "Tuesday: 11:00 AM – 9:00 PM",
+                  "Wednesday: 11:00 AM – 9:00 PM",
+                  "Thursday: 11:00 AM – 9:00 PM",
+                  "Friday: 11:00 AM – 10:00 PM",
+                  "Saturday: 11:00 AM – 10:00 PM",
+                  "Sunday: 12:00 – 8:00 PM"
+                ]
+              },
+              "phone": "32 767 85 55",
+              "website": "https://dworhubertus.pl/",
+              "image_url": "/images/restaurants/[redacted].jpg",
+              "photo_gallery": null,
+              "item_match_score": 140,
+              "matched_menu_items": [
+                "Gyros z frytkami i tzatziki"
+              ]
+            },
+            {
+              "id": "[redacted]",
               "name": "Callzone",
               "address": "ul. Księdza Piotra Skargi 3",
               "city": "Piekary Śląskie",
@@ -2041,9 +2225,15 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
               "lng": 18.95647,
               "delivery_available": true,
               "price_level": 2,
-              "taxonomy_groups": [],
-              "taxonomy_cats": [],
-              "taxonomy_tags": [],
+              "taxonomy_groups": [
+                "pizza_italian"
+              ],
+              "taxonomy_cats": [
+                "pizza"
+              ],
+              "taxonomy_tags": [
+                "delivery"
+              ],
               "maps_rating": 4.2,
               "maps_ratings_total": 1452,
               "opening_hours": {
@@ -2147,114 +2337,6 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
             },
             {
               "id": "[redacted]",
-              "name": "Dwór Hubertus",
-              "address": "ul. Inwalidów Wojennych 72",
-              "city": "Piekary Śląskie",
-              "cuisine_type": "Śląska / Europejska",
-              "lat": 50.39233,
-              "lng": 18.94243,
-              "delivery_available": true,
-              "price_level": 2,
-              "taxonomy_groups": [],
-              "taxonomy_cats": [],
-              "taxonomy_tags": [],
-              "maps_rating": 4.2,
-              "maps_ratings_total": 785,
-              "opening_hours": {
-                "periods": [
-                  {
-                    "open": {
-                      "day": 0,
-                      "time": "1200"
-                    },
-                    "close": {
-                      "day": 0,
-                      "time": "2000"
-                    }
-                  },
-                  {
-                    "open": {
-                      "day": 1,
-                      "time": "1100"
-                    },
-                    "close": {
-                      "day": 1,
-                      "time": "2100"
-                    }
-                  },
-                  {
-                    "open": {
-                      "day": 2,
-                      "time": "1100"
-                    },
-                    "close": {
-                      "day": 2,
-                      "time": "2100"
-                    }
-                  },
-                  {
-                    "open": {
-                      "day": 3,
-                      "time": "1100"
-                    },
-                    "close": {
-                      "day": 3,
-                      "time": "2100"
-                    }
-                  },
-                  {
-                    "open": {
-                      "day": 4,
-                      "time": "1100"
-                    },
-                    "close": {
-                      "day": 4,
-                      "time": "2100"
-                    }
-                  },
-                  {
-                    "open": {
-                      "day": 5,
-                      "time": "1100"
-                    },
-                    "close": {
-                      "day": 5,
-                      "time": "2200"
-                    }
-                  },
-                  {
-                    "open": {
-                      "day": 6,
-                      "time": "1100"
-                    },
-                    "close": {
-                      "day": 6,
-                      "time": "2200"
-                    }
-                  }
-                ],
-                "open_now": true,
-                "weekday_text": [
-                  "Monday: 11:00 AM – 9:00 PM",
-                  "Tuesday: 11:00 AM – 9:00 PM",
-                  "Wednesday: 11:00 AM – 9:00 PM",
-                  "Thursday: 11:00 AM – 9:00 PM",
-                  "Friday: 11:00 AM – 10:00 PM",
-                  "Saturday: 11:00 AM – 10:00 PM",
-                  "Sunday: 12:00 – 8:00 PM"
-                ]
-              },
-              "phone": "32 767 85 55",
-              "website": "https://dworhubertus.pl/",
-              "image_url": "/images/restaurants/[redacted].jpg",
-              "photo_gallery": null,
-              "item_match_score": 140,
-              "matched_menu_items": [
-                "Gyros z frytkami i tzatziki"
-              ]
-            },
-            {
-              "id": "[redacted]",
               "name": "Klaps Burgers",
               "address": "ul. Piotra Skargi 15",
               "city": "Piekary Śląskie",
@@ -2263,9 +2345,16 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
               "lng": 18.95422,
               "delivery_available": true,
               "price_level": 2,
-              "taxonomy_groups": [],
-              "taxonomy_cats": [],
-              "taxonomy_tags": [],
+              "taxonomy_groups": [
+                "fast_food"
+              ],
+              "taxonomy_cats": [
+                "burgers"
+              ],
+              "taxonomy_tags": [
+                "quick",
+                "delivery"
+              ],
               "maps_rating": 4.3,
               "maps_ratings_total": 2693,
               "opening_hours": {
@@ -2350,7 +2439,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
           ],
           "menuItems": []
         },
-        "timestamp": 1777497430293
+        "timestamp": 1777868504026
       },
       {
         "role": "user",
@@ -2368,7 +2457,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
             "raw": "z ostrym sosem"
           }
         },
-        "timestamp": 1777497430445
+        "timestamp": 1777868504179
       },
       {
         "role": "assistant",
@@ -2378,7 +2467,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
           "restaurants": [],
           "menuItems": []
         },
-        "timestamp": 1777497430448
+        "timestamp": 1777868504181
       }
     ],
     "entityCache": {
@@ -2387,25 +2476,25 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
           "id": "[redacted]",
           "name": "Tasty King Kebab",
           "position": 1,
-          "timestamp": 1777497430293
-        },
-        {
-          "id": "[redacted]",
-          "name": "Callzone",
-          "position": 2,
-          "timestamp": 1777497430293
+          "timestamp": 1777868504026
         },
         {
           "id": "[redacted]",
           "name": "Dwór Hubertus",
+          "position": 2,
+          "timestamp": 1777868504026
+        },
+        {
+          "id": "[redacted]",
+          "name": "Callzone",
           "position": 3,
-          "timestamp": 1777497430293
+          "timestamp": 1777868504026
         },
         {
           "id": "[redacted]",
           "name": "Klaps Burgers",
           "position": 4,
-          "timestamp": 1777497430293
+          "timestamp": 1777868504026
         }
       ],
       "items": [],
@@ -2413,7 +2502,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
     },
     "currentRestaurant": null,
     "lockedRestaurantId": null,
-    "lastUpdated": 1777497430446,
+    "lastUpdated": 1777868504180,
     "last_location": "Piekary Śląskie",
     "last_restaurants_list": [
       {
@@ -2426,9 +2515,15 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
         "lng": 18.94712,
         "delivery_available": true,
         "price_level": 2,
-        "taxonomy_groups": [],
-        "taxonomy_cats": [],
-        "taxonomy_tags": [],
+        "taxonomy_groups": [
+          "grill"
+        ],
+        "taxonomy_cats": [
+          "kebab"
+        ],
+        "taxonomy_tags": [
+          "delivery"
+        ],
         "maps_rating": 4.2,
         "maps_ratings_total": 1238,
         "opening_hours": {
@@ -2534,6 +2629,116 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
       },
       {
         "id": "[redacted]",
+        "name": "Dwór Hubertus",
+        "address": "ul. Inwalidów Wojennych 72",
+        "city": "Piekary Śląskie",
+        "cuisine_type": "Śląska / Europejska",
+        "lat": 50.39233,
+        "lng": 18.94243,
+        "delivery_available": true,
+        "price_level": 2,
+        "taxonomy_groups": [],
+        "taxonomy_cats": [],
+        "taxonomy_tags": [
+          "delivery"
+        ],
+        "maps_rating": 4.2,
+        "maps_ratings_total": 785,
+        "opening_hours": {
+          "periods": [
+            {
+              "open": {
+                "day": 0,
+                "time": "1200"
+              },
+              "close": {
+                "day": 0,
+                "time": "2000"
+              }
+            },
+            {
+              "open": {
+                "day": 1,
+                "time": "1100"
+              },
+              "close": {
+                "day": 1,
+                "time": "2100"
+              }
+            },
+            {
+              "open": {
+                "day": 2,
+                "time": "1100"
+              },
+              "close": {
+                "day": 2,
+                "time": "2100"
+              }
+            },
+            {
+              "open": {
+                "day": 3,
+                "time": "1100"
+              },
+              "close": {
+                "day": 3,
+                "time": "2100"
+              }
+            },
+            {
+              "open": {
+                "day": 4,
+                "time": "1100"
+              },
+              "close": {
+                "day": 4,
+                "time": "2100"
+              }
+            },
+            {
+              "open": {
+                "day": 5,
+                "time": "1100"
+              },
+              "close": {
+                "day": 5,
+                "time": "2200"
+              }
+            },
+            {
+              "open": {
+                "day": 6,
+                "time": "1100"
+              },
+              "close": {
+                "day": 6,
+                "time": "2200"
+              }
+            }
+          ],
+          "open_now": true,
+          "weekday_text": [
+            "Monday: 11:00 AM – 9:00 PM",
+            "Tuesday: 11:00 AM – 9:00 PM",
+            "Wednesday: 11:00 AM – 9:00 PM",
+            "Thursday: 11:00 AM – 9:00 PM",
+            "Friday: 11:00 AM – 10:00 PM",
+            "Saturday: 11:00 AM – 10:00 PM",
+            "Sunday: 12:00 – 8:00 PM"
+          ]
+        },
+        "phone": "32 767 85 55",
+        "website": "https://dworhubertus.pl/",
+        "image_url": "/images/restaurants/[redacted].jpg",
+        "photo_gallery": null,
+        "item_match_score": 140,
+        "matched_menu_items": [
+          "Gyros z frytkami i tzatziki"
+        ]
+      },
+      {
+        "id": "[redacted]",
         "name": "Callzone",
         "address": "ul. Księdza Piotra Skargi 3",
         "city": "Piekary Śląskie",
@@ -2542,9 +2747,15 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
         "lng": 18.95647,
         "delivery_available": true,
         "price_level": 2,
-        "taxonomy_groups": [],
-        "taxonomy_cats": [],
-        "taxonomy_tags": [],
+        "taxonomy_groups": [
+          "pizza_italian"
+        ],
+        "taxonomy_cats": [
+          "pizza"
+        ],
+        "taxonomy_tags": [
+          "delivery"
+        ],
         "maps_rating": 4.2,
         "maps_ratings_total": 1452,
         "opening_hours": {
@@ -2648,114 +2859,6 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
       },
       {
         "id": "[redacted]",
-        "name": "Dwór Hubertus",
-        "address": "ul. Inwalidów Wojennych 72",
-        "city": "Piekary Śląskie",
-        "cuisine_type": "Śląska / Europejska",
-        "lat": 50.39233,
-        "lng": 18.94243,
-        "delivery_available": true,
-        "price_level": 2,
-        "taxonomy_groups": [],
-        "taxonomy_cats": [],
-        "taxonomy_tags": [],
-        "maps_rating": 4.2,
-        "maps_ratings_total": 785,
-        "opening_hours": {
-          "periods": [
-            {
-              "open": {
-                "day": 0,
-                "time": "1200"
-              },
-              "close": {
-                "day": 0,
-                "time": "2000"
-              }
-            },
-            {
-              "open": {
-                "day": 1,
-                "time": "1100"
-              },
-              "close": {
-                "day": 1,
-                "time": "2100"
-              }
-            },
-            {
-              "open": {
-                "day": 2,
-                "time": "1100"
-              },
-              "close": {
-                "day": 2,
-                "time": "2100"
-              }
-            },
-            {
-              "open": {
-                "day": 3,
-                "time": "1100"
-              },
-              "close": {
-                "day": 3,
-                "time": "2100"
-              }
-            },
-            {
-              "open": {
-                "day": 4,
-                "time": "1100"
-              },
-              "close": {
-                "day": 4,
-                "time": "2100"
-              }
-            },
-            {
-              "open": {
-                "day": 5,
-                "time": "1100"
-              },
-              "close": {
-                "day": 5,
-                "time": "2200"
-              }
-            },
-            {
-              "open": {
-                "day": 6,
-                "time": "1100"
-              },
-              "close": {
-                "day": 6,
-                "time": "2200"
-              }
-            }
-          ],
-          "open_now": true,
-          "weekday_text": [
-            "Monday: 11:00 AM – 9:00 PM",
-            "Tuesday: 11:00 AM – 9:00 PM",
-            "Wednesday: 11:00 AM – 9:00 PM",
-            "Thursday: 11:00 AM – 9:00 PM",
-            "Friday: 11:00 AM – 10:00 PM",
-            "Saturday: 11:00 AM – 10:00 PM",
-            "Sunday: 12:00 – 8:00 PM"
-          ]
-        },
-        "phone": "32 767 85 55",
-        "website": "https://dworhubertus.pl/",
-        "image_url": "/images/restaurants/[redacted].jpg",
-        "photo_gallery": null,
-        "item_match_score": 140,
-        "matched_menu_items": [
-          "Gyros z frytkami i tzatziki"
-        ]
-      },
-      {
-        "id": "[redacted]",
         "name": "Klaps Burgers",
         "address": "ul. Piotra Skargi 15",
         "city": "Piekary Śląskie",
@@ -2764,9 +2867,16 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
         "lng": 18.95422,
         "delivery_available": true,
         "price_level": 2,
-        "taxonomy_groups": [],
-        "taxonomy_cats": [],
-        "taxonomy_tags": [],
+        "taxonomy_groups": [
+          "fast_food"
+        ],
+        "taxonomy_cats": [
+          "burgers"
+        ],
+        "taxonomy_tags": [
+          "quick",
+          "delivery"
+        ],
         "maps_rating": 4.3,
         "maps_ratings_total": 2693,
         "opening_hours": {
@@ -2858,7 +2968,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
           "restaurantCount": 2
         },
         "renderedText": "Mam 2 miejsc w Piekary Śląskie. Którą restaurację wybierasz? (Możesz powiedzieć numer albo nazwę.)",
-        "timestamp": 1777497429492
+        "timestamp": 1777868503391
       },
       {
         "surfaceKey": "CHOOSE_RESTAURANT",
@@ -2867,7 +2977,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
           "restaurantCount": 2
         },
         "renderedText": "Mam 2 miejsc w Piekary Śląskie. Którą restaurację wybierasz? (Możesz powiedzieć numer albo nazwę.)",
-        "timestamp": 1777497429952
+        "timestamp": 1777868503646
       },
       {
         "surfaceKey": "CHOOSE_RESTAURANT",
@@ -2876,14 +2986,14 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
           "restaurantCount": 4
         },
         "renderedText": "Mam 4 miejsc w Piekary Śląskie. Którą restaurację wybierasz? (Możesz powiedzieć numer albo nazwę.)",
-        "timestamp": 1777497430292
+        "timestamp": 1777868504026
       }
     ],
     "dialogStackIndex": 2
   },
   "locationRestaurants": [],
-  "timestamp": "2026-04-29T21:17:10.447Z",
-  "turn_id": "turn_1777497430448_hul1d"
+  "timestamp": "2026-05-04T04:21:44.180Z",
+  "turn_id": "turn_1777868504181_690lx"
 }
 ```
 
@@ -2896,7 +3006,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
 ```json
 {
   "ok": true,
-  "session_id": "chaos-A03-1777497430467",
+  "session_id": "chaos-A03-1777868504194",
   "text": "Nie wiem którą restaurację z listy masz na myśli. Wybierz numer od 1 do 4 lub powiedz \"cofnij\".",
   "reply": "Nie wiem którą restaurację z listy masz na myśli. Wybierz numer od 1 do 4 lub powiedz \"cofnij\".",
   "tts_text": "Nie wiem którą restaurację z listy masz na myśli. Wybierz numer od 1 do 4 lub powiedz \"cofnij\".",
@@ -2914,10 +3024,11 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
   },
   "recommendations": [],
   "meta": {
-    "latency_total_ms": 90,
+    "latency_total_ms": 104,
     "source": "context_lock",
     "styling_ms": 0,
     "tts_ms": 0,
+    "cartHash": "empty",
     "state": {
       "conversationPhase": "idle",
       "currentRestaurant": null,
@@ -3074,13 +3185,13 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
       },
       {
         "id": "[redacted]",
-        "name": "Callzone",
+        "name": "Dwór Hubertus",
         "index": 2,
         "city": "Piekary Śląskie"
       },
       {
         "id": "[redacted]",
-        "name": "Dwór Hubertus",
+        "name": "Callzone",
         "index": 3,
         "city": "Piekary Śląskie"
       },
@@ -3115,9 +3226,15 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
               "lng": null,
               "delivery_available": true,
               "price_level": 2,
-              "taxonomy_groups": [],
-              "taxonomy_cats": [],
-              "taxonomy_tags": [],
+              "taxonomy_groups": [
+                "pizza_italian"
+              ],
+              "taxonomy_cats": [
+                "pizza"
+              ],
+              "taxonomy_tags": [
+                "delivery"
+              ],
               "maps_rating": 4.3,
               "maps_ratings_total": 1675,
               "opening_hours": {
@@ -3225,9 +3342,15 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
               "lng": 18.95647,
               "delivery_available": true,
               "price_level": 2,
-              "taxonomy_groups": [],
-              "taxonomy_cats": [],
-              "taxonomy_tags": [],
+              "taxonomy_groups": [
+                "pizza_italian"
+              ],
+              "taxonomy_cats": [
+                "pizza"
+              ],
+              "taxonomy_tags": [
+                "delivery"
+              ],
               "maps_rating": 4.2,
               "maps_ratings_total": 1452,
               "opening_hours": {
@@ -3328,7 +3451,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
           ],
           "menuItems": []
         },
-        "timestamp": 1777497431527
+        "timestamp": 1777868504924
       },
       {
         "role": "user",
@@ -3345,7 +3468,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
             "items": null
           }
         },
-        "timestamp": 1777497431646
+        "timestamp": 1777868505043
       },
       {
         "role": "assistant",
@@ -3363,9 +3486,15 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
               "lng": 18.94712,
               "delivery_available": true,
               "price_level": 2,
-              "taxonomy_groups": [],
-              "taxonomy_cats": [],
-              "taxonomy_tags": [],
+              "taxonomy_groups": [
+                "grill"
+              ],
+              "taxonomy_cats": [
+                "kebab"
+              ],
+              "taxonomy_tags": [
+                "delivery"
+              ],
               "maps_rating": 4.2,
               "maps_ratings_total": 1238,
               "opening_hours": {
@@ -3471,6 +3600,116 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
             },
             {
               "id": "[redacted]",
+              "name": "Dwór Hubertus",
+              "address": "ul. Inwalidów Wojennych 72",
+              "city": "Piekary Śląskie",
+              "cuisine_type": "Śląska / Europejska",
+              "lat": 50.39233,
+              "lng": 18.94243,
+              "delivery_available": true,
+              "price_level": 2,
+              "taxonomy_groups": [],
+              "taxonomy_cats": [],
+              "taxonomy_tags": [
+                "delivery"
+              ],
+              "maps_rating": 4.2,
+              "maps_ratings_total": 785,
+              "opening_hours": {
+                "periods": [
+                  {
+                    "open": {
+                      "day": 0,
+                      "time": "1200"
+                    },
+                    "close": {
+                      "day": 0,
+                      "time": "2000"
+                    }
+                  },
+                  {
+                    "open": {
+                      "day": 1,
+                      "time": "1100"
+                    },
+                    "close": {
+                      "day": 1,
+                      "time": "2100"
+                    }
+                  },
+                  {
+                    "open": {
+                      "day": 2,
+                      "time": "1100"
+                    },
+                    "close": {
+                      "day": 2,
+                      "time": "2100"
+                    }
+                  },
+                  {
+                    "open": {
+                      "day": 3,
+                      "time": "1100"
+                    },
+                    "close": {
+                      "day": 3,
+                      "time": "2100"
+                    }
+                  },
+                  {
+                    "open": {
+                      "day": 4,
+                      "time": "1100"
+                    },
+                    "close": {
+                      "day": 4,
+                      "time": "2100"
+                    }
+                  },
+                  {
+                    "open": {
+                      "day": 5,
+                      "time": "1100"
+                    },
+                    "close": {
+                      "day": 5,
+                      "time": "2200"
+                    }
+                  },
+                  {
+                    "open": {
+                      "day": 6,
+                      "time": "1100"
+                    },
+                    "close": {
+                      "day": 6,
+                      "time": "2200"
+                    }
+                  }
+                ],
+                "open_now": true,
+                "weekday_text": [
+                  "Monday: 11:00 AM – 9:00 PM",
+                  "Tuesday: 11:00 AM – 9:00 PM",
+                  "Wednesday: 11:00 AM – 9:00 PM",
+                  "Thursday: 11:00 AM – 9:00 PM",
+                  "Friday: 11:00 AM – 10:00 PM",
+                  "Saturday: 11:00 AM – 10:00 PM",
+                  "Sunday: 12:00 – 8:00 PM"
+                ]
+              },
+              "phone": "32 767 85 55",
+              "website": "https://dworhubertus.pl/",
+              "image_url": "/images/restaurants/[redacted].jpg",
+              "photo_gallery": null,
+              "item_match_score": 140,
+              "matched_menu_items": [
+                "Gyros z frytkami i tzatziki"
+              ]
+            },
+            {
+              "id": "[redacted]",
               "name": "Callzone",
               "address": "ul. Księdza Piotra Skargi 3",
               "city": "Piekary Śląskie",
@@ -3479,9 +3718,15 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
               "lng": 18.95647,
               "delivery_available": true,
               "price_level": 2,
-              "taxonomy_groups": [],
-              "taxonomy_cats": [],
-              "taxonomy_tags": [],
+              "taxonomy_groups": [
+                "pizza_italian"
+              ],
+              "taxonomy_cats": [
+                "pizza"
+              ],
+              "taxonomy_tags": [
+                "delivery"
+              ],
               "maps_rating": 4.2,
               "maps_ratings_total": 1452,
               "opening_hours": {
@@ -3585,114 +3830,6 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
             },
             {
               "id": "[redacted]",
-              "name": "Dwór Hubertus",
-              "address": "ul. Inwalidów Wojennych 72",
-              "city": "Piekary Śląskie",
-              "cuisine_type": "Śląska / Europejska",
-              "lat": 50.39233,
-              "lng": 18.94243,
-              "delivery_available": true,
-              "price_level": 2,
-              "taxonomy_groups": [],
-              "taxonomy_cats": [],
-              "taxonomy_tags": [],
-              "maps_rating": 4.2,
-              "maps_ratings_total": 785,
-              "opening_hours": {
-                "periods": [
-                  {
-                    "open": {
-                      "day": 0,
-                      "time": "1200"
-                    },
-                    "close": {
-                      "day": 0,
-                      "time": "2000"
-                    }
-                  },
-                  {
-                    "open": {
-                      "day": 1,
-                      "time": "1100"
-                    },
-                    "close": {
-                      "day": 1,
-                      "time": "2100"
-                    }
-                  },
-                  {
-                    "open": {
-                      "day": 2,
-                      "time": "1100"
-                    },
-                    "close": {
-                      "day": 2,
-                      "time": "2100"
-                    }
-                  },
-                  {
-                    "open": {
-                      "day": 3,
-                      "time": "1100"
-                    },
-                    "close": {
-                      "day": 3,
-                      "time": "2100"
-                    }
-                  },
-                  {
-                    "open": {
-                      "day": 4,
-                      "time": "1100"
-                    },
-                    "close": {
-                      "day": 4,
-                      "time": "2100"
-                    }
-                  },
-                  {
-                    "open": {
-                      "day": 5,
-                      "time": "1100"
-                    },
-                    "close": {
-                      "day": 5,
-                      "time": "2200"
-                    }
-                  },
-                  {
-                    "open": {
-                      "day": 6,
-                      "time": "1100"
-                    },
-                    "close": {
-                      "day": 6,
-                      "time": "2200"
-                    }
-                  }
-                ],
-                "open_now": true,
-                "weekday_text": [
-                  "Monday: 11:00 AM – 9:00 PM",
-                  "Tuesday: 11:00 AM – 9:00 PM",
-                  "Wednesday: 11:00 AM – 9:00 PM",
-                  "Thursday: 11:00 AM – 9:00 PM",
-                  "Friday: 11:00 AM – 10:00 PM",
-                  "Saturday: 11:00 AM – 10:00 PM",
-                  "Sunday: 12:00 – 8:00 PM"
-                ]
-              },
-              "phone": "32 767 85 55",
-              "website": "https://dworhubertus.pl/",
-              "image_url": "/images/restaurants/[redacted].jpg",
-              "photo_gallery": null,
-              "item_match_score": 140,
-              "matched_menu_items": [
-                "Gyros z frytkami i tzatziki"
-              ]
-            },
-            {
-              "id": "[redacted]",
               "name": "Klaps Burgers",
               "address": "ul. Piotra Skargi 15",
               "city": "Piekary Śląskie",
@@ -3701,9 +3838,16 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
               "lng": 18.95422,
               "delivery_available": true,
               "price_level": 2,
-              "taxonomy_groups": [],
-              "taxonomy_cats": [],
-              "taxonomy_tags": [],
+              "taxonomy_groups": [
+                "fast_food"
+              ],
+              "taxonomy_cats": [
+                "burgers"
+              ],
+              "taxonomy_tags": [
+                "quick",
+                "delivery"
+              ],
               "maps_rating": 4.3,
               "maps_ratings_total": 2693,
               "opening_hours": {
@@ -3788,7 +3932,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
           ],
           "menuItems": []
         },
-        "timestamp": 1777497431863
+        "timestamp": 1777868505303
       },
       {
         "role": "user",
@@ -3806,7 +3950,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
             "raw": "z ostrym sosem"
           }
         },
-        "timestamp": 1777497432027
+        "timestamp": 1777868505430
       },
       {
         "role": "assistant",
@@ -3816,7 +3960,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
           "restaurants": [],
           "menuItems": []
         },
-        "timestamp": 1777497432028
+        "timestamp": 1777868505431
       }
     ],
     "entityCache": {
@@ -3825,25 +3969,25 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
           "id": "[redacted]",
           "name": "Tasty King Kebab",
           "position": 1,
-          "timestamp": 1777497431863
-        },
-        {
-          "id": "[redacted]",
-          "name": "Callzone",
-          "position": 2,
-          "timestamp": 1777497431863
+          "timestamp": 1777868505303
         },
         {
           "id": "[redacted]",
           "name": "Dwór Hubertus",
+          "position": 2,
+          "timestamp": 1777868505303
+        },
+        {
+          "id": "[redacted]",
+          "name": "Callzone",
           "position": 3,
-          "timestamp": 1777497431863
+          "timestamp": 1777868505303
         },
         {
           "id": "[redacted]",
           "name": "Klaps Burgers",
           "position": 4,
-          "timestamp": 1777497431863
+          "timestamp": 1777868505303
         }
       ],
       "items": [],
@@ -3851,7 +3995,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
     },
     "currentRestaurant": null,
     "lockedRestaurantId": null,
-    "lastUpdated": 1777497432027,
+    "lastUpdated": 1777868505430,
     "last_location": "Piekary Śląskie",
     "last_restaurants_list": [
       {
@@ -3864,9 +4008,15 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
         "lng": 18.94712,
         "delivery_available": true,
         "price_level": 2,
-        "taxonomy_groups": [],
-        "taxonomy_cats": [],
-        "taxonomy_tags": [],
+        "taxonomy_groups": [
+          "grill"
+        ],
+        "taxonomy_cats": [
+          "kebab"
+        ],
+        "taxonomy_tags": [
+          "delivery"
+        ],
         "maps_rating": 4.2,
         "maps_ratings_total": 1238,
         "opening_hours": {
@@ -3972,6 +4122,116 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
       },
       {
         "id": "[redacted]",
+        "name": "Dwór Hubertus",
+        "address": "ul. Inwalidów Wojennych 72",
+        "city": "Piekary Śląskie",
+        "cuisine_type": "Śląska / Europejska",
+        "lat": 50.39233,
+        "lng": 18.94243,
+        "delivery_available": true,
+        "price_level": 2,
+        "taxonomy_groups": [],
+        "taxonomy_cats": [],
+        "taxonomy_tags": [
+          "delivery"
+        ],
+        "maps_rating": 4.2,
+        "maps_ratings_total": 785,
+        "opening_hours": {
+          "periods": [
+            {
+              "open": {
+                "day": 0,
+                "time": "1200"
+              },
+              "close": {
+                "day": 0,
+                "time": "2000"
+              }
+            },
+            {
+              "open": {
+                "day": 1,
+                "time": "1100"
+              },
+              "close": {
+                "day": 1,
+                "time": "2100"
+              }
+            },
+            {
+              "open": {
+                "day": 2,
+                "time": "1100"
+              },
+              "close": {
+                "day": 2,
+                "time": "2100"
+              }
+            },
+            {
+              "open": {
+                "day": 3,
+                "time": "1100"
+              },
+              "close": {
+                "day": 3,
+                "time": "2100"
+              }
+            },
+            {
+              "open": {
+                "day": 4,
+                "time": "1100"
+              },
+              "close": {
+                "day": 4,
+                "time": "2100"
+              }
+            },
+            {
+              "open": {
+                "day": 5,
+                "time": "1100"
+              },
+              "close": {
+                "day": 5,
+                "time": "2200"
+              }
+            },
+            {
+              "open": {
+                "day": 6,
+                "time": "1100"
+              },
+              "close": {
+                "day": 6,
+                "time": "2200"
+              }
+            }
+          ],
+          "open_now": true,
+          "weekday_text": [
+            "Monday: 11:00 AM – 9:00 PM",
+            "Tuesday: 11:00 AM – 9:00 PM",
+            "Wednesday: 11:00 AM – 9:00 PM",
+            "Thursday: 11:00 AM – 9:00 PM",
+            "Friday: 11:00 AM – 10:00 PM",
+            "Saturday: 11:00 AM – 10:00 PM",
+            "Sunday: 12:00 – 8:00 PM"
+          ]
+        },
+        "phone": "32 767 85 55",
+        "website": "https://dworhubertus.pl/",
+        "image_url": "/images/restaurants/[redacted].jpg",
+        "photo_gallery": null,
+        "item_match_score": 140,
+        "matched_menu_items": [
+          "Gyros z frytkami i tzatziki"
+        ]
+      },
+      {
+        "id": "[redacted]",
         "name": "Callzone",
         "address": "ul. Księdza Piotra Skargi 3",
         "city": "Piekary Śląskie",
@@ -3980,9 +4240,15 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
         "lng": 18.95647,
         "delivery_available": true,
         "price_level": 2,
-        "taxonomy_groups": [],
-        "taxonomy_cats": [],
-        "taxonomy_tags": [],
+        "taxonomy_groups": [
+          "pizza_italian"
+        ],
+        "taxonomy_cats": [
+          "pizza"
+        ],
+        "taxonomy_tags": [
+          "delivery"
+        ],
         "maps_rating": 4.2,
         "maps_ratings_total": 1452,
         "opening_hours": {
@@ -4086,114 +4352,6 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
       },
       {
         "id": "[redacted]",
-        "name": "Dwór Hubertus",
-        "address": "ul. Inwalidów Wojennych 72",
-        "city": "Piekary Śląskie",
-        "cuisine_type": "Śląska / Europejska",
-        "lat": 50.39233,
-        "lng": 18.94243,
-        "delivery_available": true,
-        "price_level": 2,
-        "taxonomy_groups": [],
-        "taxonomy_cats": [],
-        "taxonomy_tags": [],
-        "maps_rating": 4.2,
-        "maps_ratings_total": 785,
-        "opening_hours": {
-          "periods": [
-            {
-              "open": {
-                "day": 0,
-                "time": "1200"
-              },
-              "close": {
-                "day": 0,
-                "time": "2000"
-              }
-            },
-            {
-              "open": {
-                "day": 1,
-                "time": "1100"
-              },
-              "close": {
-                "day": 1,
-                "time": "2100"
-              }
-            },
-            {
-              "open": {
-                "day": 2,
-                "time": "1100"
-              },
-              "close": {
-                "day": 2,
-                "time": "2100"
-              }
-            },
-            {
-              "open": {
-                "day": 3,
-                "time": "1100"
-              },
-              "close": {
-                "day": 3,
-                "time": "2100"
-              }
-            },
-            {
-              "open": {
-                "day": 4,
-                "time": "1100"
-              },
-              "close": {
-                "day": 4,
-                "time": "2100"
-              }
-            },
-            {
-              "open": {
-                "day": 5,
-                "time": "1100"
-              },
-              "close": {
-                "day": 5,
-                "time": "2200"
-              }
-            },
-            {
-              "open": {
-                "day": 6,
-                "time": "1100"
-              },
-              "close": {
-                "day": 6,
-                "time": "2200"
-              }
-            }
-          ],
-          "open_now": true,
-          "weekday_text": [
-            "Monday: 11:00 AM – 9:00 PM",
-            "Tuesday: 11:00 AM – 9:00 PM",
-            "Wednesday: 11:00 AM – 9:00 PM",
-            "Thursday: 11:00 AM – 9:00 PM",
-            "Friday: 11:00 AM – 10:00 PM",
-            "Saturday: 11:00 AM – 10:00 PM",
-            "Sunday: 12:00 – 8:00 PM"
-          ]
-        },
-        "phone": "32 767 85 55",
-        "website": "https://dworhubertus.pl/",
-        "image_url": "/images/restaurants/[redacted].jpg",
-        "photo_gallery": null,
-        "item_match_score": 140,
-        "matched_menu_items": [
-          "Gyros z frytkami i tzatziki"
-        ]
-      },
-      {
-        "id": "[redacted]",
         "name": "Klaps Burgers",
         "address": "ul. Piotra Skargi 15",
         "city": "Piekary Śląskie",
@@ -4202,9 +4360,16 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
         "lng": 18.95422,
         "delivery_available": true,
         "price_level": 2,
-        "taxonomy_groups": [],
-        "taxonomy_cats": [],
-        "taxonomy_tags": [],
+        "taxonomy_groups": [
+          "fast_food"
+        ],
+        "taxonomy_cats": [
+          "burgers"
+        ],
+        "taxonomy_tags": [
+          "quick",
+          "delivery"
+        ],
         "maps_rating": 4.3,
         "maps_ratings_total": 2693,
         "opening_hours": {
@@ -4296,7 +4461,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
           "restaurantCount": 2
         },
         "renderedText": "Mam 2 miejsc w Piekary Śląskie. Którą restaurację wybierasz? (Możesz powiedzieć numer albo nazwę.)",
-        "timestamp": 1777497431140
+        "timestamp": 1777868504693
       },
       {
         "surfaceKey": "CHOOSE_RESTAURANT",
@@ -4305,7 +4470,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
           "restaurantCount": 2
         },
         "renderedText": "Mam 2 miejsc w Piekary Śląskie. Którą restaurację wybierasz? (Możesz powiedzieć numer albo nazwę.)",
-        "timestamp": 1777497431525
+        "timestamp": 1777868504923
       },
       {
         "surfaceKey": "CHOOSE_RESTAURANT",
@@ -4314,14 +4479,14 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
           "restaurantCount": 4
         },
         "renderedText": "Mam 4 miejsc w Piekary Śląskie. Którą restaurację wybierasz? (Możesz powiedzieć numer albo nazwę.)",
-        "timestamp": 1777497431862
+        "timestamp": 1777868505303
       }
     ],
     "dialogStackIndex": 2
   },
   "locationRestaurants": [],
-  "timestamp": "2026-04-29T21:17:12.028Z",
-  "turn_id": "turn_1777497432028_d2hc3"
+  "timestamp": "2026-05-04T04:21:45.431Z",
+  "turn_id": "turn_1777868505431_d03i3"
 }
 ```
 
@@ -4334,7 +4499,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
 ```json
 {
   "ok": true,
-  "session_id": "chaos-A04-1777497432046",
+  "session_id": "chaos-A04-1777868505444",
   "text": "Nie wiem którą restaurację z listy masz na myśli. Wybierz numer od 1 do 4 lub powiedz \"cofnij\".",
   "reply": "Nie wiem którą restaurację z listy masz na myśli. Wybierz numer od 1 do 4 lub powiedz \"cofnij\".",
   "tts_text": "Nie wiem którą restaurację z listy masz na myśli. Wybierz numer od 1 do 4 lub powiedz \"cofnij\".",
@@ -4352,10 +4517,11 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
   },
   "recommendations": [],
   "meta": {
-    "latency_total_ms": 348,
+    "latency_total_ms": 114,
     "source": "context_lock",
     "styling_ms": 0,
     "tts_ms": 0,
+    "cartHash": "empty",
     "state": {
       "conversationPhase": "idle",
       "currentRestaurant": null,
@@ -4512,13 +4678,13 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
       },
       {
         "id": "[redacted]",
-        "name": "Callzone",
+        "name": "Dwór Hubertus",
         "index": 2,
         "city": "Piekary Śląskie"
       },
       {
         "id": "[redacted]",
-        "name": "Dwór Hubertus",
+        "name": "Callzone",
         "index": 3,
         "city": "Piekary Śląskie"
       },
@@ -4553,9 +4719,15 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
               "lng": null,
               "delivery_available": true,
               "price_level": 2,
-              "taxonomy_groups": [],
-              "taxonomy_cats": [],
-              "taxonomy_tags": [],
+              "taxonomy_groups": [
+                "pizza_italian"
+              ],
+              "taxonomy_cats": [
+                "pizza"
+              ],
+              "taxonomy_tags": [
+                "delivery"
+              ],
               "maps_rating": 4.3,
               "maps_ratings_total": 1675,
               "opening_hours": {
@@ -4663,9 +4835,15 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
               "lng": 18.95647,
               "delivery_available": true,
               "price_level": 2,
-              "taxonomy_groups": [],
-              "taxonomy_cats": [],
-              "taxonomy_tags": [],
+              "taxonomy_groups": [
+                "pizza_italian"
+              ],
+              "taxonomy_cats": [
+                "pizza"
+              ],
+              "taxonomy_tags": [
+                "delivery"
+              ],
               "maps_rating": 4.2,
               "maps_ratings_total": 1452,
               "opening_hours": {
@@ -4766,7 +4944,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
           ],
           "menuItems": []
         },
-        "timestamp": 1777497433106
+        "timestamp": 1777868506162
       },
       {
         "role": "user",
@@ -4783,7 +4961,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
             "items": null
           }
         },
-        "timestamp": 1777497433346
+        "timestamp": 1777868506283
       },
       {
         "role": "assistant",
@@ -4801,9 +4979,15 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
               "lng": 18.94712,
               "delivery_available": true,
               "price_level": 2,
-              "taxonomy_groups": [],
-              "taxonomy_cats": [],
-              "taxonomy_tags": [],
+              "taxonomy_groups": [
+                "grill"
+              ],
+              "taxonomy_cats": [
+                "kebab"
+              ],
+              "taxonomy_tags": [
+                "delivery"
+              ],
               "maps_rating": 4.2,
               "maps_ratings_total": 1238,
               "opening_hours": {
@@ -4909,6 +5093,116 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
             },
             {
               "id": "[redacted]",
+              "name": "Dwór Hubertus",
+              "address": "ul. Inwalidów Wojennych 72",
+              "city": "Piekary Śląskie",
+              "cuisine_type": "Śląska / Europejska",
+              "lat": 50.39233,
+              "lng": 18.94243,
+              "delivery_available": true,
+              "price_level": 2,
+              "taxonomy_groups": [],
+              "taxonomy_cats": [],
+              "taxonomy_tags": [
+                "delivery"
+              ],
+              "maps_rating": 4.2,
+              "maps_ratings_total": 785,
+              "opening_hours": {
+                "periods": [
+                  {
+                    "open": {
+                      "day": 0,
+                      "time": "1200"
+                    },
+                    "close": {
+                      "day": 0,
+                      "time": "2000"
+                    }
+                  },
+                  {
+                    "open": {
+                      "day": 1,
+                      "time": "1100"
+                    },
+                    "close": {
+                      "day": 1,
+                      "time": "2100"
+                    }
+                  },
+                  {
+                    "open": {
+                      "day": 2,
+                      "time": "1100"
+                    },
+                    "close": {
+                      "day": 2,
+                      "time": "2100"
+                    }
+                  },
+                  {
+                    "open": {
+                      "day": 3,
+                      "time": "1100"
+                    },
+                    "close": {
+                      "day": 3,
+                      "time": "2100"
+                    }
+                  },
+                  {
+                    "open": {
+                      "day": 4,
+                      "time": "1100"
+                    },
+                    "close": {
+                      "day": 4,
+                      "time": "2100"
+                    }
+                  },
+                  {
+                    "open": {
+                      "day": 5,
+                      "time": "1100"
+                    },
+                    "close": {
+                      "day": 5,
+                      "time": "2200"
+                    }
+                  },
+                  {
+                    "open": {
+                      "day": 6,
+                      "time": "1100"
+                    },
+                    "close": {
+                      "day": 6,
+                      "time": "2200"
+                    }
+                  }
+                ],
+                "open_now": true,
+                "weekday_text": [
+                  "Monday: 11:00 AM – 9:00 PM",
+                  "Tuesday: 11:00 AM – 9:00 PM",
+                  "Wednesday: 11:00 AM – 9:00 PM",
+                  "Thursday: 11:00 AM – 9:00 PM",
+                  "Friday: 11:00 AM – 10:00 PM",
+                  "Saturday: 11:00 AM – 10:00 PM",
+                  "Sunday: 12:00 – 8:00 PM"
+                ]
+              },
+              "phone": "32 767 85 55",
+              "website": "https://dworhubertus.pl/",
+              "image_url": "/images/restaurants/[redacted].jpg",
+              "photo_gallery": null,
+              "item_match_score": 140,
+              "matched_menu_items": [
+                "Gyros z frytkami i tzatziki"
+              ]
+            },
+            {
+              "id": "[redacted]",
               "name": "Callzone",
               "address": "ul. Księdza Piotra Skargi 3",
               "city": "Piekary Śląskie",
@@ -4917,9 +5211,15 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
               "lng": 18.95647,
               "delivery_available": true,
               "price_level": 2,
-              "taxonomy_groups": [],
-              "taxonomy_cats": [],
-              "taxonomy_tags": [],
+              "taxonomy_groups": [
+                "pizza_italian"
+              ],
+              "taxonomy_cats": [
+                "pizza"
+              ],
+              "taxonomy_tags": [
+                "delivery"
+              ],
               "maps_rating": 4.2,
               "maps_ratings_total": 1452,
               "opening_hours": {
@@ -5023,114 +5323,6 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
             },
             {
               "id": "[redacted]",
-              "name": "Dwór Hubertus",
-              "address": "ul. Inwalidów Wojennych 72",
-              "city": "Piekary Śląskie",
-              "cuisine_type": "Śląska / Europejska",
-              "lat": 50.39233,
-              "lng": 18.94243,
-              "delivery_available": true,
-              "price_level": 2,
-              "taxonomy_groups": [],
-              "taxonomy_cats": [],
-              "taxonomy_tags": [],
-              "maps_rating": 4.2,
-              "maps_ratings_total": 785,
-              "opening_hours": {
-                "periods": [
-                  {
-                    "open": {
-                      "day": 0,
-                      "time": "1200"
-                    },
-                    "close": {
-                      "day": 0,
-                      "time": "2000"
-                    }
-                  },
-                  {
-                    "open": {
-                      "day": 1,
-                      "time": "1100"
-                    },
-                    "close": {
-                      "day": 1,
-                      "time": "2100"
-                    }
-                  },
-                  {
-                    "open": {
-                      "day": 2,
-                      "time": "1100"
-                    },
-                    "close": {
-                      "day": 2,
-                      "time": "2100"
-                    }
-                  },
-                  {
-                    "open": {
-                      "day": 3,
-                      "time": "1100"
-                    },
-                    "close": {
-                      "day": 3,
-                      "time": "2100"
-                    }
-                  },
-                  {
-                    "open": {
-                      "day": 4,
-                      "time": "1100"
-                    },
-                    "close": {
-                      "day": 4,
-                      "time": "2100"
-                    }
-                  },
-                  {
-                    "open": {
-                      "day": 5,
-                      "time": "1100"
-                    },
-                    "close": {
-                      "day": 5,
-                      "time": "2200"
-                    }
-                  },
-                  {
-                    "open": {
-                      "day": 6,
-                      "time": "1100"
-                    },
-                    "close": {
-                      "day": 6,
-                      "time": "2200"
-                    }
-                  }
-                ],
-                "open_now": true,
-                "weekday_text": [
-                  "Monday: 11:00 AM – 9:00 PM",
-                  "Tuesday: 11:00 AM – 9:00 PM",
-                  "Wednesday: 11:00 AM – 9:00 PM",
-                  "Thursday: 11:00 AM – 9:00 PM",
-                  "Friday: 11:00 AM – 10:00 PM",
-                  "Saturday: 11:00 AM – 10:00 PM",
-                  "Sunday: 12:00 – 8:00 PM"
-                ]
-              },
-              "phone": "32 767 85 55",
-              "website": "https://dworhubertus.pl/",
-              "image_url": "/images/restaurants/[redacted].jpg",
-              "photo_gallery": null,
-              "item_match_score": 140,
-              "matched_menu_items": [
-                "Gyros z frytkami i tzatziki"
-              ]
-            },
-            {
-              "id": "[redacted]",
               "name": "Klaps Burgers",
               "address": "ul. Piotra Skargi 15",
               "city": "Piekary Śląskie",
@@ -5139,9 +5331,16 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
               "lng": 18.95422,
               "delivery_available": true,
               "price_level": 2,
-              "taxonomy_groups": [],
-              "taxonomy_cats": [],
-              "taxonomy_tags": [],
+              "taxonomy_groups": [
+                "fast_food"
+              ],
+              "taxonomy_cats": [
+                "burgers"
+              ],
+              "taxonomy_tags": [
+                "quick",
+                "delivery"
+              ],
               "maps_rating": 4.3,
               "maps_ratings_total": 2693,
               "opening_hours": {
@@ -5226,7 +5425,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
           ],
           "menuItems": []
         },
-        "timestamp": 1777497433548
+        "timestamp": 1777868506522
       },
       {
         "role": "user",
@@ -5244,7 +5443,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
             "raw": "z ostrym sosem"
           }
         },
-        "timestamp": 1777497433946
+        "timestamp": 1777868506672
       },
       {
         "role": "assistant",
@@ -5254,7 +5453,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
           "restaurants": [],
           "menuItems": []
         },
-        "timestamp": 1777497433947
+        "timestamp": 1777868506673
       }
     ],
     "entityCache": {
@@ -5263,25 +5462,25 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
           "id": "[redacted]",
           "name": "Tasty King Kebab",
           "position": 1,
-          "timestamp": 1777497433548
-        },
-        {
-          "id": "[redacted]",
-          "name": "Callzone",
-          "position": 2,
-          "timestamp": 1777497433548
+          "timestamp": 1777868506522
         },
         {
           "id": "[redacted]",
           "name": "Dwór Hubertus",
+          "position": 2,
+          "timestamp": 1777868506522
+        },
+        {
+          "id": "[redacted]",
+          "name": "Callzone",
           "position": 3,
-          "timestamp": 1777497433548
+          "timestamp": 1777868506522
         },
         {
           "id": "[redacted]",
           "name": "Klaps Burgers",
           "position": 4,
-          "timestamp": 1777497433548
+          "timestamp": 1777868506522
         }
       ],
       "items": [],
@@ -5289,7 +5488,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
     },
     "currentRestaurant": null,
     "lockedRestaurantId": null,
-    "lastUpdated": 1777497433946,
+    "lastUpdated": 1777868506672,
     "last_location": "Piekary Śląskie",
     "last_restaurants_list": [
       {
@@ -5302,9 +5501,15 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
         "lng": 18.94712,
         "delivery_available": true,
         "price_level": 2,
-        "taxonomy_groups": [],
-        "taxonomy_cats": [],
-        "taxonomy_tags": [],
+        "taxonomy_groups": [
+          "grill"
+        ],
+        "taxonomy_cats": [
+          "kebab"
+        ],
+        "taxonomy_tags": [
+          "delivery"
+        ],
         "maps_rating": 4.2,
         "maps_ratings_total": 1238,
         "opening_hours": {
@@ -5410,6 +5615,116 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
       },
       {
         "id": "[redacted]",
+        "name": "Dwór Hubertus",
+        "address": "ul. Inwalidów Wojennych 72",
+        "city": "Piekary Śląskie",
+        "cuisine_type": "Śląska / Europejska",
+        "lat": 50.39233,
+        "lng": 18.94243,
+        "delivery_available": true,
+        "price_level": 2,
+        "taxonomy_groups": [],
+        "taxonomy_cats": [],
+        "taxonomy_tags": [
+          "delivery"
+        ],
+        "maps_rating": 4.2,
+        "maps_ratings_total": 785,
+        "opening_hours": {
+          "periods": [
+            {
+              "open": {
+                "day": 0,
+                "time": "1200"
+              },
+              "close": {
+                "day": 0,
+                "time": "2000"
+              }
+            },
+            {
+              "open": {
+                "day": 1,
+                "time": "1100"
+              },
+              "close": {
+                "day": 1,
+                "time": "2100"
+              }
+            },
+            {
+              "open": {
+                "day": 2,
+                "time": "1100"
+              },
+              "close": {
+                "day": 2,
+                "time": "2100"
+              }
+            },
+            {
+              "open": {
+                "day": 3,
+                "time": "1100"
+              },
+              "close": {
+                "day": 3,
+                "time": "2100"
+              }
+            },
+            {
+              "open": {
+                "day": 4,
+                "time": "1100"
+              },
+              "close": {
+                "day": 4,
+                "time": "2100"
+              }
+            },
+            {
+              "open": {
+                "day": 5,
+                "time": "1100"
+              },
+              "close": {
+                "day": 5,
+                "time": "2200"
+              }
+            },
+            {
+              "open": {
+                "day": 6,
+                "time": "1100"
+              },
+              "close": {
+                "day": 6,
+                "time": "2200"
+              }
+            }
+          ],
+          "open_now": true,
+          "weekday_text": [
+            "Monday: 11:00 AM – 9:00 PM",
+            "Tuesday: 11:00 AM – 9:00 PM",
+            "Wednesday: 11:00 AM – 9:00 PM",
+            "Thursday: 11:00 AM – 9:00 PM",
+            "Friday: 11:00 AM – 10:00 PM",
+            "Saturday: 11:00 AM – 10:00 PM",
+            "Sunday: 12:00 – 8:00 PM"
+          ]
+        },
+        "phone": "32 767 85 55",
+        "website": "https://dworhubertus.pl/",
+        "image_url": "/images/restaurants/[redacted].jpg",
+        "photo_gallery": null,
+        "item_match_score": 140,
+        "matched_menu_items": [
+          "Gyros z frytkami i tzatziki"
+        ]
+      },
+      {
+        "id": "[redacted]",
         "name": "Callzone",
         "address": "ul. Księdza Piotra Skargi 3",
         "city": "Piekary Śląskie",
@@ -5418,9 +5733,15 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
         "lng": 18.95647,
         "delivery_available": true,
         "price_level": 2,
-        "taxonomy_groups": [],
-        "taxonomy_cats": [],
-        "taxonomy_tags": [],
+        "taxonomy_groups": [
+          "pizza_italian"
+        ],
+        "taxonomy_cats": [
+          "pizza"
+        ],
+        "taxonomy_tags": [
+          "delivery"
+        ],
         "maps_rating": 4.2,
         "maps_ratings_total": 1452,
         "opening_hours": {
@@ -5524,114 +5845,6 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
       },
       {
         "id": "[redacted]",
-        "name": "Dwór Hubertus",
-        "address": "ul. Inwalidów Wojennych 72",
-        "city": "Piekary Śląskie",
-        "cuisine_type": "Śląska / Europejska",
-        "lat": 50.39233,
-        "lng": 18.94243,
-        "delivery_available": true,
-        "price_level": 2,
-        "taxonomy_groups": [],
-        "taxonomy_cats": [],
-        "taxonomy_tags": [],
-        "maps_rating": 4.2,
-        "maps_ratings_total": 785,
-        "opening_hours": {
-          "periods": [
-            {
-              "open": {
-                "day": 0,
-                "time": "1200"
-              },
-              "close": {
-                "day": 0,
-                "time": "2000"
-              }
-            },
-            {
-              "open": {
-                "day": 1,
-                "time": "1100"
-              },
-              "close": {
-                "day": 1,
-                "time": "2100"
-              }
-            },
-            {
-              "open": {
-                "day": 2,
-                "time": "1100"
-              },
-              "close": {
-                "day": 2,
-                "time": "2100"
-              }
-            },
-            {
-              "open": {
-                "day": 3,
-                "time": "1100"
-              },
-              "close": {
-                "day": 3,
-                "time": "2100"
-              }
-            },
-            {
-              "open": {
-                "day": 4,
-                "time": "1100"
-              },
-              "close": {
-                "day": 4,
-                "time": "2100"
-              }
-            },
-            {
-              "open": {
-                "day": 5,
-                "time": "1100"
-              },
-              "close": {
-                "day": 5,
-                "time": "2200"
-              }
-            },
-            {
-              "open": {
-                "day": 6,
-                "time": "1100"
-              },
-              "close": {
-                "day": 6,
-                "time": "2200"
-              }
-            }
-          ],
-          "open_now": true,
-          "weekday_text": [
-            "Monday: 11:00 AM – 9:00 PM",
-            "Tuesday: 11:00 AM – 9:00 PM",
-            "Wednesday: 11:00 AM – 9:00 PM",
-            "Thursday: 11:00 AM – 9:00 PM",
-            "Friday: 11:00 AM – 10:00 PM",
-            "Saturday: 11:00 AM – 10:00 PM",
-            "Sunday: 12:00 – 8:00 PM"
-          ]
-        },
-        "phone": "32 767 85 55",
-        "website": "https://dworhubertus.pl/",
-        "image_url": "/images/restaurants/[redacted].jpg",
-        "photo_gallery": null,
-        "item_match_score": 140,
-        "matched_menu_items": [
-          "Gyros z frytkami i tzatziki"
-        ]
-      },
-      {
-        "id": "[redacted]",
         "name": "Klaps Burgers",
         "address": "ul. Piotra Skargi 15",
         "city": "Piekary Śląskie",
@@ -5640,9 +5853,16 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
         "lng": 18.95422,
         "delivery_available": true,
         "price_level": 2,
-        "taxonomy_groups": [],
-        "taxonomy_cats": [],
-        "taxonomy_tags": [],
+        "taxonomy_groups": [
+          "fast_food"
+        ],
+        "taxonomy_cats": [
+          "burgers"
+        ],
+        "taxonomy_tags": [
+          "quick",
+          "delivery"
+        ],
         "maps_rating": 4.3,
         "maps_ratings_total": 2693,
         "opening_hours": {
@@ -5734,7 +5954,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
           "restaurantCount": 2
         },
         "renderedText": "Mam 2 miejsc w Piekary Śląskie. Którą restaurację wybierasz? (Możesz powiedzieć numer albo nazwę.)",
-        "timestamp": 1777497432667
+        "timestamp": 1777868505950
       },
       {
         "surfaceKey": "CHOOSE_RESTAURANT",
@@ -5743,7 +5963,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
           "restaurantCount": 2
         },
         "renderedText": "Mam 2 miejsc w Piekary Śląskie. Którą restaurację wybierasz? (Możesz powiedzieć numer albo nazwę.)",
-        "timestamp": 1777497433106
+        "timestamp": 1777868506161
       },
       {
         "surfaceKey": "CHOOSE_RESTAURANT",
@@ -5752,14 +5972,14 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
           "restaurantCount": 4
         },
         "renderedText": "Mam 4 miejsc w Piekary Śląskie. Którą restaurację wybierasz? (Możesz powiedzieć numer albo nazwę.)",
-        "timestamp": 1777497433547
+        "timestamp": 1777868506522
       }
     ],
     "dialogStackIndex": 2
   },
   "locationRestaurants": [],
-  "timestamp": "2026-04-29T21:17:13.947Z",
-  "turn_id": "turn_1777497433947_r9l3m"
+  "timestamp": "2026-05-04T04:21:46.673Z",
+  "turn_id": "turn_1777868506673_n788l"
 }
 ```
 
@@ -5772,7 +5992,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
 ```json
 {
   "ok": true,
-  "session_id": "chaos-A05-1777497433965",
+  "session_id": "chaos-A05-1777868506686",
   "text": "Nie wiem którą restaurację z listy masz na myśli. Wybierz numer od 1 do 4 lub powiedz \"cofnij\".",
   "reply": "Nie wiem którą restaurację z listy masz na myśli. Wybierz numer od 1 do 4 lub powiedz \"cofnij\".",
   "tts_text": "Nie wiem którą restaurację z listy masz na myśli. Wybierz numer od 1 do 4 lub powiedz \"cofnij\".",
@@ -5790,10 +6010,11 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
   },
   "recommendations": [],
   "meta": {
-    "latency_total_ms": 120,
+    "latency_total_ms": 129,
     "source": "context_lock",
     "styling_ms": 0,
     "tts_ms": 0,
+    "cartHash": "empty",
     "state": {
       "conversationPhase": "idle",
       "currentRestaurant": null,
@@ -5950,13 +6171,13 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
       },
       {
         "id": "[redacted]",
-        "name": "Callzone",
+        "name": "Dwór Hubertus",
         "index": 2,
         "city": "Piekary Śląskie"
       },
       {
         "id": "[redacted]",
-        "name": "Dwór Hubertus",
+        "name": "Callzone",
         "index": 3,
         "city": "Piekary Śląskie"
       },
@@ -5991,9 +6212,15 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
               "lng": null,
               "delivery_available": true,
               "price_level": 2,
-              "taxonomy_groups": [],
-              "taxonomy_cats": [],
-              "taxonomy_tags": [],
+              "taxonomy_groups": [
+                "pizza_italian"
+              ],
+              "taxonomy_cats": [
+                "pizza"
+              ],
+              "taxonomy_tags": [
+                "delivery"
+              ],
               "maps_rating": 4.3,
               "maps_ratings_total": 1675,
               "opening_hours": {
@@ -6101,9 +6328,15 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
               "lng": 18.95647,
               "delivery_available": true,
               "price_level": 2,
-              "taxonomy_groups": [],
-              "taxonomy_cats": [],
-              "taxonomy_tags": [],
+              "taxonomy_groups": [
+                "pizza_italian"
+              ],
+              "taxonomy_cats": [
+                "pizza"
+              ],
+              "taxonomy_tags": [
+                "delivery"
+              ],
               "maps_rating": 4.2,
               "maps_ratings_total": 1452,
               "opening_hours": {
@@ -6204,7 +6437,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
           ],
           "menuItems": []
         },
-        "timestamp": 1777497435091
+        "timestamp": 1777868507385
       },
       {
         "role": "user",
@@ -6221,7 +6454,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
             "items": null
           }
         },
-        "timestamp": 1777497435197
+        "timestamp": 1777868507497
       },
       {
         "role": "assistant",
@@ -6239,9 +6472,15 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
               "lng": 18.94712,
               "delivery_available": true,
               "price_level": 2,
-              "taxonomy_groups": [],
-              "taxonomy_cats": [],
-              "taxonomy_tags": [],
+              "taxonomy_groups": [
+                "grill"
+              ],
+              "taxonomy_cats": [
+                "kebab"
+              ],
+              "taxonomy_tags": [
+                "delivery"
+              ],
               "maps_rating": 4.2,
               "maps_ratings_total": 1238,
               "opening_hours": {
@@ -6347,6 +6586,116 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
             },
             {
               "id": "[redacted]",
+              "name": "Dwór Hubertus",
+              "address": "ul. Inwalidów Wojennych 72",
+              "city": "Piekary Śląskie",
+              "cuisine_type": "Śląska / Europejska",
+              "lat": 50.39233,
+              "lng": 18.94243,
+              "delivery_available": true,
+              "price_level": 2,
+              "taxonomy_groups": [],
+              "taxonomy_cats": [],
+              "taxonomy_tags": [
+                "delivery"
+              ],
+              "maps_rating": 4.2,
+              "maps_ratings_total": 785,
+              "opening_hours": {
+                "periods": [
+                  {
+                    "open": {
+                      "day": 0,
+                      "time": "1200"
+                    },
+                    "close": {
+                      "day": 0,
+                      "time": "2000"
+                    }
+                  },
+                  {
+                    "open": {
+                      "day": 1,
+                      "time": "1100"
+                    },
+                    "close": {
+                      "day": 1,
+                      "time": "2100"
+                    }
+                  },
+                  {
+                    "open": {
+                      "day": 2,
+                      "time": "1100"
+                    },
+                    "close": {
+                      "day": 2,
+                      "time": "2100"
+                    }
+                  },
+                  {
+                    "open": {
+                      "day": 3,
+                      "time": "1100"
+                    },
+                    "close": {
+                      "day": 3,
+                      "time": "2100"
+                    }
+                  },
+                  {
+                    "open": {
+                      "day": 4,
+                      "time": "1100"
+                    },
+                    "close": {
+                      "day": 4,
+                      "time": "2100"
+                    }
+                  },
+                  {
+                    "open": {
+                      "day": 5,
+                      "time": "1100"
+                    },
+                    "close": {
+                      "day": 5,
+                      "time": "2200"
+                    }
+                  },
+                  {
+                    "open": {
+                      "day": 6,
+                      "time": "1100"
+                    },
+                    "close": {
+                      "day": 6,
+                      "time": "2200"
+                    }
+                  }
+                ],
+                "open_now": true,
+                "weekday_text": [
+                  "Monday: 11:00 AM – 9:00 PM",
+                  "Tuesday: 11:00 AM – 9:00 PM",
+                  "Wednesday: 11:00 AM – 9:00 PM",
+                  "Thursday: 11:00 AM – 9:00 PM",
+                  "Friday: 11:00 AM – 10:00 PM",
+                  "Saturday: 11:00 AM – 10:00 PM",
+                  "Sunday: 12:00 – 8:00 PM"
+                ]
+              },
+              "phone": "32 767 85 55",
+              "website": "https://dworhubertus.pl/",
+              "image_url": "/images/restaurants/[redacted].jpg",
+              "photo_gallery": null,
+              "item_match_score": 140,
+              "matched_menu_items": [
+                "Gyros z frytkami i tzatziki"
+              ]
+            },
+            {
+              "id": "[redacted]",
               "name": "Callzone",
               "address": "ul. Księdza Piotra Skargi 3",
               "city": "Piekary Śląskie",
@@ -6355,9 +6704,15 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
               "lng": 18.95647,
               "delivery_available": true,
               "price_level": 2,
-              "taxonomy_groups": [],
-              "taxonomy_cats": [],
-              "taxonomy_tags": [],
+              "taxonomy_groups": [
+                "pizza_italian"
+              ],
+              "taxonomy_cats": [
+                "pizza"
+              ],
+              "taxonomy_tags": [
+                "delivery"
+              ],
               "maps_rating": 4.2,
               "maps_ratings_total": 1452,
               "opening_hours": {
@@ -6461,114 +6816,6 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
             },
             {
               "id": "[redacted]",
-              "name": "Dwór Hubertus",
-              "address": "ul. Inwalidów Wojennych 72",
-              "city": "Piekary Śląskie",
-              "cuisine_type": "Śląska / Europejska",
-              "lat": 50.39233,
-              "lng": 18.94243,
-              "delivery_available": true,
-              "price_level": 2,
-              "taxonomy_groups": [],
-              "taxonomy_cats": [],
-              "taxonomy_tags": [],
-              "maps_rating": 4.2,
-              "maps_ratings_total": 785,
-              "opening_hours": {
-                "periods": [
-                  {
-                    "open": {
-                      "day": 0,
-                      "time": "1200"
-                    },
-                    "close": {
-                      "day": 0,
-                      "time": "2000"
-                    }
-                  },
-                  {
-                    "open": {
-                      "day": 1,
-                      "time": "1100"
-                    },
-                    "close": {
-                      "day": 1,
-                      "time": "2100"
-                    }
-                  },
-                  {
-                    "open": {
-                      "day": 2,
-                      "time": "1100"
-                    },
-                    "close": {
-                      "day": 2,
-                      "time": "2100"
-                    }
-                  },
-                  {
-                    "open": {
-                      "day": 3,
-                      "time": "1100"
-                    },
-                    "close": {
-                      "day": 3,
-                      "time": "2100"
-                    }
-                  },
-                  {
-                    "open": {
-                      "day": 4,
-                      "time": "1100"
-                    },
-                    "close": {
-                      "day": 4,
-                      "time": "2100"
-                    }
-                  },
-                  {
-                    "open": {
-                      "day": 5,
-                      "time": "1100"
-                    },
-                    "close": {
-                      "day": 5,
-                      "time": "2200"
-                    }
-                  },
-                  {
-                    "open": {
-                      "day": 6,
-                      "time": "1100"
-                    },
-                    "close": {
-                      "day": 6,
-                      "time": "2200"
-                    }
-                  }
-                ],
-                "open_now": true,
-                "weekday_text": [
-                  "Monday: 11:00 AM – 9:00 PM",
-                  "Tuesday: 11:00 AM – 9:00 PM",
-                  "Wednesday: 11:00 AM – 9:00 PM",
-                  "Thursday: 11:00 AM – 9:00 PM",
-                  "Friday: 11:00 AM – 10:00 PM",
-                  "Saturday: 11:00 AM – 10:00 PM",
-                  "Sunday: 12:00 – 8:00 PM"
-                ]
-              },
-              "phone": "32 767 85 55",
-              "website": "https://dworhubertus.pl/",
-              "image_url": "/images/restaurants/[redacted].jpg",
-              "photo_gallery": null,
-              "item_match_score": 140,
-              "matched_menu_items": [
-                "Gyros z frytkami i tzatziki"
-              ]
-            },
-            {
-              "id": "[redacted]",
               "name": "Klaps Burgers",
               "address": "ul. Piotra Skargi 15",
               "city": "Piekary Śląskie",
@@ -6577,9 +6824,16 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
               "lng": 18.95422,
               "delivery_available": true,
               "price_level": 2,
-              "taxonomy_groups": [],
-              "taxonomy_cats": [],
-              "taxonomy_tags": [],
+              "taxonomy_groups": [
+                "fast_food"
+              ],
+              "taxonomy_cats": [
+                "burgers"
+              ],
+              "taxonomy_tags": [
+                "quick",
+                "delivery"
+              ],
               "maps_rating": 4.3,
               "maps_ratings_total": 2693,
               "opening_hours": {
@@ -6664,7 +6918,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
           ],
           "menuItems": []
         },
-        "timestamp": 1777497435406
+        "timestamp": 1777868507720
       },
       {
         "role": "user",
@@ -6682,7 +6936,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
             "raw": "z ostrym sosem"
           }
         },
-        "timestamp": 1777497435566
+        "timestamp": 1777868507876
       },
       {
         "role": "assistant",
@@ -6692,7 +6946,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
           "restaurants": [],
           "menuItems": []
         },
-        "timestamp": 1777497435567
+        "timestamp": 1777868507877
       }
     ],
     "entityCache": {
@@ -6701,25 +6955,25 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
           "id": "[redacted]",
           "name": "Tasty King Kebab",
           "position": 1,
-          "timestamp": 1777497435406
-        },
-        {
-          "id": "[redacted]",
-          "name": "Callzone",
-          "position": 2,
-          "timestamp": 1777497435406
+          "timestamp": 1777868507720
         },
         {
           "id": "[redacted]",
           "name": "Dwór Hubertus",
+          "position": 2,
+          "timestamp": 1777868507720
+        },
+        {
+          "id": "[redacted]",
+          "name": "Callzone",
           "position": 3,
-          "timestamp": 1777497435406
+          "timestamp": 1777868507720
         },
         {
           "id": "[redacted]",
           "name": "Klaps Burgers",
           "position": 4,
-          "timestamp": 1777497435406
+          "timestamp": 1777868507720
         }
       ],
       "items": [],
@@ -6727,7 +6981,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
     },
     "currentRestaurant": null,
     "lockedRestaurantId": null,
-    "lastUpdated": 1777497435566,
+    "lastUpdated": 1777868507876,
     "last_location": "Piekary Śląskie",
     "last_restaurants_list": [
       {
@@ -6740,9 +6994,15 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
         "lng": 18.94712,
         "delivery_available": true,
         "price_level": 2,
-        "taxonomy_groups": [],
-        "taxonomy_cats": [],
-        "taxonomy_tags": [],
+        "taxonomy_groups": [
+          "grill"
+        ],
+        "taxonomy_cats": [
+          "kebab"
+        ],
+        "taxonomy_tags": [
+          "delivery"
+        ],
         "maps_rating": 4.2,
         "maps_ratings_total": 1238,
         "opening_hours": {
@@ -6848,6 +7108,116 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
       },
       {
         "id": "[redacted]",
+        "name": "Dwór Hubertus",
+        "address": "ul. Inwalidów Wojennych 72",
+        "city": "Piekary Śląskie",
+        "cuisine_type": "Śląska / Europejska",
+        "lat": 50.39233,
+        "lng": 18.94243,
+        "delivery_available": true,
+        "price_level": 2,
+        "taxonomy_groups": [],
+        "taxonomy_cats": [],
+        "taxonomy_tags": [
+          "delivery"
+        ],
+        "maps_rating": 4.2,
+        "maps_ratings_total": 785,
+        "opening_hours": {
+          "periods": [
+            {
+              "open": {
+                "day": 0,
+                "time": "1200"
+              },
+              "close": {
+                "day": 0,
+                "time": "2000"
+              }
+            },
+            {
+              "open": {
+                "day": 1,
+                "time": "1100"
+              },
+              "close": {
+                "day": 1,
+                "time": "2100"
+              }
+            },
+            {
+              "open": {
+                "day": 2,
+                "time": "1100"
+              },
+              "close": {
+                "day": 2,
+                "time": "2100"
+              }
+            },
+            {
+              "open": {
+                "day": 3,
+                "time": "1100"
+              },
+              "close": {
+                "day": 3,
+                "time": "2100"
+              }
+            },
+            {
+              "open": {
+                "day": 4,
+                "time": "1100"
+              },
+              "close": {
+                "day": 4,
+                "time": "2100"
+              }
+            },
+            {
+              "open": {
+                "day": 5,
+                "time": "1100"
+              },
+              "close": {
+                "day": 5,
+                "time": "2200"
+              }
+            },
+            {
+              "open": {
+                "day": 6,
+                "time": "1100"
+              },
+              "close": {
+                "day": 6,
+                "time": "2200"
+              }
+            }
+          ],
+          "open_now": true,
+          "weekday_text": [
+            "Monday: 11:00 AM – 9:00 PM",
+            "Tuesday: 11:00 AM – 9:00 PM",
+            "Wednesday: 11:00 AM – 9:00 PM",
+            "Thursday: 11:00 AM – 9:00 PM",
+            "Friday: 11:00 AM – 10:00 PM",
+            "Saturday: 11:00 AM – 10:00 PM",
+            "Sunday: 12:00 – 8:00 PM"
+          ]
+        },
+        "phone": "32 767 85 55",
+        "website": "https://dworhubertus.pl/",
+        "image_url": "/images/restaurants/[redacted].jpg",
+        "photo_gallery": null,
+        "item_match_score": 140,
+        "matched_menu_items": [
+          "Gyros z frytkami i tzatziki"
+        ]
+      },
+      {
+        "id": "[redacted]",
         "name": "Callzone",
         "address": "ul. Księdza Piotra Skargi 3",
         "city": "Piekary Śląskie",
@@ -6856,9 +7226,15 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
         "lng": 18.95647,
         "delivery_available": true,
         "price_level": 2,
-        "taxonomy_groups": [],
-        "taxonomy_cats": [],
-        "taxonomy_tags": [],
+        "taxonomy_groups": [
+          "pizza_italian"
+        ],
+        "taxonomy_cats": [
+          "pizza"
+        ],
+        "taxonomy_tags": [
+          "delivery"
+        ],
         "maps_rating": 4.2,
         "maps_ratings_total": 1452,
         "opening_hours": {
@@ -6962,114 +7338,6 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
       },
       {
         "id": "[redacted]",
-        "name": "Dwór Hubertus",
-        "address": "ul. Inwalidów Wojennych 72",
-        "city": "Piekary Śląskie",
-        "cuisine_type": "Śląska / Europejska",
-        "lat": 50.39233,
-        "lng": 18.94243,
-        "delivery_available": true,
-        "price_level": 2,
-        "taxonomy_groups": [],
-        "taxonomy_cats": [],
-        "taxonomy_tags": [],
-        "maps_rating": 4.2,
-        "maps_ratings_total": 785,
-        "opening_hours": {
-          "periods": [
-            {
-              "open": {
-                "day": 0,
-                "time": "1200"
-              },
-              "close": {
-                "day": 0,
-                "time": "2000"
-              }
-            },
-            {
-              "open": {
-                "day": 1,
-                "time": "1100"
-              },
-              "close": {
-                "day": 1,
-                "time": "2100"
-              }
-            },
-            {
-              "open": {
-                "day": 2,
-                "time": "1100"
-              },
-              "close": {
-                "day": 2,
-                "time": "2100"
-              }
-            },
-            {
-              "open": {
-                "day": 3,
-                "time": "1100"
-              },
-              "close": {
-                "day": 3,
-                "time": "2100"
-              }
-            },
-            {
-              "open": {
-                "day": 4,
-                "time": "1100"
-              },
-              "close": {
-                "day": 4,
-                "time": "2100"
-              }
-            },
-            {
-              "open": {
-                "day": 5,
-                "time": "1100"
-              },
-              "close": {
-                "day": 5,
-                "time": "2200"
-              }
-            },
-            {
-              "open": {
-                "day": 6,
-                "time": "1100"
-              },
-              "close": {
-                "day": 6,
-                "time": "2200"
-              }
-            }
-          ],
-          "open_now": true,
-          "weekday_text": [
-            "Monday: 11:00 AM – 9:00 PM",
-            "Tuesday: 11:00 AM – 9:00 PM",
-            "Wednesday: 11:00 AM – 9:00 PM",
-            "Thursday: 11:00 AM – 9:00 PM",
-            "Friday: 11:00 AM – 10:00 PM",
-            "Saturday: 11:00 AM – 10:00 PM",
-            "Sunday: 12:00 – 8:00 PM"
-          ]
-        },
-        "phone": "32 767 85 55",
-        "website": "https://dworhubertus.pl/",
-        "image_url": "/images/restaurants/[redacted].jpg",
-        "photo_gallery": null,
-        "item_match_score": 140,
-        "matched_menu_items": [
-          "Gyros z frytkami i tzatziki"
-        ]
-      },
-      {
-        "id": "[redacted]",
         "name": "Klaps Burgers",
         "address": "ul. Piotra Skargi 15",
         "city": "Piekary Śląskie",
@@ -7078,9 +7346,16 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
         "lng": 18.95422,
         "delivery_available": true,
         "price_level": 2,
-        "taxonomy_groups": [],
-        "taxonomy_cats": [],
-        "taxonomy_tags": [],
+        "taxonomy_groups": [
+          "fast_food"
+        ],
+        "taxonomy_cats": [
+          "burgers"
+        ],
+        "taxonomy_tags": [
+          "quick",
+          "delivery"
+        ],
         "maps_rating": 4.3,
         "maps_ratings_total": 2693,
         "opening_hours": {
@@ -7172,7 +7447,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
           "restaurantCount": 2
         },
         "renderedText": "Mam 2 miejsc w Piekary Śląskie. Którą restaurację wybierasz? (Możesz powiedzieć numer albo nazwę.)",
-        "timestamp": 1777497434804
+        "timestamp": 1777868507185
       },
       {
         "surfaceKey": "CHOOSE_RESTAURANT",
@@ -7181,7 +7456,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
           "restaurantCount": 2
         },
         "renderedText": "Mam 2 miejsc w Piekary Śląskie. Którą restaurację wybierasz? (Możesz powiedzieć numer albo nazwę.)",
-        "timestamp": 1777497435091
+        "timestamp": 1777868507385
       },
       {
         "surfaceKey": "CHOOSE_RESTAURANT",
@@ -7190,14 +7465,14 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
           "restaurantCount": 4
         },
         "renderedText": "Mam 4 miejsc w Piekary Śląskie. Którą restaurację wybierasz? (Możesz powiedzieć numer albo nazwę.)",
-        "timestamp": 1777497435406
+        "timestamp": 1777868507720
       }
     ],
     "dialogStackIndex": 2
   },
   "locationRestaurants": [],
-  "timestamp": "2026-04-29T21:17:15.567Z",
-  "turn_id": "turn_1777497435567_1n022"
+  "timestamp": "2026-05-04T04:21:47.877Z",
+  "turn_id": "turn_1777868507877_dr7bh"
 }
 ```
 

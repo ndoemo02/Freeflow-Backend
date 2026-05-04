@@ -1,0 +1,58 @@
+[
+  {
+    "restaurant": "Tasty King Kebab",
+    "dish": "Nuggets box",
+    "dishId": "df133e95-e52d-4bbc-971d-b8fc5fade7a2",
+    "input": "Zamawiam Nuggets box z Tasty King Kebab",
+    "error": "Invalid Intent: Got 'find_nearby', expected one of [create_order, add_item]"
+  },
+  {
+    "restaurant": "Tasty King Kebab",
+    "dish": "Falafel",
+    "dishId": "56f5ee57-9939-41f5-93db-4d8116ac4f44",
+    "input": "Zamawiam Falafel z Tasty King Kebab",
+    "error": "Invalid Intent: Got 'find_nearby', expected one of [create_order, add_item]"
+  },
+  {
+    "restaurant": "Tasty King Kebab",
+    "dish": "Frytki z serem",
+    "dishId": "6edfdf0f-71e3-478c-bceb-0a9c58d75100",
+    "input": "Zamawiam Frytki z serem z Tasty King Kebab",
+    "error": "Invalid Intent: Got 'find_nearby', expected one of [create_order, add_item]"
+  },
+  {
+    "restaurant": "Tasty King Kebab",
+    "dish": "Frytki z Indii masala",
+    "dishId": "ed0502fa-eb68-453c-b6e0-e6fdff88f7df",
+    "input": "Zamawiam Frytki z Indii masala z Tasty King Kebab",
+    "error": "Invalid Intent: Got 'find_nearby', expected one of [create_order, add_item]"
+  },
+  {
+    "restaurant": "Tasty King Kebab",
+    "dish": "Sałatka grecka",
+    "dishId": "449bf26f-a549-47d2-8bc7-27453230fb80",
+    "input": "Zamawiam Sałatka grecka z Tasty King Kebab",
+    "error": "Invalid Intent: Got 'find_nearby', expected one of [create_order, add_item]"
+  },
+  {
+    "restaurant": "Tasty King Kebab",
+    "dish": "Sos",
+    "dishId": "1aeca8d5-1efb-4bf8-b3f7-2d18c41f402c",
+    "input": "Zamawiam Sos z Tasty King Kebab",
+    "error": "Invalid Intent: Got 'find_nearby', expected one of [create_order, add_item]"
+  },
+  {
+    "restaurant": "Tasty King Kebab",
+    "dish": "Baklava",
+    "dishId": "832e3395-cd6f-4119-acc0-68290e6ba693",
+    "input": "Zamawiam Baklava z Tasty King Kebab",
+    "error": "Invalid Intent: Got 'find_nearby', expected one of [create_order, add_item]"
+  },
+  {
+    "restaurant": "Tasty King Kebab",
+    "dish": "Sok Cappy",
+    "dishId": "e531c793-007a-4ed6-858f-64339048a6af",
+    "input": "Zamawiam Sok Cappy z Tasty King Kebab",
+    "error": "Invalid Intent: Got 'find_nearby', expected one of [create_order, add_item]"
+  }
+]
