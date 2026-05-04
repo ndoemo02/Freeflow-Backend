@@ -65,7 +65,7 @@ export const LIVE_TOOL_SCHEMAS = Object.freeze([
     },
     {
         name: 'add_item_to_cart',
-        description: 'Add one item to cart by dish name and quantity.',
+        description: 'Add one item to cart by dish name and quantity. Use special_instructions when user requests modifications (remove ingredients, add extras, leave a note like "mocno wysmażone").',
         parameters: {
             type: 'object',
             properties: {
@@ -73,6 +73,14 @@ export const LIVE_TOOL_SCHEMAS = Object.freeze([
                 quantity: { type: 'number' },
                 restaurant_id: { type: 'string' },
                 restaurant_name: { type: 'string' },
+                special_instructions: {
+                    type: 'object',
+                    properties: {
+                        removed: { type: 'array', items: { type: 'string' } },
+                        extra: { type: 'array', items: { type: 'string' } },
+                        note: { type: 'string' },
+                    },
+                },
             },
             required: ['dish'],
             additionalProperties: false,
@@ -80,7 +88,7 @@ export const LIVE_TOOL_SCHEMAS = Object.freeze([
     },
     {
         name: 'add_items_to_cart',
-        description: 'Add multiple items to cart in one transaction.',
+        description: 'Add multiple items to cart in one transaction. Each item can have special_instructions for modifications.',
         parameters: {
             type: 'object',
             properties: {
@@ -91,6 +99,14 @@ export const LIVE_TOOL_SCHEMAS = Object.freeze([
                         properties: {
                             dish: { type: 'string' },
                             quantity: { type: 'number' },
+                            special_instructions: {
+                                type: 'object',
+                                properties: {
+                                    removed: { type: 'array', items: { type: 'string' } },
+                                    extra: { type: 'array', items: { type: 'string' } },
+                                    note: { type: 'string' },
+                                },
+                            },
                         },
                         required: ['dish'],
                         additionalProperties: false,

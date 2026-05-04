@@ -137,6 +137,7 @@ function mapToolPayload(toolName, args = {}, options = {}) {
                     restaurant: args.restaurant_name || null,
                     restaurantId: args.restaurant_id || null,
                     items: null,
+                    special_instructions: args.special_instructions || null,
                 },
             };
         }
@@ -146,7 +147,10 @@ function mapToolPayload(toolName, args = {}, options = {}) {
                 .map((item) => ({
                     dish: item?.dish,
                     quantity: Math.max(1, Math.floor(Number(item?.quantity || 1))),
-                    meta: item?.dish ? { rawLabel: item.dish } : undefined,
+                    meta: item?.dish ? {
+                        rawLabel: item.dish,
+                        ...(item?.special_instructions ? { special_instructions: item.special_instructions } : {}),
+                    } : undefined,
                 }))
                 .filter((item) => typeof item.dish === 'string' && item.dish.trim().length > 0);
             return {

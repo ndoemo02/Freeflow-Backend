@@ -25,6 +25,7 @@ export function commitPendingOrder(session) {
     restaurant_name: session.pendingOrder.restaurant || it.restaurant_name,
     item_tags: Array.isArray(it.item_tags) ? it.item_tags : [],
     category: it.category || null,
+    special_instructions: it.special_instructions || null,
   }));
 
   // Cart Deduplication: merge same-name items from same restaurant
@@ -34,6 +35,9 @@ export function commitPendingOrder(session) {
     );
     if (existing) {
       existing.qty = (existing.qty || 1) + (newItem.qty || 1);
+      if (newItem.special_instructions) {
+        existing.special_instructions = newItem.special_instructions;
+      }
     } else {
       session.cart.items.push(newItem);
     }

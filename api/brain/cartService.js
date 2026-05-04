@@ -29,6 +29,7 @@ export function commitPendingOrder(session) {
     qty: Number(item.qty || item.quantity || 1),
     restaurant_id: session.pendingOrder.restaurant_id,
     restaurant_name: session.pendingOrder.restaurant,
+    special_instructions: item.special_instructions || null,
   }));
 
   session.cart.items.push(...toAdd);

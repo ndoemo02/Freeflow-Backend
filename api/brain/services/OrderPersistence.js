@@ -95,7 +95,8 @@ export async function persistOrderToDB(sessionId, session, options = {}) {
                 menu_item_id: item.id || null,
                 name: item.name || 'pozycja',
                 unit_price_cents: Math.round((item.price_pln || item.price || 0) * 100),
-                qty: item.qty || item.quantity || 1
+                qty: item.qty || item.quantity || 1,
+                special_instructions: item.special_instructions || null,
             })),
             total_price: totalPLN, // PLN (float) - standard dla Dashboardów
             total_cents: totalCents, // Cents (integer) - dla precyzji analitycznej

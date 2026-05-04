@@ -1500,6 +1500,7 @@ export class OrderHandler {
                     quantity: candidateQuantity,
                     candidateText,
                     candidateResult,
+                    candidateMeta: candidate.meta || null,
                     resolvedCategory: candidateResult.resolvedCategory || ORDER_REQUESTED_CATEGORY.UNKNOWN,
                     blockedItemLabel:
                         candidateResult.rawRequestedDish
@@ -1574,6 +1575,7 @@ export class OrderHandler {
                         spicy: item.spicy ?? false,
                         item_tags: item.item_tags ?? [],
                         dietary_flags: item.dietary_flags ?? [],
+                        special_instructions: entry.candidateMeta?.special_instructions || null,
                     });
                 }
             }
@@ -2211,6 +2213,7 @@ export class OrderHandler {
                 price: parseFloat(item.price_pln ?? item.price ?? 0),
                 quantity: quantity,
                 hasExplicitNumber,
+                special_instructions: entities.special_instructions || null,
                 is_vege: item.is_vege ?? false,
                 spicy: item.spicy ?? false,
                 item_tags: item.item_tags ?? [],
