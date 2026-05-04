@@ -92,10 +92,25 @@ function getStateRank(status = '') {
 
 function sanitizeStringValue(value = '', key = '') {
     let sanitized = String(value || '');
-    sanitized = sanitized.replace(TOKEN_PREFIX_RE, '[redacted]');
-    sanitized = sanitized.replace(LONG_TOKEN_RE, '[redacted]');
-
     const keyLower = String(key || '').toLowerCase();
+    const isUrlField =
+        keyLower.includes('url') ||
+        keyLower.includes('image') ||
+        keyLower.includes('photo') ||
+        keyLower.includes('gallery') ||
+        keyLower.includes('src') ||
+        keyLower.includes('href') ||
+        keyLower.includes('thumbnail') ||
+        keyLower.includes('cover') ||
+        keyLower.includes('background');
+
+    if (!isUrlField) {
+        sanitized = sanitized.replace(TOKEN_PREFIX_RE, '[redacted]');
+        sanitized = sanitized.replace(LONG_TOKEN_RE, '[redacted]');
+    } else if (process.env.NODE_ENV !== 'production' && value !== sanitized) {
+        console.warn('[sanitize] URL field skipped:', key);
+    }
+
     const isReplyField = keyLower === 'reply' || keyLower === 'text';
     if (isReplyField && RAW_JSON_RE.test(sanitized) && (sanitized.length > 30 || BACKEND_OBJECT_HINT_RE.test(sanitized))) {
         return ROLE_GUARD_FALLBACK_REPLY;
