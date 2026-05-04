@@ -748,6 +748,16 @@ app.all("/api/orders/:id", async (req, res) => {
   }
 });
 
+// === ORDER FINALIZE (post-Stripe cleanup) ===
+app.post("/api/orders/finalize", async (req, res) => {
+  try {
+    const finalizeHandler = await import("./orders/finalizeOrder.js");
+    return finalizeHandler.default(req, res);
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
 // === PAYMENTS (STRIPE TEST MODE) ===
 app.post("/api/payments/checkout-session", async (req, res) => {
   try {
