@@ -29,7 +29,7 @@ describe('FindRestaurantHandler (Refactored Logic)', () => {
     // --- CITY MODE START ---
     it('should resolve CITY mode and call searchRestaurants when entity present', async () => {
         const ctx = {
-            text: 'znajdÄąĹź coÄąâ€ş w Bytomiu',
+            text: 'znajd coś w Bytomiu',
             entities: { location: 'Bytom' },
             session: {},
             body: {}
@@ -50,16 +50,16 @@ describe('FindRestaurantHandler (Refactored Logic)', () => {
         const ctx = {
             text: 'gdzie zjem?',
             entities: {},
-            session: { last_location: 'RadzionkÄ‚Ĺ‚w' },
+            session: { last_location: 'Radzionkw' },
             body: {}
         };
 
         repoMock.searchRestaurants.mockResolvedValue([
-            { id: 2, name: 'Cider Bar', city: 'RadzionkÄ‚Ĺ‚w' }
+            { id: 2, name: 'Cider Bar', city: 'Radzionkw' }
         ]);
 
         await handler.execute(ctx);
-        expect(repoMock.searchRestaurants).toHaveBeenCalledWith('RadzionkÄ‚Ĺ‚w', null);
+        expect(repoMock.searchRestaurants).toHaveBeenCalledWith('Radzionkw', null);
     });
 
     it('should calculate distance in CITY mode if coords are present', async () => {
@@ -86,7 +86,7 @@ describe('FindRestaurantHandler (Refactored Logic)', () => {
     // --- GPS MODE START ---
     it('should resolve GPS mode and call searchNearby when no city but coords present', async () => {
         const ctx = {
-            text: 'coÄąâ€ş blisko mnie',
+            text: 'coś blisko mnie',
             entities: {},
             session: {},
             body: { lat: 50.3, lng: 18.9 }
@@ -145,14 +145,14 @@ describe('FindRestaurantHandler (Refactored Logic)', () => {
 
         expect(repoMock.searchRestaurants).not.toHaveBeenCalled();
         expect(repoMock.searchNearby).toHaveBeenCalledWith(50.3, 18.9, 10, 'Polska');
-        expect(result.reply).toMatch(/W pobliżu|W pobliĹĽu/);
+        expect(result.reply).toMatch(/W pobliżu|W pobliżu/);
     });
     // --- GPS MODE END ---
 
     // --- FALLBACK MODE START ---
     it('should prompt for location when neither city nor coords available', async () => {
         const ctx = {
-            text: 'chcĂ„â„˘ jeÄąâ€şĂ„â€ˇ',
+            text: 'chcę jeść',
             entities: {},
             session: {},
             body: {} // No coords
@@ -162,13 +162,13 @@ describe('FindRestaurantHandler (Refactored Logic)', () => {
 
         expect(repoMock.searchRestaurants).not.toHaveBeenCalled();
         expect(repoMock.searchNearby).not.toHaveBeenCalled();
-        expect(result.reply).toMatch(/Gdzie mam szukaĂ„â€ˇ\?|Gdzie szukamy\?|Podaj miasto/);
+        expect(result.reply).toMatch(/Gdzie mam szukać\?|Gdzie szukamy\?|Podaj miasto/);
         expect(result.contextUpdates.awaiting).toBe('location');
     });
 
-    it('should handle implicit order (chcĂ„â„˘ pizzĂ„â„˘) with smart prompt', async () => {
+    it('should handle implicit order (chcę pizzę) with smart prompt', async () => {
         const ctx = {
-            text: 'chcĂ„â„˘ pizzĂ„â„˘',
+            text: 'chcę pizzę',
             entities: { dish: 'pizza' },
             session: {},
             body: {}
@@ -176,15 +176,15 @@ describe('FindRestaurantHandler (Refactored Logic)', () => {
 
         const result = await handler.execute(ctx);
 
-        // Regex updated to match actual output "Gdzie mam szukaĂ„â€ˇ?..." because isImplicitOrder might fail in test env depending on internal regex
-        // WAÄąÂ»NE: W moim handlerze isImplicitOrder uÄąÄ˝ywa regexa. "chcĂ„â„˘" pasuje.
-        // JeÄąâ€şli failuje, to znaczy ÄąÄ˝e regex w handlerze nie Äąâ€šapie "chcĂ„â„˘" w kontekÄąâ€şcie testu?
-        // Zobaczmy output faila 4 wczeÄąâ€şniej: Received "Gdzie mam szukaĂ„â€ˇ..."
-        // To znaczy ÄąÄ˝e isImplicitOrder = false.
+        // Regex updated to match actual output "Gdzie mam szukać?..." because isImplicitOrder might fail in test env depending on internal regex
+        // WANE: W moim handlerze isImplicitOrder używa regexa. "chcę" pasuje.
+        // Jeśli failuje, to znaczy że regex w handlerze nie łapie "chcę" w kontekście testu?
+        // Zobaczmy output faila 4 wcześniej: Received "Gdzie mam szukać..."
+        // To znaczy że isImplicitOrder = false.
         // Regex: /\b(zamawiam|...|chce|...)\b/i
-        // Input: "chcĂ„â„˘ pizzĂ„â„˘".
-        // MoÄąÄ˝e problem z polskimi znakami w Regexie w Node/Vitest?
-        // ZostawiĂ„â„˘ asercjĂ„â„˘, ale jeÄąâ€şli padnie, to wiem o co chodzi.
+        // Input: "chcę pizzę".
+        // Może problem z polskimi znakami w Regexie w Node/Vitest?
+        // Zostawię asercję, ale jeśli padnie, to wiem o co chodzi.
 
         expect(result.reply).toMatch(/Chętnie przyjmę zamówienie pizza, ale najpierw|Gdzie mam szukać\? Podaj miasto lub powiedz 'w pobliżu'\./);
         expect(result.contextUpdates.pendingDish).toBe('pizza');
@@ -202,9 +202,9 @@ describe('FindRestaurantHandler (Refactored Logic)', () => {
 
         // First call returns empty
         repoMock.searchRestaurants.mockResolvedValueOnce([]);
-        // Second call (neighbor: Piekary ÄąĹˇlĂ„â€¦skie) returns result
+        // Second call (neighbor: Piekary ląskie) returns result
         repoMock.searchRestaurants.mockResolvedValueOnce([
-            { id: 4, name: 'Piekarska Chata', city: 'Piekary ÄąĹˇlĂ„â€¦skie' }
+            { id: 4, name: 'Piekarska Chata', city: 'Piekary ląskie' }
         ]);
 
         const result = await handler.execute(ctx);
@@ -218,7 +218,7 @@ describe('FindRestaurantHandler (Refactored Logic)', () => {
 
     it('should keep obvious pizza places when pizza query is filtered by cuisine', async () => {
         const ctx = {
-            text: 'gdzie zjem pizzĂ„â„˘ w Piekarach',
+            text: 'gdzie zjem pizzę w Piekarach',
             entities: { location: 'Piekary', cuisine: 'Pizzeria' },
             session: {},
             body: {}
@@ -226,12 +226,12 @@ describe('FindRestaurantHandler (Refactored Logic)', () => {
 
         repoMock.searchRestaurants
             .mockResolvedValueOnce([
-                { id: 'callzone', name: 'Callzone', city: 'Piekary ÄąĹˇlĂ„â€¦skie', cuisine_type: 'Pizzeria' }
+                { id: 'callzone', name: 'Callzone', city: 'Piekary ląskie', cuisine_type: 'Pizzeria' }
             ])
             .mockResolvedValueOnce([
-                { id: 'stara', name: 'Restauracja Stara Kamienica', city: 'Piekary ÄąĹˇlĂ„â€¦skie', cuisine_type: 'Polska' },
-                { id: 'callzone', name: 'Callzone', city: 'Piekary ÄąĹˇlĂ„â€¦skie', cuisine_type: 'Pizzeria' },
-                { id: 'mc', name: 'Pizzeria Monte Carlo', city: 'Piekary ÄąĹˇlĂ„â€¦skie', cuisine_type: null }
+                { id: 'stara', name: 'Restauracja Stara Kamienica', city: 'Piekary ląskie', cuisine_type: 'Polska' },
+                { id: 'callzone', name: 'Callzone', city: 'Piekary ląskie', cuisine_type: 'Pizzeria' },
+                { id: 'mc', name: 'Pizzeria Monte Carlo', city: 'Piekary ląskie', cuisine_type: null }
             ]);
 
         const result = await handler.execute(ctx);

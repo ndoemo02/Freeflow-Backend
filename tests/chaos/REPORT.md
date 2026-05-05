@@ -20,7 +20,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
 ```json
 {
   "ok": true,
-  "session_id": "chaos-A01-1777868500235",
+  "session_id": "chaos-A01-1777972818321",
   "text": "Nie wiem którą restaurację z listy masz na myśli. Wybierz numer od 1 do 4 lub powiedz \"cofnij\".",
   "reply": "Nie wiem którą restaurację z listy masz na myśli. Wybierz numer od 1 do 4 lub powiedz \"cofnij\".",
   "tts_text": "Nie wiem którą restaurację z listy masz na myśli. Wybierz numer od 1 do 4 lub powiedz \"cofnij\".",
@@ -38,7 +38,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
   },
   "recommendations": [],
   "meta": {
-    "latency_total_ms": 129,
+    "latency_total_ms": 98,
     "source": "context_lock",
     "styling_ms": 1,
     "tts_ms": 0,
@@ -337,13 +337,13 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
               },
               "phone": "515 532 617",
               "website": "http://piekary.pubmontecarlo.pl/",
-              "image_url": "/images/restaurants/[redacted].jpg",
+              "image_url": "/images/restaurants/83566974-1017-4408-90ee-2571ccc06978.jpg",
               "photo_gallery": [
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg"
+                "/images/restaurants/83566974-1017-4408-90ee-2571ccc06978.jpg",
+                "/images/restaurants/83566974-1017-4408-90ee-2571ccc06978_1.jpg",
+                "/images/restaurants/83566974-1017-4408-90ee-2571ccc06978_2.jpg",
+                "/images/restaurants/83566974-1017-4408-90ee-2571ccc06978_3.jpg",
+                "/images/restaurants/83566974-1017-4408-90ee-2571ccc06978_4.jpg"
               ]
             },
             {
@@ -453,19 +453,19 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
               },
               "phone": "32 288 64 71",
               "website": "http://kallzone.pl/",
-              "image_url": "/images/restaurants/[redacted].jpg",
+              "image_url": "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70.jpg",
               "photo_gallery": [
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg"
+                "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70.jpg",
+                "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70_1.jpg",
+                "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70_2.jpg",
+                "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70_3.jpg",
+                "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70_4.jpg"
               ]
             }
           ],
           "menuItems": []
         },
-        "timestamp": 1777868502162
+        "timestamp": 1777972820617
       },
       {
         "role": "user",
@@ -482,7 +482,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
             "items": null
           }
         },
-        "timestamp": 1777868502294
+        "timestamp": 1777972820734
       },
       {
         "role": "assistant",
@@ -597,13 +597,13 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
               },
               "phone": "729 324 218",
               "website": null,
-              "image_url": "/images/restaurants/[redacted].jpg",
+              "image_url": "/images/restaurants/fc844513-2869-4f42-b04f-c21e1e4cceb7.jpg",
               "photo_gallery": [
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg"
+                "/images/restaurants/fc844513-2869-4f42-b04f-c21e1e4cceb7.jpg",
+                "/images/restaurants/fc844513-2869-4f42-b04f-c21e1e4cceb7_1.jpg",
+                "/images/restaurants/fc844513-2869-4f42-b04f-c21e1e4cceb7_2.jpg",
+                "/images/restaurants/fc844513-2869-4f42-b04f-c21e1e4cceb7_3.jpg",
+                "/images/restaurants/fc844513-2869-4f42-b04f-c21e1e4cceb7_4.jpg"
               ],
               "item_match_score": 140,
               "matched_menu_items": [
@@ -715,7 +715,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
               },
               "phone": "32 767 85 55",
               "website": "https://dworhubertus.pl/",
-              "image_url": "/images/restaurants/[redacted].jpg",
+              "image_url": "/images/restaurants/af8448ef-974b-46c8-a4ae-b04b8dc7c9f8.jpg",
               "photo_gallery": null,
               "item_match_score": 140,
               "matched_menu_items": [
@@ -829,13 +829,13 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
               },
               "phone": "32 288 64 71",
               "website": "http://kallzone.pl/",
-              "image_url": "/images/restaurants/[redacted].jpg",
+              "image_url": "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70.jpg",
               "photo_gallery": [
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg"
+                "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70.jpg",
+                "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70_1.jpg",
+                "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70_2.jpg",
+                "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70_3.jpg",
+                "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70_4.jpg"
               ],
               "item_match_score": 140,
               "matched_menu_items": [
@@ -930,13 +930,13 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
               },
               "phone": "570 377 377",
               "website": "http://www.klapsbar.pl/",
-              "image_url": "/images/restaurants/[redacted].jpg",
+              "image_url": "/images/restaurants/569a7d29-57be-4224-bdf3-09c483415cea.jpg",
               "photo_gallery": [
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg"
+                "/images/restaurants/569a7d29-57be-4224-bdf3-09c483415cea.jpg",
+                "/images/restaurants/569a7d29-57be-4224-bdf3-09c483415cea_1.jpg",
+                "/images/restaurants/569a7d29-57be-4224-bdf3-09c483415cea_2.jpg",
+                "/images/restaurants/569a7d29-57be-4224-bdf3-09c483415cea_3.jpg",
+                "/images/restaurants/569a7d29-57be-4224-bdf3-09c483415cea_4.jpg"
               ],
               "item_match_score": 120,
               "matched_menu_items": [
@@ -946,7 +946,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
           ],
           "menuItems": []
         },
-        "timestamp": 1777868502589
+        "timestamp": 1777972821094
       },
       {
         "role": "user",
@@ -964,7 +964,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
             "raw": "z ostrym sosem"
           }
         },
-        "timestamp": 1777868502744
+        "timestamp": 1777972821219
       },
       {
         "role": "assistant",
@@ -974,7 +974,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
           "restaurants": [],
           "menuItems": []
         },
-        "timestamp": 1777868502748
+        "timestamp": 1777972821223
       }
     ],
     "entityCache": {
@@ -983,25 +983,25 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
           "id": "[redacted]",
           "name": "Tasty King Kebab",
           "position": 1,
-          "timestamp": 1777868502589
+          "timestamp": 1777972821094
         },
         {
           "id": "[redacted]",
           "name": "Dwór Hubertus",
           "position": 2,
-          "timestamp": 1777868502589
+          "timestamp": 1777972821094
         },
         {
           "id": "[redacted]",
           "name": "Callzone",
           "position": 3,
-          "timestamp": 1777868502589
+          "timestamp": 1777972821094
         },
         {
           "id": "[redacted]",
           "name": "Klaps Burgers",
           "position": 4,
-          "timestamp": 1777868502589
+          "timestamp": 1777972821094
         }
       ],
       "items": [],
@@ -1009,7 +1009,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
     },
     "currentRestaurant": null,
     "lockedRestaurantId": null,
-    "lastUpdated": 1777868502745,
+    "lastUpdated": 1777972821220,
     "last_location": "Piekary Śląskie",
     "last_restaurants_list": [
       {
@@ -1119,13 +1119,13 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
         },
         "phone": "729 324 218",
         "website": null,
-        "image_url": "/images/restaurants/[redacted].jpg",
+        "image_url": "/images/restaurants/fc844513-2869-4f42-b04f-c21e1e4cceb7.jpg",
         "photo_gallery": [
-          "/images/restaurants/[redacted].jpg",
-          "/images/restaurants/[redacted].jpg",
-          "/images/restaurants/[redacted].jpg",
-          "/images/restaurants/[redacted].jpg",
-          "/images/restaurants/[redacted].jpg"
+          "/images/restaurants/fc844513-2869-4f42-b04f-c21e1e4cceb7.jpg",
+          "/images/restaurants/fc844513-2869-4f42-b04f-c21e1e4cceb7_1.jpg",
+          "/images/restaurants/fc844513-2869-4f42-b04f-c21e1e4cceb7_2.jpg",
+          "/images/restaurants/fc844513-2869-4f42-b04f-c21e1e4cceb7_3.jpg",
+          "/images/restaurants/fc844513-2869-4f42-b04f-c21e1e4cceb7_4.jpg"
         ],
         "item_match_score": 140,
         "matched_menu_items": [
@@ -1237,7 +1237,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
         },
         "phone": "32 767 85 55",
         "website": "https://dworhubertus.pl/",
-        "image_url": "/images/restaurants/[redacted].jpg",
+        "image_url": "/images/restaurants/af8448ef-974b-46c8-a4ae-b04b8dc7c9f8.jpg",
         "photo_gallery": null,
         "item_match_score": 140,
         "matched_menu_items": [
@@ -1351,13 +1351,13 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
         },
         "phone": "32 288 64 71",
         "website": "http://kallzone.pl/",
-        "image_url": "/images/restaurants/[redacted].jpg",
+        "image_url": "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70.jpg",
         "photo_gallery": [
-          "/images/restaurants/[redacted].jpg",
-          "/images/restaurants/[redacted].jpg",
-          "/images/restaurants/[redacted].jpg",
-          "/images/restaurants/[redacted].jpg",
-          "/images/restaurants/[redacted].jpg"
+          "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70.jpg",
+          "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70_1.jpg",
+          "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70_2.jpg",
+          "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70_3.jpg",
+          "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70_4.jpg"
         ],
         "item_match_score": 140,
         "matched_menu_items": [
@@ -1452,13 +1452,13 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
         },
         "phone": "570 377 377",
         "website": "http://www.klapsbar.pl/",
-        "image_url": "/images/restaurants/[redacted].jpg",
+        "image_url": "/images/restaurants/569a7d29-57be-4224-bdf3-09c483415cea.jpg",
         "photo_gallery": [
-          "/images/restaurants/[redacted].jpg",
-          "/images/restaurants/[redacted].jpg",
-          "/images/restaurants/[redacted].jpg",
-          "/images/restaurants/[redacted].jpg",
-          "/images/restaurants/[redacted].jpg"
+          "/images/restaurants/569a7d29-57be-4224-bdf3-09c483415cea.jpg",
+          "/images/restaurants/569a7d29-57be-4224-bdf3-09c483415cea_1.jpg",
+          "/images/restaurants/569a7d29-57be-4224-bdf3-09c483415cea_2.jpg",
+          "/images/restaurants/569a7d29-57be-4224-bdf3-09c483415cea_3.jpg",
+          "/images/restaurants/569a7d29-57be-4224-bdf3-09c483415cea_4.jpg"
         ],
         "item_match_score": 120,
         "matched_menu_items": [
@@ -1475,7 +1475,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
           "restaurantCount": 2
         },
         "renderedText": "Mam 2 miejsc w Piekary Śląskie. Którą restaurację wybierasz? (Możesz powiedzieć numer albo nazwę.)",
-        "timestamp": 1777868501802
+        "timestamp": 1777972820212
       },
       {
         "surfaceKey": "CHOOSE_RESTAURANT",
@@ -1484,7 +1484,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
           "restaurantCount": 2
         },
         "renderedText": "Mam 2 miejsc w Piekary Śląskie. Którą restaurację wybierasz? (Możesz powiedzieć numer albo nazwę.)",
-        "timestamp": 1777868502161
+        "timestamp": 1777972820616
       },
       {
         "surfaceKey": "CHOOSE_RESTAURANT",
@@ -1493,14 +1493,14 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
           "restaurantCount": 4
         },
         "renderedText": "Mam 4 miejsc w Piekary Śląskie. Którą restaurację wybierasz? (Możesz powiedzieć numer albo nazwę.)",
-        "timestamp": 1777868502588
+        "timestamp": 1777972821092
       }
     ],
     "dialogStackIndex": 2
   },
   "locationRestaurants": [],
-  "timestamp": "2026-05-04T04:21:42.748Z",
-  "turn_id": "turn_1777868502748_xis5t"
+  "timestamp": "2026-05-05T09:20:21.223Z",
+  "turn_id": "turn_1777972821223_hv60f"
 }
 ```
 
@@ -1513,7 +1513,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
 ```json
 {
   "ok": true,
-  "session_id": "chaos-A02-1777868502780",
+  "session_id": "chaos-A02-1777972821258",
   "text": "Nie wiem którą restaurację z listy masz na myśli. Wybierz numer od 1 do 4 lub powiedz \"cofnij\".",
   "reply": "Nie wiem którą restaurację z listy masz na myśli. Wybierz numer od 1 do 4 lub powiedz \"cofnij\".",
   "tts_text": "Nie wiem którą restaurację z listy masz na myśli. Wybierz numer od 1 do 4 lub powiedz \"cofnij\".",
@@ -1531,7 +1531,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
   },
   "recommendations": [],
   "meta": {
-    "latency_total_ms": 115,
+    "latency_total_ms": 81,
     "source": "context_lock",
     "styling_ms": 0,
     "tts_ms": 0,
@@ -1830,13 +1830,13 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
               },
               "phone": "515 532 617",
               "website": "http://piekary.pubmontecarlo.pl/",
-              "image_url": "/images/restaurants/[redacted].jpg",
+              "image_url": "/images/restaurants/83566974-1017-4408-90ee-2571ccc06978.jpg",
               "photo_gallery": [
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg"
+                "/images/restaurants/83566974-1017-4408-90ee-2571ccc06978.jpg",
+                "/images/restaurants/83566974-1017-4408-90ee-2571ccc06978_1.jpg",
+                "/images/restaurants/83566974-1017-4408-90ee-2571ccc06978_2.jpg",
+                "/images/restaurants/83566974-1017-4408-90ee-2571ccc06978_3.jpg",
+                "/images/restaurants/83566974-1017-4408-90ee-2571ccc06978_4.jpg"
               ]
             },
             {
@@ -1946,19 +1946,19 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
               },
               "phone": "32 288 64 71",
               "website": "http://kallzone.pl/",
-              "image_url": "/images/restaurants/[redacted].jpg",
+              "image_url": "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70.jpg",
               "photo_gallery": [
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg"
+                "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70.jpg",
+                "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70_1.jpg",
+                "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70_2.jpg",
+                "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70_3.jpg",
+                "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70_4.jpg"
               ]
             }
           ],
           "menuItems": []
         },
-        "timestamp": 1777868503647
+        "timestamp": 1777972822270
       },
       {
         "role": "user",
@@ -1975,7 +1975,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
             "items": null
           }
         },
-        "timestamp": 1777868503776
+        "timestamp": 1777972822374
       },
       {
         "role": "assistant",
@@ -2090,13 +2090,13 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
               },
               "phone": "729 324 218",
               "website": null,
-              "image_url": "/images/restaurants/[redacted].jpg",
+              "image_url": "/images/restaurants/fc844513-2869-4f42-b04f-c21e1e4cceb7.jpg",
               "photo_gallery": [
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg"
+                "/images/restaurants/fc844513-2869-4f42-b04f-c21e1e4cceb7.jpg",
+                "/images/restaurants/fc844513-2869-4f42-b04f-c21e1e4cceb7_1.jpg",
+                "/images/restaurants/fc844513-2869-4f42-b04f-c21e1e4cceb7_2.jpg",
+                "/images/restaurants/fc844513-2869-4f42-b04f-c21e1e4cceb7_3.jpg",
+                "/images/restaurants/fc844513-2869-4f42-b04f-c21e1e4cceb7_4.jpg"
               ],
               "item_match_score": 140,
               "matched_menu_items": [
@@ -2208,7 +2208,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
               },
               "phone": "32 767 85 55",
               "website": "https://dworhubertus.pl/",
-              "image_url": "/images/restaurants/[redacted].jpg",
+              "image_url": "/images/restaurants/af8448ef-974b-46c8-a4ae-b04b8dc7c9f8.jpg",
               "photo_gallery": null,
               "item_match_score": 140,
               "matched_menu_items": [
@@ -2322,13 +2322,13 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
               },
               "phone": "32 288 64 71",
               "website": "http://kallzone.pl/",
-              "image_url": "/images/restaurants/[redacted].jpg",
+              "image_url": "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70.jpg",
               "photo_gallery": [
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg"
+                "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70.jpg",
+                "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70_1.jpg",
+                "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70_2.jpg",
+                "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70_3.jpg",
+                "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70_4.jpg"
               ],
               "item_match_score": 140,
               "matched_menu_items": [
@@ -2423,13 +2423,13 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
               },
               "phone": "570 377 377",
               "website": "http://www.klapsbar.pl/",
-              "image_url": "/images/restaurants/[redacted].jpg",
+              "image_url": "/images/restaurants/569a7d29-57be-4224-bdf3-09c483415cea.jpg",
               "photo_gallery": [
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg"
+                "/images/restaurants/569a7d29-57be-4224-bdf3-09c483415cea.jpg",
+                "/images/restaurants/569a7d29-57be-4224-bdf3-09c483415cea_1.jpg",
+                "/images/restaurants/569a7d29-57be-4224-bdf3-09c483415cea_2.jpg",
+                "/images/restaurants/569a7d29-57be-4224-bdf3-09c483415cea_3.jpg",
+                "/images/restaurants/569a7d29-57be-4224-bdf3-09c483415cea_4.jpg"
               ],
               "item_match_score": 120,
               "matched_menu_items": [
@@ -2439,7 +2439,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
           ],
           "menuItems": []
         },
-        "timestamp": 1777868504026
+        "timestamp": 1777972822645
       },
       {
         "role": "user",
@@ -2457,7 +2457,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
             "raw": "z ostrym sosem"
           }
         },
-        "timestamp": 1777868504179
+        "timestamp": 1777972822755
       },
       {
         "role": "assistant",
@@ -2467,7 +2467,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
           "restaurants": [],
           "menuItems": []
         },
-        "timestamp": 1777868504181
+        "timestamp": 1777972822757
       }
     ],
     "entityCache": {
@@ -2476,25 +2476,25 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
           "id": "[redacted]",
           "name": "Tasty King Kebab",
           "position": 1,
-          "timestamp": 1777868504026
+          "timestamp": 1777972822645
         },
         {
           "id": "[redacted]",
           "name": "Dwór Hubertus",
           "position": 2,
-          "timestamp": 1777868504026
+          "timestamp": 1777972822645
         },
         {
           "id": "[redacted]",
           "name": "Callzone",
           "position": 3,
-          "timestamp": 1777868504026
+          "timestamp": 1777972822645
         },
         {
           "id": "[redacted]",
           "name": "Klaps Burgers",
           "position": 4,
-          "timestamp": 1777868504026
+          "timestamp": 1777972822645
         }
       ],
       "items": [],
@@ -2502,7 +2502,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
     },
     "currentRestaurant": null,
     "lockedRestaurantId": null,
-    "lastUpdated": 1777868504180,
+    "lastUpdated": 1777972822756,
     "last_location": "Piekary Śląskie",
     "last_restaurants_list": [
       {
@@ -2612,13 +2612,13 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
         },
         "phone": "729 324 218",
         "website": null,
-        "image_url": "/images/restaurants/[redacted].jpg",
+        "image_url": "/images/restaurants/fc844513-2869-4f42-b04f-c21e1e4cceb7.jpg",
         "photo_gallery": [
-          "/images/restaurants/[redacted].jpg",
-          "/images/restaurants/[redacted].jpg",
-          "/images/restaurants/[redacted].jpg",
-          "/images/restaurants/[redacted].jpg",
-          "/images/restaurants/[redacted].jpg"
+          "/images/restaurants/fc844513-2869-4f42-b04f-c21e1e4cceb7.jpg",
+          "/images/restaurants/fc844513-2869-4f42-b04f-c21e1e4cceb7_1.jpg",
+          "/images/restaurants/fc844513-2869-4f42-b04f-c21e1e4cceb7_2.jpg",
+          "/images/restaurants/fc844513-2869-4f42-b04f-c21e1e4cceb7_3.jpg",
+          "/images/restaurants/fc844513-2869-4f42-b04f-c21e1e4cceb7_4.jpg"
         ],
         "item_match_score": 140,
         "matched_menu_items": [
@@ -2730,7 +2730,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
         },
         "phone": "32 767 85 55",
         "website": "https://dworhubertus.pl/",
-        "image_url": "/images/restaurants/[redacted].jpg",
+        "image_url": "/images/restaurants/af8448ef-974b-46c8-a4ae-b04b8dc7c9f8.jpg",
         "photo_gallery": null,
         "item_match_score": 140,
         "matched_menu_items": [
@@ -2844,13 +2844,13 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
         },
         "phone": "32 288 64 71",
         "website": "http://kallzone.pl/",
-        "image_url": "/images/restaurants/[redacted].jpg",
+        "image_url": "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70.jpg",
         "photo_gallery": [
-          "/images/restaurants/[redacted].jpg",
-          "/images/restaurants/[redacted].jpg",
-          "/images/restaurants/[redacted].jpg",
-          "/images/restaurants/[redacted].jpg",
-          "/images/restaurants/[redacted].jpg"
+          "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70.jpg",
+          "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70_1.jpg",
+          "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70_2.jpg",
+          "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70_3.jpg",
+          "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70_4.jpg"
         ],
         "item_match_score": 140,
         "matched_menu_items": [
@@ -2945,13 +2945,13 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
         },
         "phone": "570 377 377",
         "website": "http://www.klapsbar.pl/",
-        "image_url": "/images/restaurants/[redacted].jpg",
+        "image_url": "/images/restaurants/569a7d29-57be-4224-bdf3-09c483415cea.jpg",
         "photo_gallery": [
-          "/images/restaurants/[redacted].jpg",
-          "/images/restaurants/[redacted].jpg",
-          "/images/restaurants/[redacted].jpg",
-          "/images/restaurants/[redacted].jpg",
-          "/images/restaurants/[redacted].jpg"
+          "/images/restaurants/569a7d29-57be-4224-bdf3-09c483415cea.jpg",
+          "/images/restaurants/569a7d29-57be-4224-bdf3-09c483415cea_1.jpg",
+          "/images/restaurants/569a7d29-57be-4224-bdf3-09c483415cea_2.jpg",
+          "/images/restaurants/569a7d29-57be-4224-bdf3-09c483415cea_3.jpg",
+          "/images/restaurants/569a7d29-57be-4224-bdf3-09c483415cea_4.jpg"
         ],
         "item_match_score": 120,
         "matched_menu_items": [
@@ -2968,7 +2968,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
           "restaurantCount": 2
         },
         "renderedText": "Mam 2 miejsc w Piekary Śląskie. Którą restaurację wybierasz? (Możesz powiedzieć numer albo nazwę.)",
-        "timestamp": 1777868503391
+        "timestamp": 1777972821956
       },
       {
         "surfaceKey": "CHOOSE_RESTAURANT",
@@ -2977,7 +2977,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
           "restaurantCount": 2
         },
         "renderedText": "Mam 2 miejsc w Piekary Śląskie. Którą restaurację wybierasz? (Możesz powiedzieć numer albo nazwę.)",
-        "timestamp": 1777868503646
+        "timestamp": 1777972822269
       },
       {
         "surfaceKey": "CHOOSE_RESTAURANT",
@@ -2986,14 +2986,14 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
           "restaurantCount": 4
         },
         "renderedText": "Mam 4 miejsc w Piekary Śląskie. Którą restaurację wybierasz? (Możesz powiedzieć numer albo nazwę.)",
-        "timestamp": 1777868504026
+        "timestamp": 1777972822644
       }
     ],
     "dialogStackIndex": 2
   },
   "locationRestaurants": [],
-  "timestamp": "2026-05-04T04:21:44.180Z",
-  "turn_id": "turn_1777868504181_690lx"
+  "timestamp": "2026-05-05T09:20:22.757Z",
+  "turn_id": "turn_1777972822757_bqmdb"
 }
 ```
 
@@ -3006,7 +3006,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
 ```json
 {
   "ok": true,
-  "session_id": "chaos-A03-1777868504194",
+  "session_id": "chaos-A03-1777972822769",
   "text": "Nie wiem którą restaurację z listy masz na myśli. Wybierz numer od 1 do 4 lub powiedz \"cofnij\".",
   "reply": "Nie wiem którą restaurację z listy masz na myśli. Wybierz numer od 1 do 4 lub powiedz \"cofnij\".",
   "tts_text": "Nie wiem którą restaurację z listy masz na myśli. Wybierz numer od 1 do 4 lub powiedz \"cofnij\".",
@@ -3024,7 +3024,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
   },
   "recommendations": [],
   "meta": {
-    "latency_total_ms": 104,
+    "latency_total_ms": 86,
     "source": "context_lock",
     "styling_ms": 0,
     "tts_ms": 0,
@@ -3323,13 +3323,13 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
               },
               "phone": "515 532 617",
               "website": "http://piekary.pubmontecarlo.pl/",
-              "image_url": "/images/restaurants/[redacted].jpg",
+              "image_url": "/images/restaurants/83566974-1017-4408-90ee-2571ccc06978.jpg",
               "photo_gallery": [
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg"
+                "/images/restaurants/83566974-1017-4408-90ee-2571ccc06978.jpg",
+                "/images/restaurants/83566974-1017-4408-90ee-2571ccc06978_1.jpg",
+                "/images/restaurants/83566974-1017-4408-90ee-2571ccc06978_2.jpg",
+                "/images/restaurants/83566974-1017-4408-90ee-2571ccc06978_3.jpg",
+                "/images/restaurants/83566974-1017-4408-90ee-2571ccc06978_4.jpg"
               ]
             },
             {
@@ -3439,19 +3439,19 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
               },
               "phone": "32 288 64 71",
               "website": "http://kallzone.pl/",
-              "image_url": "/images/restaurants/[redacted].jpg",
+              "image_url": "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70.jpg",
               "photo_gallery": [
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg"
+                "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70.jpg",
+                "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70_1.jpg",
+                "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70_2.jpg",
+                "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70_3.jpg",
+                "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70_4.jpg"
               ]
             }
           ],
           "menuItems": []
         },
-        "timestamp": 1777868504924
+        "timestamp": 1777972823533
       },
       {
         "role": "user",
@@ -3468,7 +3468,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
             "items": null
           }
         },
-        "timestamp": 1777868505043
+        "timestamp": 1777972823653
       },
       {
         "role": "assistant",
@@ -3583,13 +3583,13 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
               },
               "phone": "729 324 218",
               "website": null,
-              "image_url": "/images/restaurants/[redacted].jpg",
+              "image_url": "/images/restaurants/fc844513-2869-4f42-b04f-c21e1e4cceb7.jpg",
               "photo_gallery": [
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg"
+                "/images/restaurants/fc844513-2869-4f42-b04f-c21e1e4cceb7.jpg",
+                "/images/restaurants/fc844513-2869-4f42-b04f-c21e1e4cceb7_1.jpg",
+                "/images/restaurants/fc844513-2869-4f42-b04f-c21e1e4cceb7_2.jpg",
+                "/images/restaurants/fc844513-2869-4f42-b04f-c21e1e4cceb7_3.jpg",
+                "/images/restaurants/fc844513-2869-4f42-b04f-c21e1e4cceb7_4.jpg"
               ],
               "item_match_score": 140,
               "matched_menu_items": [
@@ -3701,7 +3701,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
               },
               "phone": "32 767 85 55",
               "website": "https://dworhubertus.pl/",
-              "image_url": "/images/restaurants/[redacted].jpg",
+              "image_url": "/images/restaurants/af8448ef-974b-46c8-a4ae-b04b8dc7c9f8.jpg",
               "photo_gallery": null,
               "item_match_score": 140,
               "matched_menu_items": [
@@ -3815,13 +3815,13 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
               },
               "phone": "32 288 64 71",
               "website": "http://kallzone.pl/",
-              "image_url": "/images/restaurants/[redacted].jpg",
+              "image_url": "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70.jpg",
               "photo_gallery": [
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg"
+                "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70.jpg",
+                "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70_1.jpg",
+                "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70_2.jpg",
+                "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70_3.jpg",
+                "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70_4.jpg"
               ],
               "item_match_score": 140,
               "matched_menu_items": [
@@ -3916,13 +3916,13 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
               },
               "phone": "570 377 377",
               "website": "http://www.klapsbar.pl/",
-              "image_url": "/images/restaurants/[redacted].jpg",
+              "image_url": "/images/restaurants/569a7d29-57be-4224-bdf3-09c483415cea.jpg",
               "photo_gallery": [
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg"
+                "/images/restaurants/569a7d29-57be-4224-bdf3-09c483415cea.jpg",
+                "/images/restaurants/569a7d29-57be-4224-bdf3-09c483415cea_1.jpg",
+                "/images/restaurants/569a7d29-57be-4224-bdf3-09c483415cea_2.jpg",
+                "/images/restaurants/569a7d29-57be-4224-bdf3-09c483415cea_3.jpg",
+                "/images/restaurants/569a7d29-57be-4224-bdf3-09c483415cea_4.jpg"
               ],
               "item_match_score": 120,
               "matched_menu_items": [
@@ -3932,7 +3932,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
           ],
           "menuItems": []
         },
-        "timestamp": 1777868505303
+        "timestamp": 1777972823947
       },
       {
         "role": "user",
@@ -3950,7 +3950,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
             "raw": "z ostrym sosem"
           }
         },
-        "timestamp": 1777868505430
+        "timestamp": 1777972824057
       },
       {
         "role": "assistant",
@@ -3960,7 +3960,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
           "restaurants": [],
           "menuItems": []
         },
-        "timestamp": 1777868505431
+        "timestamp": 1777972824058
       }
     ],
     "entityCache": {
@@ -3969,25 +3969,25 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
           "id": "[redacted]",
           "name": "Tasty King Kebab",
           "position": 1,
-          "timestamp": 1777868505303
+          "timestamp": 1777972823947
         },
         {
           "id": "[redacted]",
           "name": "Dwór Hubertus",
           "position": 2,
-          "timestamp": 1777868505303
+          "timestamp": 1777972823947
         },
         {
           "id": "[redacted]",
           "name": "Callzone",
           "position": 3,
-          "timestamp": 1777868505303
+          "timestamp": 1777972823947
         },
         {
           "id": "[redacted]",
           "name": "Klaps Burgers",
           "position": 4,
-          "timestamp": 1777868505303
+          "timestamp": 1777972823947
         }
       ],
       "items": [],
@@ -3995,7 +3995,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
     },
     "currentRestaurant": null,
     "lockedRestaurantId": null,
-    "lastUpdated": 1777868505430,
+    "lastUpdated": 1777972824057,
     "last_location": "Piekary Śląskie",
     "last_restaurants_list": [
       {
@@ -4105,13 +4105,13 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
         },
         "phone": "729 324 218",
         "website": null,
-        "image_url": "/images/restaurants/[redacted].jpg",
+        "image_url": "/images/restaurants/fc844513-2869-4f42-b04f-c21e1e4cceb7.jpg",
         "photo_gallery": [
-          "/images/restaurants/[redacted].jpg",
-          "/images/restaurants/[redacted].jpg",
-          "/images/restaurants/[redacted].jpg",
-          "/images/restaurants/[redacted].jpg",
-          "/images/restaurants/[redacted].jpg"
+          "/images/restaurants/fc844513-2869-4f42-b04f-c21e1e4cceb7.jpg",
+          "/images/restaurants/fc844513-2869-4f42-b04f-c21e1e4cceb7_1.jpg",
+          "/images/restaurants/fc844513-2869-4f42-b04f-c21e1e4cceb7_2.jpg",
+          "/images/restaurants/fc844513-2869-4f42-b04f-c21e1e4cceb7_3.jpg",
+          "/images/restaurants/fc844513-2869-4f42-b04f-c21e1e4cceb7_4.jpg"
         ],
         "item_match_score": 140,
         "matched_menu_items": [
@@ -4223,7 +4223,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
         },
         "phone": "32 767 85 55",
         "website": "https://dworhubertus.pl/",
-        "image_url": "/images/restaurants/[redacted].jpg",
+        "image_url": "/images/restaurants/af8448ef-974b-46c8-a4ae-b04b8dc7c9f8.jpg",
         "photo_gallery": null,
         "item_match_score": 140,
         "matched_menu_items": [
@@ -4337,13 +4337,13 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
         },
         "phone": "32 288 64 71",
         "website": "http://kallzone.pl/",
-        "image_url": "/images/restaurants/[redacted].jpg",
+        "image_url": "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70.jpg",
         "photo_gallery": [
-          "/images/restaurants/[redacted].jpg",
-          "/images/restaurants/[redacted].jpg",
-          "/images/restaurants/[redacted].jpg",
-          "/images/restaurants/[redacted].jpg",
-          "/images/restaurants/[redacted].jpg"
+          "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70.jpg",
+          "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70_1.jpg",
+          "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70_2.jpg",
+          "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70_3.jpg",
+          "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70_4.jpg"
         ],
         "item_match_score": 140,
         "matched_menu_items": [
@@ -4438,13 +4438,13 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
         },
         "phone": "570 377 377",
         "website": "http://www.klapsbar.pl/",
-        "image_url": "/images/restaurants/[redacted].jpg",
+        "image_url": "/images/restaurants/569a7d29-57be-4224-bdf3-09c483415cea.jpg",
         "photo_gallery": [
-          "/images/restaurants/[redacted].jpg",
-          "/images/restaurants/[redacted].jpg",
-          "/images/restaurants/[redacted].jpg",
-          "/images/restaurants/[redacted].jpg",
-          "/images/restaurants/[redacted].jpg"
+          "/images/restaurants/569a7d29-57be-4224-bdf3-09c483415cea.jpg",
+          "/images/restaurants/569a7d29-57be-4224-bdf3-09c483415cea_1.jpg",
+          "/images/restaurants/569a7d29-57be-4224-bdf3-09c483415cea_2.jpg",
+          "/images/restaurants/569a7d29-57be-4224-bdf3-09c483415cea_3.jpg",
+          "/images/restaurants/569a7d29-57be-4224-bdf3-09c483415cea_4.jpg"
         ],
         "item_match_score": 120,
         "matched_menu_items": [
@@ -4461,7 +4461,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
           "restaurantCount": 2
         },
         "renderedText": "Mam 2 miejsc w Piekary Śląskie. Którą restaurację wybierasz? (Możesz powiedzieć numer albo nazwę.)",
-        "timestamp": 1777868504693
+        "timestamp": 1777972823268
       },
       {
         "surfaceKey": "CHOOSE_RESTAURANT",
@@ -4470,7 +4470,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
           "restaurantCount": 2
         },
         "renderedText": "Mam 2 miejsc w Piekary Śląskie. Którą restaurację wybierasz? (Możesz powiedzieć numer albo nazwę.)",
-        "timestamp": 1777868504923
+        "timestamp": 1777972823532
       },
       {
         "surfaceKey": "CHOOSE_RESTAURANT",
@@ -4479,14 +4479,14 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
           "restaurantCount": 4
         },
         "renderedText": "Mam 4 miejsc w Piekary Śląskie. Którą restaurację wybierasz? (Możesz powiedzieć numer albo nazwę.)",
-        "timestamp": 1777868505303
+        "timestamp": 1777972823947
       }
     ],
     "dialogStackIndex": 2
   },
   "locationRestaurants": [],
-  "timestamp": "2026-05-04T04:21:45.431Z",
-  "turn_id": "turn_1777868505431_d03i3"
+  "timestamp": "2026-05-05T09:20:24.058Z",
+  "turn_id": "turn_1777972824058_g0o9m"
 }
 ```
 
@@ -4499,7 +4499,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
 ```json
 {
   "ok": true,
-  "session_id": "chaos-A04-1777868505444",
+  "session_id": "chaos-A04-1777972824072",
   "text": "Nie wiem którą restaurację z listy masz na myśli. Wybierz numer od 1 do 4 lub powiedz \"cofnij\".",
   "reply": "Nie wiem którą restaurację z listy masz na myśli. Wybierz numer od 1 do 4 lub powiedz \"cofnij\".",
   "tts_text": "Nie wiem którą restaurację z listy masz na myśli. Wybierz numer od 1 do 4 lub powiedz \"cofnij\".",
@@ -4517,7 +4517,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
   },
   "recommendations": [],
   "meta": {
-    "latency_total_ms": 114,
+    "latency_total_ms": 118,
     "source": "context_lock",
     "styling_ms": 0,
     "tts_ms": 0,
@@ -4816,13 +4816,13 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
               },
               "phone": "515 532 617",
               "website": "http://piekary.pubmontecarlo.pl/",
-              "image_url": "/images/restaurants/[redacted].jpg",
+              "image_url": "/images/restaurants/83566974-1017-4408-90ee-2571ccc06978.jpg",
               "photo_gallery": [
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg"
+                "/images/restaurants/83566974-1017-4408-90ee-2571ccc06978.jpg",
+                "/images/restaurants/83566974-1017-4408-90ee-2571ccc06978_1.jpg",
+                "/images/restaurants/83566974-1017-4408-90ee-2571ccc06978_2.jpg",
+                "/images/restaurants/83566974-1017-4408-90ee-2571ccc06978_3.jpg",
+                "/images/restaurants/83566974-1017-4408-90ee-2571ccc06978_4.jpg"
               ]
             },
             {
@@ -4932,19 +4932,19 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
               },
               "phone": "32 288 64 71",
               "website": "http://kallzone.pl/",
-              "image_url": "/images/restaurants/[redacted].jpg",
+              "image_url": "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70.jpg",
               "photo_gallery": [
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg"
+                "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70.jpg",
+                "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70_1.jpg",
+                "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70_2.jpg",
+                "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70_3.jpg",
+                "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70_4.jpg"
               ]
             }
           ],
           "menuItems": []
         },
-        "timestamp": 1777868506162
+        "timestamp": 1777972824882
       },
       {
         "role": "user",
@@ -4961,7 +4961,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
             "items": null
           }
         },
-        "timestamp": 1777868506283
+        "timestamp": 1777972824982
       },
       {
         "role": "assistant",
@@ -5076,13 +5076,13 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
               },
               "phone": "729 324 218",
               "website": null,
-              "image_url": "/images/restaurants/[redacted].jpg",
+              "image_url": "/images/restaurants/fc844513-2869-4f42-b04f-c21e1e4cceb7.jpg",
               "photo_gallery": [
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg"
+                "/images/restaurants/fc844513-2869-4f42-b04f-c21e1e4cceb7.jpg",
+                "/images/restaurants/fc844513-2869-4f42-b04f-c21e1e4cceb7_1.jpg",
+                "/images/restaurants/fc844513-2869-4f42-b04f-c21e1e4cceb7_2.jpg",
+                "/images/restaurants/fc844513-2869-4f42-b04f-c21e1e4cceb7_3.jpg",
+                "/images/restaurants/fc844513-2869-4f42-b04f-c21e1e4cceb7_4.jpg"
               ],
               "item_match_score": 140,
               "matched_menu_items": [
@@ -5194,7 +5194,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
               },
               "phone": "32 767 85 55",
               "website": "https://dworhubertus.pl/",
-              "image_url": "/images/restaurants/[redacted].jpg",
+              "image_url": "/images/restaurants/af8448ef-974b-46c8-a4ae-b04b8dc7c9f8.jpg",
               "photo_gallery": null,
               "item_match_score": 140,
               "matched_menu_items": [
@@ -5308,13 +5308,13 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
               },
               "phone": "32 288 64 71",
               "website": "http://kallzone.pl/",
-              "image_url": "/images/restaurants/[redacted].jpg",
+              "image_url": "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70.jpg",
               "photo_gallery": [
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg"
+                "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70.jpg",
+                "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70_1.jpg",
+                "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70_2.jpg",
+                "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70_3.jpg",
+                "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70_4.jpg"
               ],
               "item_match_score": 140,
               "matched_menu_items": [
@@ -5409,13 +5409,13 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
               },
               "phone": "570 377 377",
               "website": "http://www.klapsbar.pl/",
-              "image_url": "/images/restaurants/[redacted].jpg",
+              "image_url": "/images/restaurants/569a7d29-57be-4224-bdf3-09c483415cea.jpg",
               "photo_gallery": [
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg"
+                "/images/restaurants/569a7d29-57be-4224-bdf3-09c483415cea.jpg",
+                "/images/restaurants/569a7d29-57be-4224-bdf3-09c483415cea_1.jpg",
+                "/images/restaurants/569a7d29-57be-4224-bdf3-09c483415cea_2.jpg",
+                "/images/restaurants/569a7d29-57be-4224-bdf3-09c483415cea_3.jpg",
+                "/images/restaurants/569a7d29-57be-4224-bdf3-09c483415cea_4.jpg"
               ],
               "item_match_score": 120,
               "matched_menu_items": [
@@ -5425,7 +5425,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
           ],
           "menuItems": []
         },
-        "timestamp": 1777868506522
+        "timestamp": 1777972825284
       },
       {
         "role": "user",
@@ -5443,7 +5443,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
             "raw": "z ostrym sosem"
           }
         },
-        "timestamp": 1777868506672
+        "timestamp": 1777972825426
       },
       {
         "role": "assistant",
@@ -5453,7 +5453,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
           "restaurants": [],
           "menuItems": []
         },
-        "timestamp": 1777868506673
+        "timestamp": 1777972825427
       }
     ],
     "entityCache": {
@@ -5462,25 +5462,25 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
           "id": "[redacted]",
           "name": "Tasty King Kebab",
           "position": 1,
-          "timestamp": 1777868506522
+          "timestamp": 1777972825284
         },
         {
           "id": "[redacted]",
           "name": "Dwór Hubertus",
           "position": 2,
-          "timestamp": 1777868506522
+          "timestamp": 1777972825284
         },
         {
           "id": "[redacted]",
           "name": "Callzone",
           "position": 3,
-          "timestamp": 1777868506522
+          "timestamp": 1777972825284
         },
         {
           "id": "[redacted]",
           "name": "Klaps Burgers",
           "position": 4,
-          "timestamp": 1777868506522
+          "timestamp": 1777972825284
         }
       ],
       "items": [],
@@ -5488,7 +5488,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
     },
     "currentRestaurant": null,
     "lockedRestaurantId": null,
-    "lastUpdated": 1777868506672,
+    "lastUpdated": 1777972825426,
     "last_location": "Piekary Śląskie",
     "last_restaurants_list": [
       {
@@ -5598,13 +5598,13 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
         },
         "phone": "729 324 218",
         "website": null,
-        "image_url": "/images/restaurants/[redacted].jpg",
+        "image_url": "/images/restaurants/fc844513-2869-4f42-b04f-c21e1e4cceb7.jpg",
         "photo_gallery": [
-          "/images/restaurants/[redacted].jpg",
-          "/images/restaurants/[redacted].jpg",
-          "/images/restaurants/[redacted].jpg",
-          "/images/restaurants/[redacted].jpg",
-          "/images/restaurants/[redacted].jpg"
+          "/images/restaurants/fc844513-2869-4f42-b04f-c21e1e4cceb7.jpg",
+          "/images/restaurants/fc844513-2869-4f42-b04f-c21e1e4cceb7_1.jpg",
+          "/images/restaurants/fc844513-2869-4f42-b04f-c21e1e4cceb7_2.jpg",
+          "/images/restaurants/fc844513-2869-4f42-b04f-c21e1e4cceb7_3.jpg",
+          "/images/restaurants/fc844513-2869-4f42-b04f-c21e1e4cceb7_4.jpg"
         ],
         "item_match_score": 140,
         "matched_menu_items": [
@@ -5716,7 +5716,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
         },
         "phone": "32 767 85 55",
         "website": "https://dworhubertus.pl/",
-        "image_url": "/images/restaurants/[redacted].jpg",
+        "image_url": "/images/restaurants/af8448ef-974b-46c8-a4ae-b04b8dc7c9f8.jpg",
         "photo_gallery": null,
         "item_match_score": 140,
         "matched_menu_items": [
@@ -5830,13 +5830,13 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
         },
         "phone": "32 288 64 71",
         "website": "http://kallzone.pl/",
-        "image_url": "/images/restaurants/[redacted].jpg",
+        "image_url": "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70.jpg",
         "photo_gallery": [
-          "/images/restaurants/[redacted].jpg",
-          "/images/restaurants/[redacted].jpg",
-          "/images/restaurants/[redacted].jpg",
-          "/images/restaurants/[redacted].jpg",
-          "/images/restaurants/[redacted].jpg"
+          "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70.jpg",
+          "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70_1.jpg",
+          "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70_2.jpg",
+          "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70_3.jpg",
+          "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70_4.jpg"
         ],
         "item_match_score": 140,
         "matched_menu_items": [
@@ -5931,13 +5931,13 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
         },
         "phone": "570 377 377",
         "website": "http://www.klapsbar.pl/",
-        "image_url": "/images/restaurants/[redacted].jpg",
+        "image_url": "/images/restaurants/569a7d29-57be-4224-bdf3-09c483415cea.jpg",
         "photo_gallery": [
-          "/images/restaurants/[redacted].jpg",
-          "/images/restaurants/[redacted].jpg",
-          "/images/restaurants/[redacted].jpg",
-          "/images/restaurants/[redacted].jpg",
-          "/images/restaurants/[redacted].jpg"
+          "/images/restaurants/569a7d29-57be-4224-bdf3-09c483415cea.jpg",
+          "/images/restaurants/569a7d29-57be-4224-bdf3-09c483415cea_1.jpg",
+          "/images/restaurants/569a7d29-57be-4224-bdf3-09c483415cea_2.jpg",
+          "/images/restaurants/569a7d29-57be-4224-bdf3-09c483415cea_3.jpg",
+          "/images/restaurants/569a7d29-57be-4224-bdf3-09c483415cea_4.jpg"
         ],
         "item_match_score": 120,
         "matched_menu_items": [
@@ -5954,7 +5954,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
           "restaurantCount": 2
         },
         "renderedText": "Mam 2 miejsc w Piekary Śląskie. Którą restaurację wybierasz? (Możesz powiedzieć numer albo nazwę.)",
-        "timestamp": 1777868505950
+        "timestamp": 1777972824621
       },
       {
         "surfaceKey": "CHOOSE_RESTAURANT",
@@ -5963,7 +5963,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
           "restaurantCount": 2
         },
         "renderedText": "Mam 2 miejsc w Piekary Śląskie. Którą restaurację wybierasz? (Możesz powiedzieć numer albo nazwę.)",
-        "timestamp": 1777868506161
+        "timestamp": 1777972824882
       },
       {
         "surfaceKey": "CHOOSE_RESTAURANT",
@@ -5972,14 +5972,14 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
           "restaurantCount": 4
         },
         "renderedText": "Mam 4 miejsc w Piekary Śląskie. Którą restaurację wybierasz? (Możesz powiedzieć numer albo nazwę.)",
-        "timestamp": 1777868506522
+        "timestamp": 1777972825283
       }
     ],
     "dialogStackIndex": 2
   },
   "locationRestaurants": [],
-  "timestamp": "2026-05-04T04:21:46.673Z",
-  "turn_id": "turn_1777868506673_n788l"
+  "timestamp": "2026-05-05T09:20:25.427Z",
+  "turn_id": "turn_1777972825427_wsujs"
 }
 ```
 
@@ -5992,7 +5992,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
 ```json
 {
   "ok": true,
-  "session_id": "chaos-A05-1777868506686",
+  "session_id": "chaos-A05-1777972825438",
   "text": "Nie wiem którą restaurację z listy masz na myśli. Wybierz numer od 1 do 4 lub powiedz \"cofnij\".",
   "reply": "Nie wiem którą restaurację z listy masz na myśli. Wybierz numer od 1 do 4 lub powiedz \"cofnij\".",
   "tts_text": "Nie wiem którą restaurację z listy masz na myśli. Wybierz numer od 1 do 4 lub powiedz \"cofnij\".",
@@ -6010,7 +6010,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
   },
   "recommendations": [],
   "meta": {
-    "latency_total_ms": 129,
+    "latency_total_ms": 95,
     "source": "context_lock",
     "styling_ms": 0,
     "tts_ms": 0,
@@ -6309,13 +6309,13 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
               },
               "phone": "515 532 617",
               "website": "http://piekary.pubmontecarlo.pl/",
-              "image_url": "/images/restaurants/[redacted].jpg",
+              "image_url": "/images/restaurants/83566974-1017-4408-90ee-2571ccc06978.jpg",
               "photo_gallery": [
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg"
+                "/images/restaurants/83566974-1017-4408-90ee-2571ccc06978.jpg",
+                "/images/restaurants/83566974-1017-4408-90ee-2571ccc06978_1.jpg",
+                "/images/restaurants/83566974-1017-4408-90ee-2571ccc06978_2.jpg",
+                "/images/restaurants/83566974-1017-4408-90ee-2571ccc06978_3.jpg",
+                "/images/restaurants/83566974-1017-4408-90ee-2571ccc06978_4.jpg"
               ]
             },
             {
@@ -6425,19 +6425,19 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
               },
               "phone": "32 288 64 71",
               "website": "http://kallzone.pl/",
-              "image_url": "/images/restaurants/[redacted].jpg",
+              "image_url": "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70.jpg",
               "photo_gallery": [
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg"
+                "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70.jpg",
+                "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70_1.jpg",
+                "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70_2.jpg",
+                "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70_3.jpg",
+                "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70_4.jpg"
               ]
             }
           ],
           "menuItems": []
         },
-        "timestamp": 1777868507385
+        "timestamp": 1777972826218
       },
       {
         "role": "user",
@@ -6454,7 +6454,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
             "items": null
           }
         },
-        "timestamp": 1777868507497
+        "timestamp": 1777972826347
       },
       {
         "role": "assistant",
@@ -6569,13 +6569,13 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
               },
               "phone": "729 324 218",
               "website": null,
-              "image_url": "/images/restaurants/[redacted].jpg",
+              "image_url": "/images/restaurants/fc844513-2869-4f42-b04f-c21e1e4cceb7.jpg",
               "photo_gallery": [
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg"
+                "/images/restaurants/fc844513-2869-4f42-b04f-c21e1e4cceb7.jpg",
+                "/images/restaurants/fc844513-2869-4f42-b04f-c21e1e4cceb7_1.jpg",
+                "/images/restaurants/fc844513-2869-4f42-b04f-c21e1e4cceb7_2.jpg",
+                "/images/restaurants/fc844513-2869-4f42-b04f-c21e1e4cceb7_3.jpg",
+                "/images/restaurants/fc844513-2869-4f42-b04f-c21e1e4cceb7_4.jpg"
               ],
               "item_match_score": 140,
               "matched_menu_items": [
@@ -6687,7 +6687,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
               },
               "phone": "32 767 85 55",
               "website": "https://dworhubertus.pl/",
-              "image_url": "/images/restaurants/[redacted].jpg",
+              "image_url": "/images/restaurants/af8448ef-974b-46c8-a4ae-b04b8dc7c9f8.jpg",
               "photo_gallery": null,
               "item_match_score": 140,
               "matched_menu_items": [
@@ -6801,13 +6801,13 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
               },
               "phone": "32 288 64 71",
               "website": "http://kallzone.pl/",
-              "image_url": "/images/restaurants/[redacted].jpg",
+              "image_url": "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70.jpg",
               "photo_gallery": [
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg"
+                "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70.jpg",
+                "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70_1.jpg",
+                "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70_2.jpg",
+                "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70_3.jpg",
+                "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70_4.jpg"
               ],
               "item_match_score": 140,
               "matched_menu_items": [
@@ -6902,13 +6902,13 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
               },
               "phone": "570 377 377",
               "website": "http://www.klapsbar.pl/",
-              "image_url": "/images/restaurants/[redacted].jpg",
+              "image_url": "/images/restaurants/569a7d29-57be-4224-bdf3-09c483415cea.jpg",
               "photo_gallery": [
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg",
-                "/images/restaurants/[redacted].jpg"
+                "/images/restaurants/569a7d29-57be-4224-bdf3-09c483415cea.jpg",
+                "/images/restaurants/569a7d29-57be-4224-bdf3-09c483415cea_1.jpg",
+                "/images/restaurants/569a7d29-57be-4224-bdf3-09c483415cea_2.jpg",
+                "/images/restaurants/569a7d29-57be-4224-bdf3-09c483415cea_3.jpg",
+                "/images/restaurants/569a7d29-57be-4224-bdf3-09c483415cea_4.jpg"
               ],
               "item_match_score": 120,
               "matched_menu_items": [
@@ -6918,7 +6918,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
           ],
           "menuItems": []
         },
-        "timestamp": 1777868507720
+        "timestamp": 1777972826603
       },
       {
         "role": "user",
@@ -6936,7 +6936,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
             "raw": "z ostrym sosem"
           }
         },
-        "timestamp": 1777868507876
+        "timestamp": 1777972826722
       },
       {
         "role": "assistant",
@@ -6946,7 +6946,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
           "restaurants": [],
           "menuItems": []
         },
-        "timestamp": 1777868507877
+        "timestamp": 1777972826723
       }
     ],
     "entityCache": {
@@ -6955,25 +6955,25 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
           "id": "[redacted]",
           "name": "Tasty King Kebab",
           "position": 1,
-          "timestamp": 1777868507720
+          "timestamp": 1777972826603
         },
         {
           "id": "[redacted]",
           "name": "Dwór Hubertus",
           "position": 2,
-          "timestamp": 1777868507720
+          "timestamp": 1777972826603
         },
         {
           "id": "[redacted]",
           "name": "Callzone",
           "position": 3,
-          "timestamp": 1777868507720
+          "timestamp": 1777972826603
         },
         {
           "id": "[redacted]",
           "name": "Klaps Burgers",
           "position": 4,
-          "timestamp": 1777868507720
+          "timestamp": 1777972826603
         }
       ],
       "items": [],
@@ -6981,7 +6981,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
     },
     "currentRestaurant": null,
     "lockedRestaurantId": null,
-    "lastUpdated": 1777868507876,
+    "lastUpdated": 1777972826723,
     "last_location": "Piekary Śląskie",
     "last_restaurants_list": [
       {
@@ -7091,13 +7091,13 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
         },
         "phone": "729 324 218",
         "website": null,
-        "image_url": "/images/restaurants/[redacted].jpg",
+        "image_url": "/images/restaurants/fc844513-2869-4f42-b04f-c21e1e4cceb7.jpg",
         "photo_gallery": [
-          "/images/restaurants/[redacted].jpg",
-          "/images/restaurants/[redacted].jpg",
-          "/images/restaurants/[redacted].jpg",
-          "/images/restaurants/[redacted].jpg",
-          "/images/restaurants/[redacted].jpg"
+          "/images/restaurants/fc844513-2869-4f42-b04f-c21e1e4cceb7.jpg",
+          "/images/restaurants/fc844513-2869-4f42-b04f-c21e1e4cceb7_1.jpg",
+          "/images/restaurants/fc844513-2869-4f42-b04f-c21e1e4cceb7_2.jpg",
+          "/images/restaurants/fc844513-2869-4f42-b04f-c21e1e4cceb7_3.jpg",
+          "/images/restaurants/fc844513-2869-4f42-b04f-c21e1e4cceb7_4.jpg"
         ],
         "item_match_score": 140,
         "matched_menu_items": [
@@ -7209,7 +7209,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
         },
         "phone": "32 767 85 55",
         "website": "https://dworhubertus.pl/",
-        "image_url": "/images/restaurants/[redacted].jpg",
+        "image_url": "/images/restaurants/af8448ef-974b-46c8-a4ae-b04b8dc7c9f8.jpg",
         "photo_gallery": null,
         "item_match_score": 140,
         "matched_menu_items": [
@@ -7323,13 +7323,13 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
         },
         "phone": "32 288 64 71",
         "website": "http://kallzone.pl/",
-        "image_url": "/images/restaurants/[redacted].jpg",
+        "image_url": "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70.jpg",
         "photo_gallery": [
-          "/images/restaurants/[redacted].jpg",
-          "/images/restaurants/[redacted].jpg",
-          "/images/restaurants/[redacted].jpg",
-          "/images/restaurants/[redacted].jpg",
-          "/images/restaurants/[redacted].jpg"
+          "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70.jpg",
+          "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70_1.jpg",
+          "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70_2.jpg",
+          "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70_3.jpg",
+          "/images/restaurants/bd9f2244-7618-4071-aa96-52616a7b4c70_4.jpg"
         ],
         "item_match_score": 140,
         "matched_menu_items": [
@@ -7424,13 +7424,13 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
         },
         "phone": "570 377 377",
         "website": "http://www.klapsbar.pl/",
-        "image_url": "/images/restaurants/[redacted].jpg",
+        "image_url": "/images/restaurants/569a7d29-57be-4224-bdf3-09c483415cea.jpg",
         "photo_gallery": [
-          "/images/restaurants/[redacted].jpg",
-          "/images/restaurants/[redacted].jpg",
-          "/images/restaurants/[redacted].jpg",
-          "/images/restaurants/[redacted].jpg",
-          "/images/restaurants/[redacted].jpg"
+          "/images/restaurants/569a7d29-57be-4224-bdf3-09c483415cea.jpg",
+          "/images/restaurants/569a7d29-57be-4224-bdf3-09c483415cea_1.jpg",
+          "/images/restaurants/569a7d29-57be-4224-bdf3-09c483415cea_2.jpg",
+          "/images/restaurants/569a7d29-57be-4224-bdf3-09c483415cea_3.jpg",
+          "/images/restaurants/569a7d29-57be-4224-bdf3-09c483415cea_4.jpg"
         ],
         "item_match_score": 120,
         "matched_menu_items": [
@@ -7447,7 +7447,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
           "restaurantCount": 2
         },
         "renderedText": "Mam 2 miejsc w Piekary Śląskie. Którą restaurację wybierasz? (Możesz powiedzieć numer albo nazwę.)",
-        "timestamp": 1777868507185
+        "timestamp": 1777972825943
       },
       {
         "surfaceKey": "CHOOSE_RESTAURANT",
@@ -7456,7 +7456,7 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
           "restaurantCount": 2
         },
         "renderedText": "Mam 2 miejsc w Piekary Śląskie. Którą restaurację wybierasz? (Możesz powiedzieć numer albo nazwę.)",
-        "timestamp": 1777868507385
+        "timestamp": 1777972826218
       },
       {
         "surfaceKey": "CHOOSE_RESTAURANT",
@@ -7465,14 +7465,14 @@ Wykonano 15 iteracji pętli demowej. Z tego udane: 0. Flaky: 15
           "restaurantCount": 4
         },
         "renderedText": "Mam 4 miejsc w Piekary Śląskie. Którą restaurację wybierasz? (Możesz powiedzieć numer albo nazwę.)",
-        "timestamp": 1777868507720
+        "timestamp": 1777972826603
       }
     ],
     "dialogStackIndex": 2
   },
   "locationRestaurants": [],
-  "timestamp": "2026-05-04T04:21:47.877Z",
-  "turn_id": "turn_1777868507877_dr7bh"
+  "timestamp": "2026-05-05T09:20:26.723Z",
+  "turn_id": "turn_1777972826723_muo8e"
 }
 ```
 

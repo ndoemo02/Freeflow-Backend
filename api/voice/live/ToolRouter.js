@@ -448,8 +448,8 @@ function looksLikeOrderLocationPhrase(value = '') {
 
 function buildClarifyResponse(activeSessionId, intent, reason, trace = []) {
     const fallbackReply = reason === 'state_requirements_not_met'
-        ? 'Brakuje wymaganego kontekstu tej akcji. Najpierw wybierz restauracjĂ„â„˘ lub menu.'
-        : 'Ta akcja zostaÄąâ€ša zablokowana przez politykĂ„â„˘ bezpieczeÄąâ€žstwa.';
+        ? 'Brakuje wymaganego kontekstu tej akcji. Najpierw wybierz restaurację lub menu.'
+        : 'Ta akcja została zablokowana przez politykę bezpieczeństwa.';
 
     return {
         ok: true,
@@ -1266,15 +1266,15 @@ export class ToolRouter {
                 runtimeDomain = getIntentDomain(runtimeIntent);
                 trace.push(`icm_fallback_intent:${fallbackIntent}`);
             } else {
-                // Fix #5: confirm_order with null fallback Ă˘â‚¬â€ť never redirect to find_nearby,
+                // Fix #5: confirm_order with null fallback  never redirect to find_nearby,
                 // give a cart-aware message instead.
                 if (runtimeIntent === 'confirm_order') {
                     const snap = this.getSession(sessionId) || {};
                     const cart = snap.cart || { items: [] };
                     const isEmpty = !Array.isArray(cart.items) || cart.items.length === 0;
                     const reply = isEmpty
-                        ? 'Koszyk jest pusty. Najpierw dodaj coÄąâ€ş do zamÄ‚Ĺ‚wienia.'
-                        : 'ProszĂ„â„˘ najpierw potwierdÄąĹź pozycje w koszyku, zanim zÄąâ€šoÄąÄ˝ysz zamÄ‚Ĺ‚wienie.';
+                        ? 'Koszyk jest pusty. Najpierw dodaj coś do zamwienia.'
+                        : 'Proszę najpierw potwierd pozycje w koszyku, zanim złożysz zamwienie.';
                     trace.push('confirm_order:blocked:no_fallback');
                     const clarify = buildClarifyResponse(sessionId, 'confirm_order_failed', 'state_requirements_not_met', trace);
                     clarify.reply = reply;
