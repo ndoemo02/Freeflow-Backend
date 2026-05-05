@@ -211,7 +211,7 @@ export async function parseOrderItems(text, restaurantId) {
     // Pobierz menu restauracji
     const { data: menu, error } = await supabase
       .from('menu_items_v2')
-      .select('id, name, price_pln, description, category, available')
+      .select('id, name, price_pln, description, category, available, safety_data')
       .eq('restaurant_id', restaurantId);
 
     if (error || !menu?.length) {

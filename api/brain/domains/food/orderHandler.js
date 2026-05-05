@@ -1560,10 +1560,38 @@ export class OrderHandler {
 
                 const item = entry.item;
                 const candidateQuantity = entry.quantity;
+
+                // Safety Guard (multi-item): validate removed ingredients
+                const multiRemoved = entry?.candidateMeta?.special_instructions?.removed;
+                if (Array.isArray(multiRemoved) && multiRemoved.length > 0) {
+                    const multiRemovable = Array.isArray(item?.safety_data?.removable_ingredients)
+                        ? item.safety_data.removable_ingredients.map((s) => String(s).toLowerCase().trim())
+                        : [];
+                    const multiForbidden = multiRemoved.filter(
+                        (ing) => !multiRemovable.includes(String(ing).toLowerCase().trim())
+                    );
+                    if (multiForbidden.length > 0) {
+                        return {
+                            reply: `Niestety, nie mogę usunąć "${multiForbidden.join(', ')}" z "${item.name}". ${multiRemovable.length > 0 ? `Możesz usunąć tylko: ${multiRemovable.join(', ')}.` : 'Ten składnik nie może być usunięty.'}`,
+                            contextUpdates: {
+                                expectedContext: 'order_continue',
+                                lastIntent: 'create_order'
+                            }
+                        };
+                    }
+                }
+
                 const existingIndex = resolvedItems.findIndex((candidateItem) => String(candidateItem.id) === String(item.id));
                 if (existingIndex >= 0) {
                     resolvedItems[existingIndex].quantity += candidateQuantity;
                     resolvedItems[existingIndex].hasExplicitNumber = resolvedItems[existingIndex].hasExplicitNumber || candidateQuantity > 1;
+                    // Merge special_instructions: new overrides old for the same keys
+                    if (entry?.candidateMeta?.special_instructions) {
+                        resolvedItems[existingIndex].special_instructions = {
+                            ...(resolvedItems[existingIndex].special_instructions || {}),
+                            ...entry.candidateMeta.special_instructions,
+                        };
+                    }
                 } else {
                     resolvedItems.push({
                         id: item.id,
@@ -1576,6 +1604,7 @@ export class OrderHandler {
                         item_tags: item.item_tags ?? [],
                         dietary_flags: item.dietary_flags ?? [],
                         special_instructions: entry.candidateMeta?.special_instructions || null,
+                        safety_data: item.safety_data ?? null,
                     });
                 }
             }
@@ -2206,6 +2235,28 @@ export class OrderHandler {
             // Determine if we are switching restaurants
             const isSwitch = currentRestaurantId && currentRestaurantId !== restaurant.id;
 
+            // Safety Guard: validate special_instructions.removed against removable_ingredients
+            const removedIngredients = entities?.special_instructions?.removed;
+            if (Array.isArray(removedIngredients) && removedIngredients.length > 0) {
+                const removable = Array.isArray(item?.safety_data?.removable_ingredients)
+                    ? item.safety_data.removable_ingredients.map((s) => String(s).toLowerCase().trim())
+                    : [];
+                const forbidden = removedIngredients.filter(
+                    (ing) => !removable.includes(String(ing).toLowerCase().trim())
+                );
+                if (forbidden.length > 0) {
+                    return {
+                        reply: `Niestety, nie mogę usunąć "${forbidden.join(', ')}" z tej pozycji. ${removable.length > 0 ? `Możesz usunąć tylko: ${removable.join(', ')}.` : 'Ten składnik nie może być usunięty.'}`,
+                        contextUpdates: {
+                            expectedContext: 'order_continue',
+                            lastRestaurant: restaurant,
+                            currentRestaurant: restaurant,
+                            lastIntent: 'create_order'
+                        }
+                    };
+                }
+            }
+
             // Build Item Payload
             const orderItem = {
                 id: item.id,
@@ -2218,6 +2269,7 @@ export class OrderHandler {
                 spicy: item.spicy ?? false,
                 item_tags: item.item_tags ?? [],
                 dietary_flags: item.dietary_flags ?? [],
+                safety_data: item.safety_data ?? null,
             };
             const total = (orderItem.price * quantity).toFixed(2);
 

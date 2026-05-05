@@ -22,7 +22,7 @@ export function validateOrderItem(itemCandidate, restaurantMenu) {
         return {
             ok: false,
             reason: 'not_found',
-            message: `Nie znalazłem pozycji "${itemCandidate.name}" w menu.`,
+            message: `Nie znalazłam pozycji "${itemCandidate.name}" w menu.`,
             suggestions
         };
     }

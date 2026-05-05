@@ -58,8 +58,11 @@ export class SupabaseRestaurantRepository {
     async getMenu(restaurantId) {
         const { data, error } = await supabase
             .from('menu_items_v2')
-            .select('id, name, price_pln, description, category, available')
-            .eq('restaurant_id', restaurantId);
+            .select('id, name, price_pln, description, category, available, section_order')
+            .eq('restaurant_id', restaurantId)
+            .order('section_order', { ascending: true })
+            .order('category', { ascending: true })
+            .order('name', { ascending: true });
 
         if (error) throw error;
         return data || [];
