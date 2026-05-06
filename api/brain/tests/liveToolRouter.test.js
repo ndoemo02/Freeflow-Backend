@@ -517,6 +517,7 @@ describe('Live ToolRouter', () => {
             sessionId: 'sess_live_location_placeholder',
             toolName: 'find_nearby',
             args: { location: 'current location', cuisine: 'Polish', lat: 50.39, lng: 18.95 },
+            transcript: 'Polish food near my location',
         });
 
         expect(result.ok).toBe(true);
