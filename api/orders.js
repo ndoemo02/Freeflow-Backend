@@ -84,6 +84,10 @@ function findBestMatch(list, query, field = "name") {
   };
 
   const normQuery = normalizeTxt(safeString(query));
+  if (!normQuery) {
+    console.log("❌ Puste zapytanie — findBestMatch odrzucone");
+    return null;
+  }
   let best = null;
   let bestScore = Infinity;
   let exactMatch = null;
@@ -324,6 +328,11 @@ export default async function handler(req, res) {
       user_email = user_email || "";
 
       console.log("đźźˇ INPUT:", { message, restaurant_name, user_email });
+      // Guard: reject empty requests — prevents ghost orders from empty POST bodies
+      if (!message.trim() && !restaurant_name.trim()) {
+        console.warn("❌ Odrzucono puste zapytanie legacy — brak message i restaurant_name");
+        return res.status(400).json({ ok: false, error: "Puste zapytanie — podaj nazwę dania lub restauracji." });
+      }
 
       // Get user_id from Supabase Auth if available
       let user_id = null;
