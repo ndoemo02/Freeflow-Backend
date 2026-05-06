@@ -577,8 +577,10 @@ describe('Live ToolRouter', () => {
 
         expect(result.ok).toBe(true);
         expect(capturedEntities?.location).toBeNull();
-        expect(capturedText).toBe('szukam Polish');
+        expect(capturedEntities?.cuisine).toBeNull();
+        expect(capturedText).toBe('gdzie zamowic');
         expect(result.trace.some((entry) => entry.includes('live_find_location_dropped_for_gps'))).toBe(true);
+        expect(result.trace.some((entry) => entry.includes('live_find_cuisine_hallucinated_dropped_for_gps'))).toBe(true);
     });
 
     it('drops hallucinated location in find_nearby when GPS exists and transcript does not mention city', async () => {

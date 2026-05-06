@@ -1233,6 +1233,25 @@ export class ToolRouter {
                     }
                 }
             }
+
+            // Drop hallucinated cuisine when GPS exists.
+            // Gemini Flash often invents cuisines (e.g. "kebab, pizza") when user never mentioned food.
+            const cuisineToCheck = (entities?.cuisine || args?.cuisine || '').trim();
+            if (cuisineToCheck && transcriptText) {
+                const normalizedTranscript = normalizeLoose(transcriptText);
+                const normalizedCuisine = normalizeLoose(cuisineToCheck);
+                const cuisineTokens = normalizedCuisine.split(/[,\s]+/).filter(t => t.length >= 3);
+                const cuisineMentioned = normalizedTranscript.includes(normalizedCuisine)
+                    || cuisineTokens.some(t => normalizedTranscript.includes(t));
+                if (!cuisineMentioned) {
+                    entities.cuisine = null;
+                    if (Object.prototype.hasOwnProperty.call(args, 'cuisine')) delete args.cuisine;
+                    if (!textCameFromTranscript && !entities.location) {
+                        mapped.text = 'gdzie zamowic';
+                    }
+                    trace.push('live_find_cuisine_hallucinated_dropped_for_gps');
+                }
+            }
         }
 
         if (runtimeIntent === 'find_nearby' && entities?.location) {
