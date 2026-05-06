@@ -1202,9 +1202,11 @@ export class ToolRouter {
         }
 
         // GPS-first guard for live discovery:
-        // if we already have coordinates, drop noisy/hallucinated location payloads
+        // if we already have coordinates (from tool args OR session), drop noisy/hallucinated location payloads
         // that would incorrectly force CITY mode in findHandler.
-        if (runtimeIntent === 'find_nearby' && hasGeoArgs) {
+        let sessionSnapshot = this.getSession(sessionId) || {};
+        const hasSessionGps = Number.isFinite(sessionSnapshot?.session_lat) && Number.isFinite(sessionSnapshot?.session_lng);
+        if (runtimeIntent === 'find_nearby' && (hasGeoArgs || hasSessionGps)) {
             const locationToCheck = String(entities?.location || args?.location || '').trim();
             const shouldDropLocation = shouldDropLocationForGps({
                 locationCandidate: locationToCheck,
@@ -1233,7 +1235,6 @@ export class ToolRouter {
             }
         }
 
-        let sessionSnapshot = this.getSession(sessionId) || {};
         if (runtimeIntent === 'find_nearby' && entities?.location) {
             const rawLocation = entities.location;
             const sanitizedLocation = sanitizeLocation(rawLocation, sessionSnapshot);
