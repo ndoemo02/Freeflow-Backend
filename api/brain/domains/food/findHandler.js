@@ -758,6 +758,17 @@ function resolveDiscoveryMode(ctx) {
     // 2. Determine Mode
     if (normalizedLoc) {
         if (!isSupportedServiceCity(normalizedLoc)) {
+            // When GPS is available, silently fall back to GPS instead of rejecting.
+            // Gemini ASR often mishears supported city names (e.g. "Piekary" → "Poznań", "piekarnie").
+            // The user is almost certainly in the supported city — GPS will find the right restaurants.
+            if (coords) {
+                console.log(`[UNSUPPORTED_CITY_GPS_FALLBACK] location="${rawLocation}" not supported, falling back to GPS lat=${coords.lat} lng=${coords.lng}`);
+                return {
+                    mode: 'GPS',
+                    coords,
+                    cuisine: null  // drop cuisine — likely also from ASR mishear
+                };
+            }
             return {
                 mode: 'UNSUPPORTED_CITY',
                 requestedLocation: normalizedLoc,

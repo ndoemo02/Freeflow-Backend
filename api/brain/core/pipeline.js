@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Core Pipeline Orchestrator (V2)
  * Odpowiada za przepływ danych: Request -> Hydration -> NLU -> Domain -> Response
  */
@@ -773,7 +773,7 @@ export class BrainPipeline {
                 // Runs AFTER canon so canon has first priority.
                 // If a phonetic match is found, text is replaced before NLU.
                 // 
-                const hasExplicitQuantityPrefix = /^\s*(?:\d+|jeden|jedna|jedno|dwa|dwie|trzy|cztery|pi[ec|sze[sc|siedem|osiem|dziewi[ec|dziesi[ec|kilka|par[eb/i.test(text);
+                const hasExplicitQuantityPrefix = /^\s*(?:\d+|jeden|jedna|jedno|dwa|dwie|trzy|cztery|pięć|pięc|piec|sześć|szesc|siedem|osiem|dziewięć|dziewiec|dziesięć|dziesiec|kilka|parę|pare)\b/i.test(text);
                 if (sessionContext?.last_menu?.length > 0 && !isExplicitRestaurantNavigation(text) && !hasExplicitQuantityPrefix && !skipSingleDishCanon) {
                     const phoneticMatch = matchDishPhonetic(text, sessionContext.last_menu);
                     if (phoneticMatch) {
