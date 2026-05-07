@@ -8,6 +8,7 @@ import conversationDelete from './conversation-delete.js';
 import stats from './business-stats.js';
 import systemStatus from './system-status.js';
 import liveMetrics from './live-metrics.js';
+import liveHealth from './live-health.js';
 
 const router = express.Router();
 
@@ -27,6 +28,7 @@ router.delete('/conversation', wrap(conversationDelete));
 router.get('/business-stats', wrap(stats));
 router.get('/system-status', wrap(systemStatus));
 router.get('/live/metrics', wrap(liveMetrics));
+router.get('/live/health', wrap(liveHealth));
 
 // GET /orders — same query as adminRouter.js; no token gate in local dev
 router.get('/orders', async (req, res) => {
