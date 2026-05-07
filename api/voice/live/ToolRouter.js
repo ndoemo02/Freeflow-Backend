@@ -10,6 +10,7 @@ import {
 } from '../../brain/core/IntentCapabilityMap.js';
 import { liveLog } from './liveObservability.js';
 import { liveMetricsRegisterToolCall } from './liveMetrics.js';
+import { recordGpsLocationDrop, recordCuisineHallucination, recordCartDesync, recordCartSuccessDowngrade, recordIvlBlock, recordIvlCheck, recordToolResult } from './liveHealth.js';
 import { CART_MUTATION_WHITELIST } from '../../brain/core/pipeline/IntentGroups.js';
 import { ORDER_MODE_EVENT, ORDER_MODE_STATE, transitionOrderMode } from '../../brain/core/pipeline/OrderModeFSM.js';
 import { findRestaurantInText } from '../../brain/data/restaurantCatalog.js';
@@ -1059,10 +1060,12 @@ export class ToolRouter {
             }
 
             console.log(`[IVL] toolName=${toolName} verified=${ivlResult.verified} confidence=${ivlResult.confidence} reason=${ivlResult.reason || '-'}`);
+            recordIvlCheck({ sessionId, verified: ivlResult.verified });
 
             if (!ivlResult.verified || ivlResult.confidence < 0.4) {
                 const ivlReason = ivlResult.reason || 'intent_verification_failed';
                 trace.push(`ivl_blocked:${ivlReason}`);
+                recordIvlBlock({ sessionId, reason: ivlReason });
 
                 // Buduj odpowiedź clarify z komunikatem po polsku
                 let ivlReply;
@@ -1224,6 +1227,7 @@ export class ToolRouter {
                 entities.location = null;
                 if (Object.prototype.hasOwnProperty.call(args, 'location')) delete args.location;
                 trace.push(shouldDropLocation ? 'live_find_location_dropped_for_gps' : 'live_find_location_hallucinated_dropped_for_gps');
+                recordGpsLocationDrop({ sessionId, reason: shouldDropLocation ? 'gps_available' : 'hallucinated' });
 
                 if (!textCameFromTranscript) {
                     if (entities.cuisine) {
@@ -1254,6 +1258,7 @@ export class ToolRouter {
                         mapped.text = 'gdzie zamowic';
                     }
                     trace.push('live_find_cuisine_hallucinated_dropped_for_gps');
+                    recordCuisineHallucination({ sessionId, cuisine: cuisineToCheck });
                 }
             }
         }
@@ -1405,6 +1410,13 @@ export class ToolRouter {
         console.log(`[CART_GUARD] cartChanged=${cartChanged}`);
         console.log(`[CART_GUARD] successDowngraded=${successDowngraded}`);
 
+        if (successDowngraded) {
+          recordCartSuccessDowngrade({ sessionId, reason: 'reply_suggests_success_but_cart_unchanged' });
+        }
+        if (cartMutationPath && !cartChanged && !successDowngraded) {
+          recordCartDesync({ sessionId, preCount: preCartItemCount, postCount: postCartItemCount, preTotal: preCartTotal, postTotal: postCartTotal });
+        }
+
         let guardedDomainResponse = domainResponse || { reply: '', intent: runtimeIntent };
         if (successDowngraded) {
             const guardedReply = 'Nie widze zmiany w koszyku. Powtorz prosze dodanie pozycji albo popros o pokazanie koszyka.';
@@ -1508,6 +1520,7 @@ export class ToolRouter {
             intent: runtimeIntent,
             orderMode: orderModeResult.state,
         });
+        recordToolResult({ sessionId, ok: finalOk });
 
         return {
             ok: finalOk,
