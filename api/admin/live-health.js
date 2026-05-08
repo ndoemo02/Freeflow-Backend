@@ -6,15 +6,7 @@ function forbid(res) {
 
 export default async function handler(req, res) {
   try {
-    if (req.method !== 'GET') {
-      return res.status(405).json({ ok: false, error: 'method_not_allowed' });
-    }
-
-    const token = req.headers['x-admin-token'] || req.headers['X-Admin-Token'] || req.query.token;
-    if (!token || token !== process.env.ADMIN_TOKEN) {
-      return forbid(res);
-    }
-
+    // Auth handled by verifyAmberAdmin middleware
     const snapshot = getLiveHealthSnapshot();
     return res.status(200).json({
       ok: true,
