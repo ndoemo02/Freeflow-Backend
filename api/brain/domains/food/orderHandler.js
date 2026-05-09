@@ -943,6 +943,78 @@ function findDirectMenuMatch(searchPhrase, menu = [], session = null) {
 
     return null;
 }
+function detectVariantMismatch(requestedDish, matchedItem, menu = []) {
+    if (!requestedDish || !matchedItem?.name || !Array.isArray(menu) || menu.length === 0) {
+        return null;
+    }
+
+    const req = normalizeDish(requestedDish);
+    const match = normalizeDish(matchedItem.name);
+
+    // Exact match or near-exact — no mismatch
+    if (req === match) return null;
+    if (match.includes(req)) return null;
+    if (req.includes(match)) return null;
+    if (levenshtein(req, match) <= 2) return null;
+
+    const reqWords = req.split(/\s+/).filter(w => w.length > 0);
+    const matchWords = match.split(/\s+/).filter(w => w.length > 0);
+
+    // Find common word-level prefix
+    let commonLen = 0;
+    for (let i = 0; i < Math.min(reqWords.length, matchWords.length); i++) {
+        if (reqWords[i] === matchWords[i]) {
+            commonLen++;
+        } else {
+            break;
+        }
+    }
+
+    if (commonLen === 0) return null;
+
+    const reqVariant = reqWords.slice(commonLen).join(' ');
+    const matchVariant = matchWords.slice(commonLen).join(' ');
+
+    if (reqVariant === matchVariant) return null;
+
+    // Only flag when user explicitly specified a variant that differs meaningfully
+    if (!reqVariant) return null; // User was generic, system picked best match
+    if (levenshtein(reqVariant, matchVariant) <= 2) return null; // Diacritics/typo tolerance
+
+    const commonBase = reqWords.slice(0, commonLen).join(' ');
+
+    // Find all other menu items sharing the same base
+    const otherVariants = menu.filter(item => {
+        const itemName = normalizeDish(item?.name || '');
+        return itemName.startsWith(commonBase) && normalizeDish(item.name) !== match;
+    });
+
+    return {
+        commonBase,
+        requestedVariant: reqVariant || '(brak)',
+        matchedName: matchedItem.name,
+        allVariants: [matchedItem, ...otherVariants],
+    };
+}
+
+function guardVariantMismatch(requestedDish, directMatch, menu) {
+    const mismatch = detectVariantMismatch(requestedDish, directMatch, menu);
+    if (!mismatch) return null;
+
+    console.log('[VARIANT_MISMATCH]', JSON.stringify({
+        requestedDish: normalizeDish(requestedDish),
+        matchedName: mismatch.matchedName,
+        commonBase: mismatch.commonBase,
+        requestedVariant: mismatch.requestedVariant,
+        variantCount: mismatch.allVariants.length,
+    }));
+
+    return buildItemClarifyResponse({
+        options: mismatch.allVariants,
+        query: requestedDish,
+    });
+}
+
 function isStaraKamienicaSession(session = {}) {
     const restaurantName =
         session?.currentRestaurant?.name ||
@@ -1164,6 +1236,25 @@ async function resolveOrderCandidate({
         }
     }
 
+    // Guard: detect variant mismatch before silently substituting
+    if (directMatch && menu.length > 0) {
+        const variantClarify = guardVariantMismatch(rawRequestedDish, directMatch, menu);
+        if (variantClarify) {
+            return {
+                rawRequestedDish,
+                requestedDish,
+                canonicalDish,
+                resolution: null,
+                ambiguousMeta: null,
+                requestedCategory: null,
+                resolvedCategory: null,
+                addonContext,
+                candidateMeta: normalizedMeta,
+                variantClarify,
+            };
+        }
+    }
+
     const resolution = directMatch
         ? {
             status: DISAMBIGUATION_RESULT.ADD_ITEM,
@@ -1178,7 +1269,7 @@ async function resolveOrderCandidate({
                 last_menu: menu,
             },
             last_menu: menu,
-            // Hard-lock when restaurant was explicitly mentioned â€” prevents cross-restaurant fallback
+            // Hard-lock when restaurant was explicitly mentioned — prevents cross-restaurant fallback
             hardLock: Boolean(entities?.restaurant || entities?.restaurantId),
         });
 
@@ -1412,6 +1503,10 @@ export class OrderHandler {
                     currentRestaurantId,
                     addonContext,
                 });
+
+                if (candidateResult?.variantClarify) {
+                    return candidateResult.variantClarify;
+                }
 
                 if (candidateResult?.resolution?.status !== DISAMBIGUATION_RESULT.ADD_ITEM || !candidateResult?.resolution?.item) {
                     if (
@@ -2068,6 +2163,12 @@ export class OrderHandler {
             menuLength: menu.length,
             directMatch: directMatch?.name || null
         }));
+
+        // Guard: detect variant mismatch before silently substituting
+        if (directMatch && menu.length > 0) {
+            const variantClarify = guardVariantMismatch(rawRequestedDish, directMatch, menu);
+            if (variantClarify) return variantClarify;
+        }
 
         const resolution = directMatch
             ? {

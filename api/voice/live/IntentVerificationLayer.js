@@ -259,16 +259,16 @@ export function verifyToolCall({ toolName, args = {}, session, lastToolCallTimes
         }
     }
 
-    // 3b: confirm_order — pendingOrder + expectedContext must exist
+    // 3b: confirm_order — pendingOrder must exist; expectedContext accepts
+    //     'confirm_order' (set by open_checkout bridge) or 'order_continue'
+    //     (set by orderHandler after add_item_to_cart).
     if (toolName === 'confirm_order') {
         const hasPending = !!(session?.pendingOrder);
-        const isExpected = session?.expectedContext === 'confirm_order';
+        const ctx = session?.expectedContext;
+        const isExpected = ctx === 'confirm_order' || ctx === 'order_continue';
 
-        if (!hasPending || !isExpected) {
-            const missing = [];
-            if (!hasPending) missing.push('no_pendingOrder');
-            if (!isExpected) missing.push(`expectedContext=${session?.expectedContext || 'null'}`);
-            trace.push(`args_mismatch:confirm_order:${missing.join(',')}`);
+        if (!hasPending) {
+            trace.push('args_mismatch:confirm_order:no_pendingOrder');
             return {
                 verified: false,
                 confidence: 0,
@@ -276,7 +276,12 @@ export function verifyToolCall({ toolName, args = {}, session, lastToolCallTimes
                 trace,
             };
         }
-        trace.push('args_ok:confirm_order_state_present');
+        if (!isExpected) {
+            trace.push(`args_warn:confirm_order:unexpected_context=${ctx || 'null'}`);
+            confidence -= 0.25;
+        } else {
+            trace.push('args_ok:confirm_order_state_present');
+        }
     }
 
     // 3c: add_item — dish should exist in lastMenu (soft check)

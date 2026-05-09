@@ -316,12 +316,19 @@ export class GeminiLiveGateway {
                 }
 
                 // Persist GPS from tool args as session context (fallback when session_init is delayed/missed).
+                // NIE nadpisuj jeśli session ma już GPS z session_init — Gemini może halucynować współrzędne.
                 if (toolName === 'find_nearby') {
                     const lat = Number(validation.sanitized?.lat);
                     const lng = Number(validation.sanitized?.lng);
                     if (Number.isFinite(lat) && Number.isFinite(lng)) {
-                        updateSession(sessionId, { session_lat: lat, session_lng: lng });
-                        console.log(`[SESSION_GPS_FROM_TOOL] sessionId=${sessionId} lat=${lat} lng=${lng}`);
+                        const session = getSession(sessionId);
+                        const hasSessionGps = Number.isFinite(Number(session?.session_lat)) && Number.isFinite(Number(session?.session_lng));
+                        if (!hasSessionGps) {
+                            updateSession(sessionId, { session_lat: lat, session_lng: lng });
+                            console.log(`[SESSION_GPS_FROM_TOOL] sessionId=${sessionId} lat=${lat} lng=${lng}`);
+                        } else {
+                            console.log(`[SESSION_GPS_FROM_TOOL] SKIP — session already has GPS (session_init), ignoring tool GPS lat=${lat} lng=${lng}`);
+                        }
                     }
                 }
 

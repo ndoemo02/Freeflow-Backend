@@ -642,12 +642,18 @@ function resolveDiscoveryMode(ctx) {
     const sessionCoords = (Number.isFinite(sessionLat) && Number.isFinite(sessionLng))
         ? { lat: sessionLat, lng: sessionLng }
         : null;
-    const coords = bodyCoords || ctxCoords || sessionCoords || null;
-
     const isLiveFindNearbyCall =
         String(ctx?.body?.meta?.sourceTool || '') === 'find_nearby'
         || String(ctx?.source || '') === 'live_tool:find_nearby'
         || String(ctx?.body?.meta?.channel || '') === 'live_tools';
+
+    // Live: session GPS is source of truth. Gemini hallucinates coordinates (often Warsaw 52.23/21.01),
+    // so prefer sessionCoords over bodyCoords from tool args.
+    // Non-live: bodyCoords take priority (user-provided location).
+    const coords = (isLiveFindNearbyCall && sessionCoords)
+        ? sessionCoords
+        : (bodyCoords || ctxCoords || sessionCoords || null);
+
     const hasAnyGpsInput = Boolean(coords);
     const preferGpsForLiveNearby = isLiveFindNearbyCall && hasAnyGpsInput;
 

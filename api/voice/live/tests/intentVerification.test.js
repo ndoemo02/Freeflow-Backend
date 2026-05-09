@@ -319,18 +319,19 @@ describe('Rule 3b — confirm_order state validation', () => {
         expect(result.reason).toBe('confirm_order_state_missing');
     });
 
-    it('zly expectedContext → hard reject', () => {
+    it('zly expectedContext → soft penalty (nie hard reject gdy pendingOrder istnieje)', () => {
         const result = verifyToolCall({
             toolName: 'confirm_order',
             args: {},
             session: makeSession({
                 orderMode: 'building',
-                pendingOrder: { items: [] },
+                pendingOrder: { items: [{ dish: 'kebab' }] },
                 expectedContext: 'menu_request',
             }),
         });
-        expect(result.verified).toBe(false);
-        expect(result.reason).toBe('confirm_order_state_missing');
+        // pendingOrder exists → nie blokuje hard; expectedContext mismatch → confidence penalty
+        expect(result.verified).toBe(true);
+        expect(result.confidence).toBeLessThan(0.8);
     });
 });
 
