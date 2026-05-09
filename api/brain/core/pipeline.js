@@ -1518,11 +1518,26 @@ if (intentResult?.intent === 'UNKNOWN_INTENT') {
             // 
             const isFromBlock = source?.endsWith('_blocked') || source === 'icm_fallback';
             if (intent === 'find_nearby' && !IS_SHADOW && !isFromBlock) {
-                updateSession(activeSessionId, {
+                const sessionSnap = getSession(activeSessionId);
+                const hasOrphanedCart = sessionSnap?.cart && Array.isArray(sessionSnap.cart.items) && sessionSnap.cart.items.length > 0;
+                const isCompleted = sessionSnap?.orderMode === 'completed';
+
+                const resetData = {
                     currentRestaurant: null,
                     lastRestaurant: null,
                     lockedRestaurantId: null
-                });
+                };
+
+                // Clear orphaned cart when starting fresh discovery after a completed order
+                if (hasOrphanedCart && isCompleted) {
+                    resetData.cart = { items: [], total: 0 };
+                    resetData.orderMode = 'neutral';
+                    resetData.expectedContext = null;
+                    resetData.pendingOrder = null;
+                    BrainLogger.pipeline('🧹 IDLE RESET: Cleared orphaned cart from completed order');
+                }
+
+                updateSession(activeSessionId, resetData);
                 BrainLogger.pipeline(' IDLE RESET: Cleared restaurant context for find_nearby');
             }
 

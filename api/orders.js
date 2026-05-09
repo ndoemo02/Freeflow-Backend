@@ -299,7 +299,31 @@ export default async function handler(req, res) {
           return res.status(500).json({ error: orderErr.message });
         }
 
-        console.log('âś… Cart order created:', order.id);
+        console.log('✅ Cart order created:', order.id);
+
+        // Clear session cart after successful order placement (Voice Live flow)
+        try {
+          const { getSession, updateSession } = await import('./brain/session/sessionStore.js');
+          const sessionId = req.body.session_id || req.headers['x-amber-session-id'] || null;
+          if (sessionId) {
+            const snap = getSession(sessionId);
+            if (snap && snap.cart) {
+              updateSession(sessionId, {
+                cart: { items: [], total: 0 },
+                lastOrderId: order.id,
+                orderMode: 'completed',
+                expectedContext: null,
+                pendingOrder: null,
+                currentRestaurant: null,
+                lastRestaurant: null,
+              });
+              console.log('🧹 Session cart cleared after order:', order.id);
+            }
+          }
+        } catch (clearErr) {
+          console.error('⚠️ Failed to clear session cart:', clearErr.message);
+        }
+
         return res.json({
           ok: true,
           id: order.id,
