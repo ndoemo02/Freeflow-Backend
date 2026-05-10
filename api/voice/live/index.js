@@ -34,6 +34,10 @@ export function registerLiveRoutes(app) {
                 typeof cfg?.live_model === 'string' && cfg.live_model.trim().length > 0
                     ? cfg.live_model.trim()
                     : fallbackModel;
+            const liveVoice =
+                typeof cfg?.live_voice === 'string' && cfg.live_voice.trim().length > 0
+                    ? cfg.live_voice.trim()
+                    : 'Aoede';
             const speechStyle =
                 typeof cfg?.speech_style === 'string' && cfg.speech_style.trim().length > 0
                     ? cfg.speech_style.trim()
@@ -47,6 +51,7 @@ export function registerLiveRoutes(app) {
                 ok: true,
                 live_mode: isLiveModeEnabled(),
                 live_model: liveModel,
+                live_voice: liveVoice,
                 speech_style: speechStyle,
                 amber_prompt: amberPrompt,
                 prompt_source: amberPrompt ? 'system_config:amber_prompt' : `speech_style:${speechStyle}`,
@@ -56,6 +61,7 @@ export function registerLiveRoutes(app) {
                 ok: true,
                 live_mode: isLiveModeEnabled(),
                 live_model: fallbackModel,
+                live_voice: 'Aoede',
                 speech_style: 'standard',
                 amber_prompt: '',
                 prompt_source: 'fallback',

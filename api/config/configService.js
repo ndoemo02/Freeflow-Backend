@@ -9,6 +9,7 @@ const KEYS = [
   "tts_voice",
   "model",
   "live_model",
+  "live_voice",
   "streaming",
   "cache_enabled",
   "amber_prompt",
@@ -33,6 +34,7 @@ const DEFAULT_CONFIG = {
     process.env.GEMINI_LIVE_MODEL ||
     process.env.LIVE_MODEL ||
     "gemini-2.5-flash-native-audio-preview-12-2025",
+  live_voice: "Aoede",
   streaming: { enabled: true },
   tts_enabled: true,
   cache_enabled: true,
