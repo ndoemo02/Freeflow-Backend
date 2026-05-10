@@ -34,6 +34,7 @@ const TOOL_TO_INTENT = Object.freeze({
     confirm_order: 'confirm_order',
     cancel_order: 'cancel_order',
     get_cart_state: 'get_cart_state',
+    search_menu_items: 'search_menu_items',
 });
 
 function getOrderModeEvent(intent, preState, domainResponse) {
@@ -921,6 +922,57 @@ export class ToolRouter {
                     timestamp: new Date().toISOString(),
                 },
                 trace: ['tool:get_cart_state'],
+            };
+        }
+
+        if (intent === 'search_menu_items') {
+            const query = String(args?.query || '').trim();
+            if (!query) {
+                return {
+                    ok: false,
+                    error: 'missing_query',
+                    backend_ms: Date.now() - startedAt,
+                };
+            }
+            const session = this.getSession(sessionId) || {};
+            const menuItems = session.menuItems || [];
+            const normalizedQuery = query.toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').trim();
+            const matches = menuItems.filter((item) => {
+                const name = (item.name || '').toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '');
+                const tags = (Array.isArray(item.item_tags) ? item.item_tags : []).join(' ').toLowerCase();
+                return name.includes(normalizedQuery) || tags.includes(normalizedQuery);
+            }).slice(0, 8);
+            return {
+                ok: true,
+                tool: toolName,
+                request_id: requestId,
+                response: {
+                    ok: true,
+                    session_id: sessionId,
+                    intent: 'search_menu_items',
+                    reply: matches.length
+                        ? `Znalazłam ${matches.length} pasujących dań: ${matches.map(m => m.name).join(', ')}.`
+                        : `Nie znalazłam dań pasujących do "${query}".`,
+                    text: matches.length
+                        ? `Znalazłam ${matches.length} pasujących dań.`
+                        : `Nie znalazłam dań pasujących do "${query}".`,
+                    menuItems: matches.map((x) => ({
+                        id: x.id,
+                        name: x.base_name || x.name,
+                        price: x.price ?? null,
+                        tags: Array.isArray(x.item_tags) ? x.item_tags : [],
+                        variant: x.size_or_variant || null,
+                        spicy: !!x.spicy,
+                        is_vege: !!x.is_vege,
+                        safety: x.safety_data && typeof x.safety_data === 'object' ? {
+                            removable: Array.isArray(x.safety_data.removable_ingredients) ? x.safety_data.removable_ingredients : [],
+                        } : null,
+                    })),
+                    meta: { source: 'live_tool:search_menu_items' },
+                    context: session,
+                    timestamp: new Date().toISOString(),
+                },
+                trace: ['tool:search_menu_items'],
             };
         }
 

@@ -206,6 +206,18 @@ export const LIVE_TOOL_SCHEMAS = Object.freeze([
             additionalProperties: false,
         },
     },
+    {
+        name: 'search_menu_items',
+        description: 'Search for a specific dish by name in the current restaurant menu. Use when menu is large and the dish name isnt in the initial list. Returns matching items with full details.',
+        parameters: {
+            type: 'object',
+            properties: {
+                query: { type: 'string' },
+            },
+            required: ['query'],
+            additionalProperties: false,
+        },
+    },
 ]);
 
 export function getToolSchema(toolName) {
