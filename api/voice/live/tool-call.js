@@ -62,6 +62,7 @@ export default async function handler(req, res) {
   }
 
   try {
+    const t0 = Date.now();
     const result = await toolRouter.executeToolCall({
       sessionId: String(sessionId),
       toolName: String(toolName),
@@ -71,6 +72,8 @@ export default async function handler(req, res) {
       transcript,
       userText,
     });
+
+    result.backend_ms = result.backend_ms || (Date.now() - t0);
 
     const status = result.ok ? 200 : 400;
     return res.status(status).json(result);

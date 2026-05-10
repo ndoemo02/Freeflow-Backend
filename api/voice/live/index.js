@@ -11,6 +11,16 @@ export function isLiveModeEnabled() {
 }
 
 export function registerLiveRoutes(app) {
+    // ── Live performance instrumentation endpoint ──
+    app.post('/api/live/perf', async (req, res) => {
+      try {
+        const { default: perfHandler } = await import('../../../api/live/perf.js');
+        await perfHandler(req, res);
+      } catch (e) {
+        res.status(500).json({ ok: false, error: 'perf_handler_unavailable' });
+      }
+    });
+
     app.get('/api/voice/live/runtime-config', async (req, res) => {
         const fallbackModel =
             process.env.GEMINI_LIVE_MODEL ||
@@ -71,13 +81,14 @@ export function registerLiveRoutes(app) {
         });
     });
 
-    app.post('/api/voice/live/tool-call', async (req, res) => {
-        const body = req.body || {};
-        const sessionId = body.session_id || body.sessionId;
-        const toolName = body.tool || body.tool_name;
-        const args = body.args || {};
-        const requestId = body.request_id || null;
-        const turnId = body.turn_id || requestId || null;
+  app.post('/api/voice/live/tool-call', async (req, res) => {
+    const body = req.body || {};
+    const sessionId = body.session_id || body.sessionId;
+    const toolName = body.tool || body.tool_name;
+    const args = body.args || {};
+    const requestId = body.request_id || null;
+    const turnId = body.turn_id || requestId || null;
+    const t0 = Date.now();
         const originCheck = validateLiveOrigin(req.headers?.origin);
         if (!originCheck.ok) {
             return res.status(403).json({
@@ -112,13 +123,16 @@ export function registerLiveRoutes(app) {
         }
 
         try {
-            const result = await toolRouter.executeToolCall({
-                sessionId: String(sessionId),
-                toolName: String(toolName),
-                args,
-                requestId,
-                turnId,
-            });
+      const result = await toolRouter.executeToolCall({
+        sessionId: String(sessionId),
+        toolName: String(toolName),
+        args,
+        requestId,
+        turnId,
+      });
+
+      const backendMs = result.backend_ms || (Date.now() - t0);
+      result.backend_ms = backendMs;
 
             const status = result.ok ? 200 : 400;
             return res.status(status).json(result);

@@ -885,6 +885,7 @@ export class ToolRouter {
             return {
                 ok: false,
                 error: 'missing_session_id',
+                backend_ms: Date.now() - startedAt,
             };
         }
 
@@ -893,6 +894,7 @@ export class ToolRouter {
                 ok: false,
                 error: 'unknown_tool',
                 tool: toolName,
+                backend_ms: Date.now() - startedAt,
             };
         }
 
@@ -1528,6 +1530,7 @@ export class ToolRouter {
             request_id: requestId,
             response,
             trace: context.trace,
+            backend_ms: totalLatency,
         };
     }
 }

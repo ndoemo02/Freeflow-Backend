@@ -32,6 +32,10 @@
     {
       "src": "api/voice/live/tool-call.js",
       "use": "@vercel/node"
+    },
+    {
+      "src": "api/live/perf.js",
+      "use": "@vercel/node"
     }
   ],
   "routes": [
@@ -62,6 +66,10 @@
     {
       "src": "/api/voice/live/tool-call",
       "dest": "api/voice/live/tool-call.js"
+    },
+    {
+      "src": "/api/live/perf",
+      "dest": "api/live/perf.js"
     },
     {
       "src": "/(.*)",
