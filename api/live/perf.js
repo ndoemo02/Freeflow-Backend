@@ -1,7 +1,7 @@
 // Serverless handler for Vercel — POST /api/live/perf
 // Accepts timing instrumentation from frontend (browser)
 // Logs to Vercel console + simple JSON response
-import { applyCORS } from '../../_cors.js';
+import { applyCORS } from '../_cors.js';
 
 export default async function handler(req, res) {
   if (applyCORS(req, res)) return;
