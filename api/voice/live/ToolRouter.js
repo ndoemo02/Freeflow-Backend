@@ -1512,6 +1512,10 @@ export class ToolRouter {
         };
 
         const totalLatency = Date.now() - startedAt;
+        // Inject backend timing into response so frontend can read it
+        if (typeof response === 'object' && response !== null) {
+          response.backend_ms = totalLatency;
+        }
         const finalOk = guardedDomainResponse?.ok !== false;
         liveLog.toolComplete({
             sessionId,
