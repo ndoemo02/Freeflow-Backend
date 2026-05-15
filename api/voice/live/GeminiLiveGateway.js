@@ -265,7 +265,8 @@ export class GeminiLiveGateway {
                 const turnId = parsed.turn_id || requestId || `live_turn_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
                 const transcriptFinal = compactText(parsed.transcript_final || '');
 
-                console.log(`[LiveDiag-BE] WS tool_call received: ${toolName} req:${requestId} session:${sessionId}`);
+                console.log(`[LiveDiag-BE] WS tool_call received: ${toolName} req:${requestId} session:${sessionId} turn:${turnId}`);
+                console.log(`[InteractionBridge] toolcall_received turn_id=${turnId} session_id=${sessionId} tool=${toolName}`);
 
                 if (transcriptFinal) {
                     logLiveEvent({
@@ -418,11 +419,13 @@ export class GeminiLiveGateway {
                     socket.send(JSON.stringify({
                         type: 'tool_result',
                         request_id: requestId,
+                        turn_id: liveMeta.turnId || turnId,
                         tool: toolName,
                         ok: result.ok,
                         response: result.response || null,
                         trace: result.trace || [],
                     }));
+                    console.log(`[InteractionBridge] backend_execution_done turn_id=${liveMeta.turnId || turnId} session_id=${sessionId} tool=${toolName} ok=${result.ok !== false}`);
 
                     if (Array.isArray(result.response?.events) && result.response.events.length > 0) {
                         socket.send(JSON.stringify({

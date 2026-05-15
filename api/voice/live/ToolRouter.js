@@ -880,12 +880,14 @@ export class ToolRouter {
 
     async executeToolCall({ sessionId, toolName, args = {}, requestId = null, turnId = null, transcript = null, userText = null }) {
         const startedAt = Date.now();
+        console.log(`[InteractionBridge] backend_execution_start turn_id=${turnId} session_id=${sessionId} tool=${toolName}`);
         const intent = TOOL_TO_INTENT[toolName] || null;
 
         if (!sessionId || typeof sessionId !== 'string') {
             return {
                 ok: false,
                 error: 'missing_session_id',
+                turn_id: turnId || undefined,
                 backend_ms: Date.now() - startedAt,
             };
         }
@@ -894,6 +896,7 @@ export class ToolRouter {
             return {
                 ok: false,
                 error: 'unknown_tool',
+                turn_id: turnId || undefined,
                 tool: toolName,
                 backend_ms: Date.now() - startedAt,
             };
@@ -1584,6 +1587,7 @@ export class ToolRouter {
             ok: finalOk,
             tool: toolName,
             request_id: requestId,
+            turn_id: turnId || undefined,
             response,
             trace: context.trace,
             backend_ms: totalLatency,

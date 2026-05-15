@@ -62,6 +62,7 @@ export default async function handler(req, res) {
   }
 
   try {
+    console.log(`[InteractionBridge] toolcall_received turn_id=${turnId || '?'} session_id=${sessionId} tool=${toolName} source=http`);
     const t0 = Date.now();
     const result = await toolRouter.executeToolCall({
       sessionId: String(sessionId),

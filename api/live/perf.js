@@ -24,10 +24,11 @@ export default async function handler(req, res) {
   // Log to Vercel console (viewable in Vercel dashboard → Logs)
   for (const e of entries) {
     const sid = String(e.session_id || '?').slice(0, 10);
+    const tid = String(e.turn_id || '?').slice(0, 16);
     const stage = String(e.stage || '?').padEnd(22);
     const ms = String(e.ms || 0).padStart(5);
     const model = String(e.model || '').slice(0, 20);
-    console.log(`[PERF] ${stage} ${ms}ms  model=${model}  session=${sid}`);
+    console.log(`[PERF] ${stage} ${ms}ms  turn=${tid}  model=${model}  session=${sid}`);
   }
 
   // Try Supabase insert if available (non-critical — don't crash if fails)
@@ -41,6 +42,7 @@ export default async function handler(req, res) {
       );
       const rows = entries.map(e => ({
         session_id: String(e.session_id || 'unknown').slice(0, 128),
+        turn_id: String(e.turn_id || '').slice(0, 128) || null,
         model: String(e.model || '').slice(0, 64) || null,
         stage: String(e.stage || 'unknown').slice(0, 32),
         ms: Math.max(0, Math.min(60000, Number(e.ms) || 0)),
