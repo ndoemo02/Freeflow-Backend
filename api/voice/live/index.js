@@ -2,6 +2,7 @@ import { ToolRouter } from './ToolRouter.js';
 import { LIVE_TOOL_SCHEMAS, toGeminiFunctionDeclarations } from './ToolSchemas.js';
 import { GeminiLiveGateway } from './GeminiLiveGateway.js';
 import { validateLiveInternalKey, validateLiveOrigin } from './liveSecurity.js';
+import { buildInitialTurnTrace } from './liveTurnLedger.js';
 
 let gateway = null;
 const toolRouter = new ToolRouter();
@@ -94,6 +95,8 @@ export function registerLiveRoutes(app) {
     const args = body.args || {};
     const requestId = body.request_id || null;
     const turnId = body.turn_id || requestId || null;
+    const transcript = body.transcript || body.transcript_text || null;
+    const userText = body.user_text || body.userText || null;
     const t0 = Date.now();
         const originCheck = validateLiveOrigin(req.headers?.origin);
         if (!originCheck.ok) {
@@ -129,12 +132,29 @@ export function registerLiveRoutes(app) {
         }
 
         try {
+      const turnTrace = buildInitialTurnTrace({
+        sessionId: String(sessionId),
+        turnId,
+        requestId,
+        toolName: String(toolName),
+        rawArgs: args,
+        rawTranscript: body.raw_transcript || body.transcript_raw || null,
+        finalTranscript: transcript || userText || null,
+        source: 'live_tool_http',
+      });
       const result = await toolRouter.executeToolCall({
         sessionId: String(sessionId),
         toolName: String(toolName),
         args,
         requestId,
         turnId,
+        debugLiveFlow: {
+          turnTrace,
+          rawArgs: args,
+          finalTranscript: transcript || userText || null,
+          userText,
+          sttSource: transcript ? 'transcript' : (userText ? 'user_text' : null),
+        },
       });
 
       const backendMs = result.backend_ms || (Date.now() - t0);

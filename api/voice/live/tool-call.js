@@ -4,6 +4,7 @@
 import { applyCORS } from '../../_cors.js';
 import { ToolRouter } from './ToolRouter.js';
 import { validateLiveInternalKey, validateLiveOrigin } from './liveSecurity.js';
+import { buildInitialTurnTrace } from './liveTurnLedger.js';
 
 function isLiveModeEnabled() {
   return String(process.env.LIVE_MODE || '').toLowerCase() === 'true';
@@ -64,6 +65,16 @@ export default async function handler(req, res) {
   try {
     console.log(`[InteractionBridge] toolcall_received turn_id=${turnId || '?'} session_id=${sessionId} tool=${toolName} source=http`);
     const t0 = Date.now();
+    const turnTrace = buildInitialTurnTrace({
+      sessionId: String(sessionId),
+      turnId,
+      requestId,
+      toolName: String(toolName),
+      rawArgs: args,
+      rawTranscript: body.raw_transcript || body.transcript_raw || null,
+      finalTranscript: transcript || userText || null,
+      source: 'live_tool_http',
+    });
     const result = await toolRouter.executeToolCall({
       sessionId: String(sessionId),
       toolName: String(toolName),
@@ -72,6 +83,11 @@ export default async function handler(req, res) {
       turnId,
       transcript,
       userText,
+      debugLiveFlow: {
+        turnTrace,
+        rawArgs: args,
+        finalTranscript: transcript || userText || null,
+      },
     });
 
     result.backend_ms = result.backend_ms || (Date.now() - t0);

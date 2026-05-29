@@ -17,6 +17,12 @@ import { findRestaurantInText } from '../../brain/data/restaurantCatalog.js';
 import { sanitizeLocation } from '../../brain/core/ConversationGuards.js';
 import { verifyToolCall } from './IntentVerificationLayer.js';
 import { compareRestaurantsForLive } from './restaurantCompareService.js';
+import {
+    applyHandlerDecision,
+    applyRouterDecision,
+    buildToolRouterTrace,
+    finalizeTurnTrace,
+} from './liveTurnLedger.js';
 
 const TOOL_TO_INTENT = Object.freeze({
     find_nearby: 'find_nearby',
@@ -878,10 +884,20 @@ export class ToolRouter {
         });
     }
 
-    async executeToolCall({ sessionId, toolName, args = {}, requestId = null, turnId = null, transcript = null, userText = null }) {
+    async executeToolCall({ sessionId, toolName, args = {}, requestId = null, turnId = null, transcript = null, userText = null, debugLiveFlow = null }) {
         const startedAt = Date.now();
         console.log(`[InteractionBridge] backend_execution_start turn_id=${turnId} session_id=${sessionId} tool=${toolName}`);
         const intent = TOOL_TO_INTENT[toolName] || null;
+        let turnTrace = buildToolRouterTrace({
+            existingTrace: debugLiveFlow?.turnTrace || null,
+            sessionId,
+            turnId,
+            requestId,
+            toolName,
+            args: debugLiveFlow?.rawArgs || args,
+            transcript: debugLiveFlow?.finalTranscript || transcript,
+            userText,
+        });
 
         if (!sessionId || typeof sessionId !== 'string') {
             return {
@@ -907,6 +923,25 @@ export class ToolRouter {
         if (intent === 'get_cart_state') {
             const snapshot = this.getSession(sessionId) || {};
             const cart = snapshot.cart || { items: [], total: 0 };
+            const reply = `Koszyk ma ${Array.isArray(cart.items) ? cart.items.length : 0} pozycji.`;
+            turnTrace = applyRouterDecision(turnTrace, {
+                mappedText: 'pokaz koszyk',
+                mappedIntent: intent,
+                runtimeIntent: intent,
+                runtimeDomain: getIntentDomain(intent),
+                args,
+                session: snapshot,
+            });
+            turnTrace = applyHandlerDecision(turnTrace, {
+                domainResponse: { intent: 'get_cart_state', reply, meta: { source: 'live_tool:get_cart_state' } },
+                guardedDomainResponse: { intent: 'get_cart_state', reply, meta: { source: 'live_tool:get_cart_state' } },
+                cartBefore: cart,
+                cartAfter: cart,
+                cartChanged: false,
+                cartMutationPath: false,
+                responseSuggestsSuccess: true,
+            });
+            const finalizedTrace = finalizeTurnTrace(turnTrace);
             return {
                 ok: true,
                 tool: toolName,
@@ -915,11 +950,12 @@ export class ToolRouter {
                     ok: true,
                     session_id: sessionId,
                     intent: 'get_cart_state',
-                    reply: `Koszyk ma ${Array.isArray(cart.items) ? cart.items.length : 0} pozycji.`,
-                    text: `Koszyk ma ${Array.isArray(cart.items) ? cart.items.length : 0} pozycji.`,
+                    reply,
+                    text: reply,
                     cart,
                     meta: {
                         source: 'live_tool:get_cart_state',
+                        ...(finalizedTrace ? { liveTool: { turnTrace: finalizedTrace } } : {}),
                     },
                     context: snapshot,
                     timestamp: new Date().toISOString(),
@@ -946,6 +982,29 @@ export class ToolRouter {
                 return name.includes(normalizedQuery) || tags.includes(normalizedQuery);
             }).slice(0, 8);
             const focusedMenuItemId = matches[0]?.id || matches[0]?.menuItemId || matches[0]?.menu_item_id || null;
+            const reply = matches.length
+                ? `Znalazłam ${matches.length} pasujących dań: ${matches.map(m => m.name).join(', ')}.`
+                : `Nie znalazłam dań pasujących do "${query}".`;
+            turnTrace = applyRouterDecision(turnTrace, {
+                mappedText: query,
+                mappedIntent: intent,
+                runtimeIntent: intent,
+                runtimeDomain: getIntentDomain(intent),
+                args,
+                session,
+            });
+            turnTrace = applyHandlerDecision(turnTrace, {
+                domainResponse: { intent: 'search_menu_items', reply, meta: { source: 'live_tool:search_menu_items' } },
+                guardedDomainResponse: { intent: 'search_menu_items', reply, meta: { source: 'live_tool:search_menu_items' } },
+                cartBefore: session.cart || {},
+                cartAfter: session.cart || {},
+                cartChanged: false,
+                cartMutationPath: false,
+                responseSuggestsSuccess: true,
+            });
+            const finalizedTrace = finalizeTurnTrace(turnTrace, {
+                response_meta_focused: focusedMenuItemId || null,
+            });
             return {
                 ok: true,
                 tool: toolName,
@@ -954,9 +1013,7 @@ export class ToolRouter {
                     ok: true,
                     session_id: sessionId,
                     intent: 'search_menu_items',
-                    reply: matches.length
-                        ? `Znalazłam ${matches.length} pasujących dań: ${matches.map(m => m.name).join(', ')}.`
-                        : `Nie znalazłam dań pasujących do "${query}".`,
+                    reply,
                     text: matches.length
                         ? `Znalazłam ${matches.length} pasujących dań.`
                         : `Nie znalazłam dań pasujących do "${query}".`,
@@ -972,7 +1029,11 @@ export class ToolRouter {
                             removable: Array.isArray(x.safety_data.removable_ingredients) ? x.safety_data.removable_ingredients : [],
                         } : null,
                     })),
-                    meta: { source: 'live_tool:search_menu_items', focusedMenuItemId },
+                    meta: {
+                        source: 'live_tool:search_menu_items',
+                        focusedMenuItemId,
+                        ...(finalizedTrace ? { liveTool: { turnTrace: finalizedTrace } } : {}),
+                    },
                     context: session,
                     timestamp: new Date().toISOString(),
                 },
@@ -1085,6 +1146,7 @@ export class ToolRouter {
             }
         }
 
+        let ivlResultForTrace = null;
         // ─── Intent Verification Layer ────────────────────────────────────────
         // Uruchom PRZED główną logiką — po validateAndSanitize (robi GeminiLiveGateway/tool-call),
         // ale zanim ICM/FSM/handlers. Nie zastępuje istniejących guardów.
@@ -1104,6 +1166,7 @@ export class ToolRouter {
                 lastToolCallTimestamp,
                 lastToolCallArgsKey,
             });
+            ivlResultForTrace = ivlResult;
 
             // Zapisz bieżący timestamp dla ochrony rapid-fire
             this._lastToolCallBySession.set(sessionId, {
@@ -1153,6 +1216,34 @@ export class ToolRouter {
                         trace: ivlResult.trace,
                     },
                 };
+                turnTrace = applyRouterDecision(turnTrace, {
+                    mappedText: mapped.text || '',
+                    mappedIntent: intent,
+                    runtimeIntent: intent,
+                    runtimeDomain: getIntentDomain(intent),
+                    ivlResult,
+                    args,
+                    session: sessionSnapshotForIVL,
+                });
+                turnTrace = applyHandlerDecision(turnTrace, {
+                    domainResponse: clarify,
+                    guardedDomainResponse: clarify,
+                    cartBefore: sessionSnapshotForIVL?.cart || {},
+                    cartAfter: sessionSnapshotForIVL?.cart || {},
+                    cartChanged: false,
+                    cartMutationPath: mutatesCart(intent),
+                    responseSuggestsSuccess: false,
+                });
+                const finalizedTrace = finalizeTurnTrace(turnTrace);
+                if (finalizedTrace) {
+                    clarify.meta = {
+                        ...(clarify.meta || {}),
+                        liveTool: {
+                            ...(clarify.meta?.liveTool || {}),
+                            turnTrace: finalizedTrace,
+                        },
+                    };
+                }
 
                 return {
                     ok: true,
@@ -1193,7 +1284,17 @@ export class ToolRouter {
             || toolName === 'replace_cart_item';
 
         if (isCartEditTool) {
-            return this._executeCartEditTool({
+            turnTrace = applyRouterDecision(turnTrace, {
+                mappedText: mapped.text || '',
+                mappedIntent: intent,
+                runtimeIntent: intent,
+                runtimeDomain: getIntentDomain(intent),
+                ivlResult: ivlResultForTrace,
+                args,
+                session: sessionSnapshotForIVL,
+            });
+            const beforeCart = sessionSnapshotForIVL?.cart || {};
+            const editResult = await this._executeCartEditTool({
                 sessionId,
                 toolName,
                 args,
@@ -1203,16 +1304,73 @@ export class ToolRouter {
                 userText,
                 trace,
             });
+            const afterSession = this.getSession(sessionId) || {};
+            const afterCart = afterSession.cart || editResult?.response?.cart || {};
+            const beforeItems = Array.isArray(beforeCart?.items) ? beforeCart.items.length : 0;
+            const afterItems = Array.isArray(afterCart?.items) ? afterCart.items.length : 0;
+            const beforeTotal = Number(beforeCart?.total || 0);
+            const afterTotal = Number(afterCart?.total || 0);
+            const cartChanged = beforeItems !== afterItems || beforeTotal !== afterTotal;
+            turnTrace = applyHandlerDecision(turnTrace, {
+                domainResponse: editResult?.response,
+                guardedDomainResponse: editResult?.response,
+                cartBefore: beforeCart,
+                cartAfter: afterCart,
+                cartChanged,
+                cartMutationPath: true,
+                responseSuggestsSuccess: editResult?.ok !== false,
+            });
+            const finalizedTrace = finalizeTurnTrace(turnTrace);
+            if (finalizedTrace && editResult?.response) {
+                editResult.response.meta = {
+                    ...(editResult.response.meta || {}),
+                    liveTool: {
+                        ...(editResult.response.meta?.liveTool || {}),
+                        turnTrace: finalizedTrace,
+                    },
+                };
+            }
+            return editResult;
         }
 
         if (toolName === 'compare_restaurants') {
-            return this._executeCompareRestaurantsTool({
+            turnTrace = applyRouterDecision(turnTrace, {
+                mappedText: mapped.text || '',
+                mappedIntent: intent,
+                runtimeIntent: intent,
+                runtimeDomain: getIntentDomain(intent),
+                ivlResult: ivlResultForTrace,
+                args,
+                session: sessionSnapshotForIVL,
+            });
+            const compareBeforeCart = sessionSnapshotForIVL?.cart || {};
+            const compareResult = await this._executeCompareRestaurantsTool({
                 sessionId,
                 toolName,
                 args,
                 requestId,
                 trace,
             });
+            turnTrace = applyHandlerDecision(turnTrace, {
+                domainResponse: compareResult?.response,
+                guardedDomainResponse: compareResult?.response,
+                cartBefore: compareBeforeCart,
+                cartAfter: (this.getSession(sessionId) || {}).cart || compareBeforeCart,
+                cartChanged: false,
+                cartMutationPath: false,
+                responseSuggestsSuccess: compareResult?.ok !== false,
+            });
+            const finalizedTrace = finalizeTurnTrace(turnTrace);
+            if (finalizedTrace && compareResult?.response) {
+                compareResult.response.meta = {
+                    ...(compareResult.response.meta || {}),
+                    liveTool: {
+                        ...(compareResult.response.meta?.liveTool || {}),
+                        turnTrace: finalizedTrace,
+                    },
+                };
+            }
+            return compareResult;
         }
 
         if (toolName === 'find_nearby') {
@@ -1223,13 +1381,43 @@ export class ToolRouter {
             });
             if (compareArgs) {
                 trace.push('live_find_autoroute:compare_restaurants');
-                return this._executeCompareRestaurantsTool({
+                turnTrace = applyRouterDecision(turnTrace, {
+                    mappedText: mapped.text || '',
+                    mappedIntent: intent,
+                    runtimeIntent: 'find_nearby',
+                    runtimeDomain: getIntentDomain('find_nearby'),
+                    ivlResult: ivlResultForTrace,
+                    args,
+                    session: sessionSnapshotForIVL,
+                });
+                const compareBeforeCart = sessionSnapshotForIVL?.cart || {};
+                const compareResult = await this._executeCompareRestaurantsTool({
                     sessionId,
                     toolName,
                     args: compareArgs,
                     requestId,
                     trace,
                 });
+                turnTrace = applyHandlerDecision(turnTrace, {
+                    domainResponse: compareResult?.response,
+                    guardedDomainResponse: compareResult?.response,
+                    cartBefore: compareBeforeCart,
+                    cartAfter: (this.getSession(sessionId) || {}).cart || compareBeforeCart,
+                    cartChanged: false,
+                    cartMutationPath: false,
+                    responseSuggestsSuccess: compareResult?.ok !== false,
+                });
+                const finalizedTrace = finalizeTurnTrace(turnTrace);
+                if (finalizedTrace && compareResult?.response) {
+                    compareResult.response.meta = {
+                        ...(compareResult.response.meta || {}),
+                        liveTool: {
+                            ...(compareResult.response.meta?.liveTool || {}),
+                            turnTrace: finalizedTrace,
+                        },
+                    };
+                }
+                return compareResult;
             }
         }
 
@@ -1343,11 +1531,13 @@ export class ToolRouter {
             }
         }
         const stateCheck = checkRequiredState(runtimeIntent, sessionSnapshot, entities);
+        let fallbackIntentForTrace = null;
 
         trace.push(`icm_required_state:${stateCheck.met ? 'ok' : 'fail'}`);
 
         if (!stateCheck.met) {
             const fallbackIntent = getFallbackIntent(runtimeIntent);
+            fallbackIntentForTrace = fallbackIntent || null;
             if (fallbackIntent) {
                 runtimeIntent = fallbackIntent;
                 runtimeDomain = getIntentDomain(runtimeIntent);
@@ -1366,6 +1556,36 @@ export class ToolRouter {
                     const clarify = buildClarifyResponse(sessionId, 'confirm_order_failed', 'state_requirements_not_met', trace);
                     clarify.reply = reply;
                     clarify.text = reply;
+                    turnTrace = applyRouterDecision(turnTrace, {
+                        mappedText: mapped.text || '',
+                        mappedIntent: intent,
+                        runtimeIntent,
+                        runtimeDomain,
+                        ivlResult: ivlResultForTrace,
+                        stateCheck,
+                        fallbackIntent: fallbackIntentForTrace,
+                        args,
+                        session: sessionSnapshot,
+                    });
+                    turnTrace = applyHandlerDecision(turnTrace, {
+                        domainResponse: clarify,
+                        guardedDomainResponse: clarify,
+                        cartBefore: snap.cart || {},
+                        cartAfter: snap.cart || {},
+                        cartChanged: false,
+                        cartMutationPath: mutatesCart(runtimeIntent),
+                        responseSuggestsSuccess: false,
+                    });
+                    const finalizedTrace = finalizeTurnTrace(turnTrace);
+                    if (finalizedTrace) {
+                        clarify.meta = {
+                            ...(clarify.meta || {}),
+                            liveTool: {
+                                ...(clarify.meta?.liveTool || {}),
+                                turnTrace: finalizedTrace,
+                            },
+                        };
+                    }
                     return {
                         ok: true,
                         tool: toolName,
@@ -1374,11 +1594,42 @@ export class ToolRouter {
                         trace,
                     };
                 }
+                const clarify = buildClarifyResponse(sessionId, runtimeIntent, 'state_requirements_not_met', trace);
+                turnTrace = applyRouterDecision(turnTrace, {
+                    mappedText: mapped.text || '',
+                    mappedIntent: intent,
+                    runtimeIntent,
+                    runtimeDomain,
+                    ivlResult: ivlResultForTrace,
+                    stateCheck,
+                    fallbackIntent: fallbackIntentForTrace,
+                    args,
+                    session: sessionSnapshot,
+                });
+                turnTrace = applyHandlerDecision(turnTrace, {
+                    domainResponse: clarify,
+                    guardedDomainResponse: clarify,
+                    cartBefore: sessionSnapshot?.cart || {},
+                    cartAfter: sessionSnapshot?.cart || {},
+                    cartChanged: false,
+                    cartMutationPath: mutatesCart(runtimeIntent),
+                    responseSuggestsSuccess: false,
+                });
+                const finalizedTrace = finalizeTurnTrace(turnTrace);
+                if (finalizedTrace) {
+                    clarify.meta = {
+                        ...(clarify.meta || {}),
+                        liveTool: {
+                            ...(clarify.meta?.liveTool || {}),
+                            turnTrace: finalizedTrace,
+                        },
+                    };
+                }
                 return {
                     ok: true,
                     tool: toolName,
                     request_id: requestId,
-                    response: buildClarifyResponse(sessionId, runtimeIntent, 'state_requirements_not_met', trace),
+                    response: clarify,
                     trace,
                 };
             }
@@ -1386,14 +1637,57 @@ export class ToolRouter {
 
         if (mutatesCart(runtimeIntent) && !CART_MUTATION_WHITELIST.includes(runtimeIntent)) {
             trace.push('cart_mutation_blocked:not_whitelisted');
+            const clarify = buildClarifyResponse(sessionId, runtimeIntent, 'cart_mutation_not_whitelisted', trace);
+            turnTrace = applyRouterDecision(turnTrace, {
+                mappedText: mapped.text || '',
+                mappedIntent: intent,
+                runtimeIntent,
+                runtimeDomain,
+                ivlResult: ivlResultForTrace,
+                stateCheck,
+                fallbackIntent: fallbackIntentForTrace,
+                args,
+                session: sessionSnapshot,
+            });
+            turnTrace = applyHandlerDecision(turnTrace, {
+                domainResponse: clarify,
+                guardedDomainResponse: clarify,
+                cartBefore: sessionSnapshot?.cart || {},
+                cartAfter: sessionSnapshot?.cart || {},
+                cartChanged: false,
+                cartMutationPath: true,
+                responseSuggestsSuccess: false,
+            });
+            const finalizedTrace = finalizeTurnTrace(turnTrace);
+            if (finalizedTrace) {
+                clarify.meta = {
+                    ...(clarify.meta || {}),
+                    liveTool: {
+                        ...(clarify.meta?.liveTool || {}),
+                        turnTrace: finalizedTrace,
+                    },
+                };
+            }
             return {
                 ok: true,
                 tool: toolName,
                 request_id: requestId,
-                response: buildClarifyResponse(sessionId, runtimeIntent, 'cart_mutation_not_whitelisted', trace),
+                response: clarify,
                 trace,
             };
         }
+
+        turnTrace = applyRouterDecision(turnTrace, {
+            mappedText: mapped.text || '',
+            mappedIntent: intent,
+            runtimeIntent,
+            runtimeDomain,
+            ivlResult: ivlResultForTrace,
+            stateCheck,
+            fallbackIntent: fallbackIntentForTrace,
+            args,
+            session: sessionSnapshot,
+        });
 
         const context = {
             sessionId,
@@ -1528,6 +1822,17 @@ export class ToolRouter {
         }
 
         const speechText = guardedDomainResponse?.reply || '';
+        turnTrace = applyHandlerDecision(turnTrace, {
+            domainResponse,
+            guardedDomainResponse,
+            cartBefore: preCart,
+            cartAfter: postCart,
+            cartChanged,
+            cartMutationPath,
+            responseSuggestsSuccess,
+            successDowngraded,
+            clarifyNotAdded,
+        });
         const { response } = ResponseBuilder.build({
             domainResponse: guardedDomainResponse,
             activeSessionId: sessionId,
@@ -1540,6 +1845,9 @@ export class ToolRouter {
             stylingMs: 0,
             ttsMs: 0,
             getSession: this.getSession,
+        });
+        const finalizedTrace = finalizeTurnTrace(turnTrace, {
+            response_meta_focused: guardedDomainResponse?.meta?.focusedMenuItemId || null,
         });
 
         response.meta = {
@@ -1563,6 +1871,7 @@ export class ToolRouter {
                 cartChanged,
                 successDowngraded,
                 clarifyNotAdded,
+                ...(finalizedTrace ? { turnTrace: finalizedTrace } : {}),
             },
             trace: context.trace,
         };

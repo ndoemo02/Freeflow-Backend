@@ -10,6 +10,7 @@ import {
     liveMetricsSessionStart,
 } from './liveMetrics.js';
 import { buildLiveArgsSummary, logLiveEvent } from './liveTraceEvents.js';
+import { buildInitialTurnTrace } from './liveTurnLedger.js';
 import { updateSession } from '../../brain/session/sessionStore.js';
 import supabase from '../../brain/supabaseClient.js';
 import {
@@ -264,6 +265,16 @@ export class GeminiLiveGateway {
                 const requestId = parsed.request_id || null;
                 const turnId = parsed.turn_id || requestId || `live_turn_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
                 const transcriptFinal = compactText(parsed.transcript_final || '');
+                const turnTrace = buildInitialTurnTrace({
+                    sessionId,
+                    turnId,
+                    requestId,
+                    toolName,
+                    rawArgs: parsed.args || {},
+                    rawTranscript: parsed.raw_transcript || parsed.transcript_raw || null,
+                    finalTranscript: parsed.transcript_final || transcriptFinal || null,
+                    source: 'gemini_live_ws',
+                });
 
                 console.log(`[LiveDiag-BE] WS tool_call received: ${toolName} req:${requestId} session:${sessionId} turn:${turnId}`);
                 console.log(`[InteractionBridge] toolcall_received turn_id=${turnId} session_id=${sessionId} tool=${toolName}`);
@@ -360,6 +371,11 @@ export class GeminiLiveGateway {
                             turnId,
                             transcript: transcriptFinal || null,
                             userText: null,
+                            debugLiveFlow: {
+                                turnTrace,
+                                rawArgs: parsed.args || {},
+                                finalTranscript: parsed.transcript_final || transcriptFinal || null,
+                            },
                         }),
                         TOOL_EXECUTION_TIMEOUT_MS,
                     );
