@@ -106,8 +106,43 @@ describe('FindRestaurantHandler item-led discovery', () => {
         expect(repo.searchRestaurants).not.toHaveBeenCalled();
     });
 
-    it('does not fall back to broad GPS restaurants when ice cream has no menu match', async () => {
+    it('falls back to service-city menu matches when nearby GPS candidates miss ice cream', async () => {
+        const { FindRestaurantHandler } = await import('../domains/food/findHandler.js');
+
+        const repo = {
+            searchRestaurants: vi.fn().mockResolvedValue([]),
+            searchNearby: vi.fn().mockResolvedValue([
+                restaurantsInCity.find((restaurant) => restaurant.id === 'r_kebab'),
+                restaurantsInCity.find((restaurant) => restaurant.id === 'r_callzone'),
+            ]),
+        };
+
+        const handler = new FindRestaurantHandler(repo);
+
+        const result = await handler.execute({
+            text: 'szukam lodow w piekarach',
+            entities: { cuisine: 'ice cream' },
+            coords: { lat: 50.39, lng: 18.95 },
+            session: {},
+            source: 'live_tool:find_nearby',
+        });
+
+        const names = (result.restaurants || []).map((restaurant) => restaurant.name);
+        expect(names).toEqual(['Pizzeria Monte Carlo']);
+        expect(result.restaurants?.[0]?.matched_menu_items).toContain('Lody waniliowe');
+        expect(repo.searchNearby).toHaveBeenCalled();
+        expect(repo.searchRestaurants).not.toHaveBeenCalled();
+    });
+
+    it('does not fall back to broad GPS restaurants when ice cream has no city menu match', async () => {
         supabaseFromMock.mockImplementation((table) => {
+            if (table === 'restaurants') {
+                const limit = vi.fn().mockResolvedValue({ data: restaurantsInCity, error: null });
+                const ilike = vi.fn().mockReturnValue({ limit });
+                const select = vi.fn().mockReturnValue({ ilike });
+                return { select };
+            }
+
             if (table === 'menu_items_v2') {
                 const limit = vi.fn().mockResolvedValue({
                     data: menuRows.filter((row) => row.restaurant_id !== 'r_monte'),

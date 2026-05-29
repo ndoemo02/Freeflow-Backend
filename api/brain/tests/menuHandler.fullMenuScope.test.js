@@ -89,4 +89,54 @@ describe('MenuHandler full menu scope', () => {
         expect(result.menuItems).toHaveLength(3);
         expect(result.menuItems.map((item) => item.id)).toEqual(cachedMenu.map((item) => item.id));
     });
+
+    it('focuses dessert-like menu requests instead of summarizing unrelated first items', async () => {
+        const handler = new MenuHandler();
+        const sessionId = `menu_scope_dessert_${Date.now()}`;
+
+        const result = await handler.execute({
+            text: 'cos na slodko w tej restauracji',
+            sessionId,
+            entities: {},
+            session: {
+                currentRestaurant: { id: 'rest_1', name: 'Test Bistro' },
+                lastRestaurant: { id: 'rest_1', name: 'Test Bistro' },
+                lastIntent: 'select_restaurant',
+            },
+        });
+
+        expect(result.intent).toBe('menu_request');
+        expect(result.meta?.focusedMenuItemId).toBe('m4');
+        expect(result.meta?.menuFocusQuery).toBe('dessert');
+        expect(result.reply).toContain('Sernik');
+        expect(result.reply).not.toContain('Pierogi Ruskie');
+    });
+
+    it('does not claim drinks exist when focused drink request has no menu match', async () => {
+        const handler = new MenuHandler();
+        const sessionId = `menu_scope_no_drink_${Date.now()}`;
+        const cachedMenu = [
+            { id: 'm1', name: 'Pierogi Ruskie', price_pln: 22, category: 'Dania glowne', available: true },
+            { id: 'm2', name: 'Barszcz Czerwony', price_pln: 14, category: 'Zupy', available: true },
+        ];
+
+        const result = await handler.execute({
+            text: 'czy mozna dodac cos do picia',
+            sessionId,
+            entities: {},
+            session: {
+                currentRestaurant: { id: 'rest_1', name: 'Test Bistro' },
+                lastRestaurant: { id: 'rest_1', name: 'Test Bistro' },
+                last_menu_restaurant_id: 'rest_1',
+                last_menu: cachedMenu,
+                lastIntent: 'select_restaurant',
+            },
+        });
+
+        expect(loadMenuPreview).not.toHaveBeenCalled();
+        expect(result.meta?.menuFocusQuery).toBe('drink');
+        expect(result.meta?.focusedMenuItemId).toBeNull();
+        expect(result.reply).toContain('Nie widze');
+        expect(result.reply).toContain('napojow');
+    });
 });

@@ -1238,12 +1238,32 @@ export class FindRestaurantHandler {
                                 })),
                             }));
                         } else if (requiresMenuLedDiscovery(itemQueryCandidate)) {
-                            restaurants = [];
-                            usedItemLedDiscovery = true;
-                            console.log('[DISCOVERY_ITEM_LED_GPS_EMPTY]', JSON.stringify({
+                            const cityFallbackMatches = await searchRestaurantsByItemInCity({
+                                location: resolveSessionCityFallback(ctx?.session) || SERVICE_CITY,
+                                coords,
                                 itemQuery: itemQueryCandidate,
-                                aliases: buildItemAliases(itemQueryCandidate),
-                            }));
+                            });
+
+                            if (cityFallbackMatches.length > 0) {
+                                restaurants = cityFallbackMatches;
+                                console.log('[DISCOVERY_ITEM_LED_GPS_CITY_FALLBACK]', JSON.stringify({
+                                    itemQuery: itemQueryCandidate,
+                                    aliases: buildItemAliases(itemQueryCandidate),
+                                    matchedRestaurants: cityFallbackMatches.slice(0, 5).map((restaurant) => ({
+                                        id: restaurant.id,
+                                        name: restaurant.name,
+                                        score: restaurant.item_match_score,
+                                        items: restaurant.matched_menu_items,
+                                    })),
+                                }));
+                            } else {
+                                restaurants = [];
+                                console.log('[DISCOVERY_ITEM_LED_GPS_EMPTY]', JSON.stringify({
+                                    itemQuery: itemQueryCandidate,
+                                    aliases: buildItemAliases(itemQueryCandidate),
+                                }));
+                            }
+                            usedItemLedDiscovery = true;
                         }
                     } catch (itemErr) {
                         console.warn('[DISCOVERY_ITEM_LED_GPS] skip_item_path_error', itemErr?.message || itemErr);

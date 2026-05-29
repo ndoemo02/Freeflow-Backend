@@ -23,6 +23,27 @@ const DRINK_SIGNALS = [
     'wine', 'koktajl', 'smoothie', 'shake', 'mleko', 'limon',
 ];
 
+const MENU_FOCUS_QUERIES = [
+    {
+        kind: 'dessert',
+        promptSignals: ['deser', 'desery', 'slodk', 'ciasto', 'ciasta', 'sernik', 'krem', 'czekolad'],
+        itemSignals: ['deser', 'desery', 'slodk', 'ciasto', 'ciasta', 'sernik', 'krem', 'czekolad', 'lody', 'lod'],
+        label: 'czegos slodkiego',
+    },
+    {
+        kind: 'ice_cream',
+        promptSignals: ['lody', 'lodow', 'loda', 'lodowe', 'ice cream', 'gelato'],
+        itemSignals: ['lody', 'lodow', 'loda', 'lodowe', 'ice cream', 'gelato'],
+        label: 'lodow',
+    },
+    {
+        kind: 'drink',
+        promptSignals: ['napoj', 'napoje', 'picia', 'picie', 'cola', 'kola', 'sok', 'woda', 'herbata', 'kawa'],
+        itemSignals: DRINK_SIGNALS,
+        label: 'napojow',
+    },
+];
+
 function isLikelyDrink(item) {
     const name = normalizeMenuToken(item?.name || item?.base_name || '');
     if (DRINK_SIGNALS.some((s) => name.includes(s))) return true;
@@ -30,6 +51,52 @@ function isLikelyDrink(item) {
     if (/\b0\.\d+\b/.test(name)) return true;
     if (/\b\d{3,4}\s*ml\b/.test(name)) return true;
     return false;
+}
+
+function findMenuFocusForText(text, menuItems = []) {
+    const normalizedText = normalizeMenuToken(text);
+    if (!normalizedText) return null;
+
+    const query = MENU_FOCUS_QUERIES.find((candidate) =>
+        candidate.promptSignals.some((signal) => normalizedText.includes(signal))
+    );
+    if (!query) return null;
+
+    const matches = (Array.isArray(menuItems) ? menuItems : [])
+        .filter((item) => item?.available !== false)
+        .filter((item) => {
+            const haystack = normalizeMenuToken([
+                item?.name,
+                item?.base_name,
+                item?.category,
+                item?.item_family,
+                Array.isArray(item?.item_tags) ? item.item_tags.join(' ') : '',
+                Array.isArray(item?.item_aliases) ? item.item_aliases.join(' ') : '',
+            ].filter(Boolean).join(' '));
+
+            if (query.kind === 'drink' && isLikelyDrink(item)) return true;
+            return query.itemSignals.some((signal) => haystack.includes(signal));
+        });
+
+    return {
+        query,
+        matches,
+        focusedMenuItemId: matches[0]?.id || matches[0]?.menuItemId || matches[0]?.menu_item_id || null,
+    };
+}
+
+function buildFocusedMenuReply(restaurantName, focusResult) {
+    if (!focusResult) return null;
+    const matches = Array.isArray(focusResult.matches) ? focusResult.matches : [];
+    if (!matches.length) {
+        return `Nie widze w menu ${restaurantName} pozycji pasujacych do ${focusResult.query.label}. Mozesz wybrac cos innego z karty.`;
+    }
+
+    const names = matches
+        .slice(0, 4)
+        .map((item) => String(item?.base_name || item?.name || '').trim())
+        .filter(Boolean);
+    return `W menu ${restaurantName} pasuje: ${names.join(', ')}. Co wybierasz?`;
 }
 
 function buildNaturalMenuReplySummary(menuItems = []) {
@@ -165,6 +232,23 @@ export class MenuHandler {
             console.log(`Cache Hit: Returning cached menu for ${sessionRestaurant.name}`);
             console.log(`[MenuCache] HIT restaurant=${restaurant.id} items=${session.last_menu.length}`);
             const items = session.last_menu;
+            const focusResult = findMenuFocusForText(text, items);
+            if (focusResult) {
+                return {
+                    intent: 'menu_request',
+                    reply: buildFocusedMenuReply(sessionRestaurant.name, focusResult),
+                    menuItems: items,
+                    restaurants: [],
+                    meta: {
+                        source: 'cache_menu_focus',
+                        latency_total_ms: 0,
+                        focusedMenuItemId: focusResult.focusedMenuItemId,
+                        menuFocusQuery: focusResult.query.kind,
+                    },
+                    contextUpdates: { ...baseContextUpdates },
+                };
+            }
+
             const menuSummary = buildNaturalMenuReplySummary(items);
 
             // Anti-Loop for Cache
@@ -202,6 +286,31 @@ export class MenuHandler {
         const count = preview.menu.length;
         const menuItemsForAssistant = preview.menu;
         const shown = menuItemsForAssistant.length;
+        const focusResult = findMenuFocusForText(text, preview.menu);
+        if (focusResult) {
+            console.log(`MenuHandler: focused ${focusResult.matches.length}/${count} items for ${restaurant.name} query=${focusResult.query.kind}`);
+            return {
+                intent: 'menu_request',
+                reply: buildFocusedMenuReply(restaurant.name, focusResult),
+                closing_question: focusResult.matches.length ? 'Co wybierasz?' : 'Mozesz wybrac cos innego z karty.',
+                menuItems: menuItemsForAssistant,
+                menu: preview.menu,
+                restaurants: [],
+                restaurant,
+                contextUpdates: {
+                    ...baseContextUpdates,
+                    last_menu: preview.menu,
+                    last_menu_restaurant_id: restaurant.id,
+                },
+                meta: {
+                    source: 'db_menu_focus',
+                    menuScope: 'full_menu',
+                    focusedMenuItemId: focusResult.focusedMenuItemId,
+                    menuFocusQuery: focusResult.query.kind,
+                },
+            };
+        }
+
         const menuSummary = buildNaturalMenuReplySummary(preview.menu);
         const intro = `Wybrano restauracje ${restaurant.name}.`;
         const closing = menuSummary.followUpQuestion;
