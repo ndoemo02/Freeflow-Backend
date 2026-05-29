@@ -42,6 +42,7 @@ export class ConfirmAddToCartHandler {
         const restaurantName = pendingOrder.restaurant || 'restauracji';
         const restaurantId = pendingOrder.restaurant_id;
         const dish = pendingOrder.items[0]?.name || 'danie';
+        const focusedMenuItemId = pendingOrder.items[0]?.id || pendingOrder.items[0]?.menu_item_id || null;
 
         // Wykonaj akcję - Commit items to session cart (SYNCHRONOUS ATOMICITY)
         const commitResult = commitPendingOrder(session);
@@ -85,7 +86,8 @@ export class ConfirmAddToCartHandler {
                 source: 'confirm_add_to_cart_handler',
                 conversationClosed: false,
                 cart: session.cart,
-                restaurant: { name: restaurantName, id: restaurantId }
+                restaurant: { name: restaurantName, id: restaurantId },
+                focusedMenuItemId
             }
         };
     }

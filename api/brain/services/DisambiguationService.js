@@ -17,6 +17,32 @@ const AUTO_RESOLVE_SCORE = 1.08;
 const LOW_CONFIDENCE_SCORE = 0.9;
 const MIN_SCORE_GAP = 0.14;
 
+const FALLBACK_MATCH_MODIFIER_TOKENS = new Set([
+    'bita',
+    'smietana',
+    'owoc',
+    'owoce',
+    'owocami',
+    'owocowy',
+    'owocowa',
+    'sos',
+    'sosy',
+    'sosem',
+    'sosu',
+]);
+
+const FALLBACK_GENERIC_BASE_TOKENS = new Set([
+    'sos',
+    'sosy',
+]);
+
+const DISH_HEAD_FAMILY_GROUPS = [
+    ['ice_cream', ['lody', 'lodow', 'lodowy', 'lodowa', 'lodowe', 'puchar']],
+    ['pancake', ['nalesnik', 'nalesniki', 'nalesnika', 'nalesnikiem']],
+    ['pizza', ['pizza', 'pizze', 'pizzy']],
+    ['burger', ['burger', 'burgera', 'burgery']],
+];
+
 export const DISAMBIGUATION_RESULT = {
     ITEM_NOT_FOUND: 'ITEM_NOT_FOUND',
     ADD_ITEM: 'ADD_ITEM',
@@ -32,6 +58,47 @@ function tokenize(value = '') {
         .split(' ')
         .map((token) => token.trim())
         .filter(Boolean);
+}
+
+function coreTokens(value = '') {
+    return tokenize(value).filter((token) => !FALLBACK_MATCH_MODIFIER_TOKENS.has(token));
+}
+
+function collectDishHeadFamilies(value = '') {
+    const tokens = tokenize(value);
+    if (tokens.length === 0) return new Set();
+
+    const families = new Set();
+    for (const token of tokens) {
+        for (const [family, variants] of DISH_HEAD_FAMILY_GROUPS) {
+            if (variants.some((variant) => token === variant || token.startsWith(variant) || variant.startsWith(token))) {
+                families.add(family);
+            }
+        }
+    }
+    return families;
+}
+
+function hasFallbackDishSignalCompatibility(query = '', candidateText = '') {
+    const queryFamilies = collectDishHeadFamilies(query);
+    const candidateFamilies = collectDishHeadFamilies(candidateText);
+
+    if (queryFamilies.size > 0 && candidateFamilies.size > 0) {
+        for (const family of queryFamilies) {
+            if (candidateFamilies.has(family)) return true;
+        }
+        return false;
+    }
+
+    const queryCore = coreTokens(query);
+    if (queryCore.length === 0) return false;
+
+    const candidateCore = new Set(coreTokens(candidateText));
+    if (queryCore.some((token) => candidateCore.has(token))) return true;
+
+    const queryTokens = tokenize(query);
+    const candidateTokens = new Set(tokenize(candidateText));
+    return queryTokens.some((token) => FALLBACK_GENERIC_BASE_TOKENS.has(token) && candidateTokens.has(token));
 }
 
 function scoreToken(queryToken = '', candidateToken = '') {
@@ -52,6 +119,10 @@ function scoreMenuCandidate(inputText = '', candidate = {}) {
 
     const corpus = [baseName, itemName].filter(Boolean);
     if (corpus.some((value) => value.includes(query) || query.includes(value))) return 1.06;
+
+    if (!corpus.some((value) => hasFallbackDishSignalCompatibility(query, value))) {
+        return 0;
+    }
 
     const queryTokens = tokenize(query);
     if (queryTokens.length === 0) return 0;

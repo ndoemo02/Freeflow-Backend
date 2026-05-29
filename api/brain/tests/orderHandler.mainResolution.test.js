@@ -688,6 +688,45 @@ describe('OrderHandler main-item resolution', () => {
         expect(response.contextUpdates?.cart?.items?.length || 0).toBe(0);
     });
 
+    it('does not fallback from ice cream cup request to pancakes via shared whipped cream modifiers', async () => {
+        canonicalizeDishMock.mockImplementation((text) => text);
+
+        const session = {
+            currentRestaurant: { id: 'R_HUB', name: 'Dwor Hubertus' },
+            lastRestaurant: { id: 'R_HUB', name: 'Dwor Hubertus' },
+            last_menu: [
+                {
+                    id: 'main-nalesniki-ser',
+                    name: 'Nalesniki z serem na slodko z bita smietana',
+                    base_name: 'Nalesniki z serem na slodko z bita smietana',
+                    category: 'Dla dzieci',
+                    type: 'MAIN',
+                    price_pln: 18,
+                },
+                {
+                    id: 'main-rosol',
+                    name: 'Rosol z makaronem',
+                    base_name: 'Rosol z makaronem',
+                    category: 'Zupy',
+                    type: 'MAIN',
+                    price_pln: 15,
+                },
+            ],
+            cart: { items: [], total: 0 },
+        };
+
+        const response = await handler.execute({
+            text: 'Puchar lodowy z owocami i bita smietana',
+            entities: { dish: 'Puchar lodowy z owocami i bita smietana', quantity: 1 },
+            session,
+        });
+
+        expect(response.intent).toBe('clarify_order');
+        expect(response.meta?.addedToCart).not.toBe(true);
+        expect(response.contextUpdates?.cart?.items?.length || 0).toBe(0);
+        expect(session.cart.items.length).toBe(0);
+    });
+
     it('allows specific rich addon phrase without addon context when single candidate exists (pierogi case)', async () => {
         canonicalizeDishMock.mockImplementation((text) => text);
 

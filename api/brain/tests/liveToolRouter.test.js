@@ -284,6 +284,40 @@ describe('Live ToolRouter', () => {
         expect(result.trace.some((entry) => entry.includes('cart_guard:clarify_not_added'))).toBe(true);
     });
 
+    it('search_menu_items emits focusedMenuItemId for the first concrete match from session menuItems', async () => {
+        const sessions = new Map([
+            ['sess_search_focus', {
+                menuItems: [
+                    { id: 'menu-1', name: 'Pierogi ruskie', price: 18, item_tags: ['pierogi'] },
+                    { id: 'menu-2', name: 'Rosol', price: 15, item_tags: ['zupa'] },
+                ],
+            }],
+        ]);
+        const getSession = (id) => sessions.get(id) || {};
+        const updateSession = (id, patch) => {
+            const next = { ...(sessions.get(id) || {}), ...patch };
+            sessions.set(id, next);
+            return next;
+        };
+
+        const router = new ToolRouter({
+            handlers: makeFakeHandlers(),
+            getSession,
+            updateSession,
+        });
+
+        const result = await router.executeToolCall({
+            sessionId: 'sess_search_focus',
+            toolName: 'search_menu_items',
+            args: { query: 'pierogi' },
+            requestId: 'req-search-focus',
+        });
+
+        expect(result.ok).toBe(true);
+        expect(result.response.menuItems[0].id).toBe('menu-1');
+        expect(result.response.meta?.focusedMenuItemId).toBe('menu-1');
+    });
+
     it('ignores live transcript for find_nearby text when args are empty', async () => {
         const sessions = new Map([
             ['sess_live_transcript', { conversationPhase: 'neutral', orderMode: 'neutral' }],

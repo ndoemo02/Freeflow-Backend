@@ -945,6 +945,7 @@ export class ToolRouter {
                 const tags = (Array.isArray(item.item_tags) ? item.item_tags : []).join(' ').toLowerCase();
                 return name.includes(normalizedQuery) || tags.includes(normalizedQuery);
             }).slice(0, 8);
+            const focusedMenuItemId = matches[0]?.id || matches[0]?.menuItemId || matches[0]?.menu_item_id || null;
             return {
                 ok: true,
                 tool: toolName,
@@ -971,7 +972,7 @@ export class ToolRouter {
                             removable: Array.isArray(x.safety_data.removable_ingredients) ? x.safety_data.removable_ingredients : [],
                         } : null,
                     })),
-                    meta: { source: 'live_tool:search_menu_items' },
+                    meta: { source: 'live_tool:search_menu_items', focusedMenuItemId },
                     context: session,
                     timestamp: new Date().toISOString(),
                 },

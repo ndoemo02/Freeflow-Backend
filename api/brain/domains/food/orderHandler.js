@@ -206,6 +206,27 @@ const DISH_SIGNAL_STOPWORDS = new Set([
     'porcji',
 ]);
 
+const FALLBACK_MATCH_MODIFIER_TOKENS = new Set([
+    'bita',
+    'smietana',
+    'owoc',
+    'owoce',
+    'owocami',
+    'owocowy',
+    'owocowa',
+    'sos',
+    'sosy',
+    'sosem',
+    'sosu',
+]);
+
+const DISH_HEAD_FAMILY_GROUPS = [
+    ['ice_cream', ['lody', 'lodow', 'lodowy', 'lodowa', 'lodowe', 'puchar']],
+    ['pancake', ['nalesnik', 'nalesniki', 'nalesnika', 'nalesnikiem']],
+    ['pizza', ['pizza', 'pizze', 'pizzy']],
+    ['burger', ['burger', 'burgera', 'burgery']],
+];
+
 function stripQuantityOperators(phrase = '') {
     const normalized = normalizeDish(phrase || '');
     if (!normalized) return '';
@@ -237,20 +258,65 @@ function extractDishSignalTokens(value = '') {
         .filter((token) => token.length >= 3 && !DISH_SIGNAL_STOPWORDS.has(token));
 }
 
+function extractFallbackCoreTokens(value = '') {
+    return extractDishSignalTokens(value)
+        .filter((token) => !FALLBACK_MATCH_MODIFIER_TOKENS.has(token));
+}
+
+function collectDishHeadFamilies(value = '') {
+    const tokens = extractDishSignalTokens(value);
+    if (tokens.length === 0) return new Set();
+
+    const families = new Set();
+    for (const token of tokens) {
+        for (const [family, variants] of DISH_HEAD_FAMILY_GROUPS) {
+            if (variants.some((variant) => token === variant || token.startsWith(variant) || variant.startsWith(token))) {
+                families.add(family);
+            }
+        }
+    }
+    return families;
+}
+
+function hasCompatibleDishHeadFamily(searchPhrase = '', candidate = null) {
+    if (!candidate) return false;
+
+    const searchFamilies = collectDishHeadFamilies(searchPhrase);
+    if (searchFamilies.size === 0) return true;
+
+    const candidateFamilies = collectDishHeadFamilies(`${candidate?.base_name || ''} ${candidate?.name || ''}`);
+    if (candidateFamilies.size === 0) return true;
+
+    for (const family of searchFamilies) {
+        if (candidateFamilies.has(family)) return true;
+    }
+    return false;
+}
+
 function hasDishSignalCompatibility(searchPhrase = '', candidate = null) {
     if (!candidate) return false;
 
-    const searchTokens = extractDishSignalTokens(searchPhrase);
+    if (!hasCompatibleDishHeadFamily(searchPhrase, candidate)) {
+        return false;
+    }
+
+    const searchTokens = extractFallbackCoreTokens(searchPhrase);
     if (searchTokens.length === 0) {
-        return true;
+        return extractDishSignalTokens(searchPhrase).length === 0;
     }
 
     const candidateTokens = new Set(
-        extractDishSignalTokens(`${candidate?.base_name || ''} ${candidate?.name || ''}`)
+        extractFallbackCoreTokens(`${candidate?.base_name || ''} ${candidate?.name || ''}`)
     );
 
     if (candidateTokens.size === 0) {
         return false;
+    }
+
+    const searchFamilies = collectDishHeadFamilies(searchPhrase);
+    const candidateFamilies = collectDishHeadFamilies(`${candidate?.base_name || ''} ${candidate?.name || ''}`);
+    for (const family of searchFamilies) {
+        if (candidateFamilies.has(family)) return true;
     }
 
     const overlap = searchTokens.filter((token) => candidateTokens.has(token));
