@@ -181,6 +181,9 @@ const ITEM_FAMILY_DICTIONARY = {
     lawasz: ['lawasz', 'lawasz kebab', 'lawasz kebs', 'lawaszkebab'],
     pita: ['pita', 'pita kebab', 'pita rollo'],
     kebab: ['kebab', 'kebaba', 'kebaby', 'doner', 'doner kebab', 'döner'],
+    lody: ['lody', 'lodow', 'lodowy', 'lodowe', 'lodami', 'ice cream', 'icecream', 'gelato'],
+    deser: ['deser', 'desery', 'dessert', 'desserts', 'ciasto', 'ciasta', 'tort', 'krem', 'gofry', 'nalesniki'],
+    napoje: ['napoj', 'napoje', 'napoju', 'drinks', 'drink', 'beverage', 'beverages', 'cola', 'coca cola', 'fanta', 'sprite', 'woda'],
     calzone: ['calzone', 'pizza calzone'],
     schabowy: ['schabowy', 'kotlet schabowy', 'schab tradycyjny'],
     nalesnik: ['nalesnik', 'nalesniki', 'nalesniki', 'naleśnik', 'naleśniki'],
@@ -239,6 +242,16 @@ function buildItemAliases(itemQuery) {
     }
 
     return Array.from(aliases).filter(Boolean);
+}
+
+const MENU_LED_REQUIRED_ALIASES = new Set([
+    'lody', 'lodow', 'lodowy', 'lodowe', 'lodami', 'ice cream', 'icecream', 'gelato',
+    'deser', 'desery', 'dessert', 'desserts',
+    'napoj', 'napoje', 'napoju', 'drinks', 'drink', 'beverage', 'beverages', 'cola', 'coca cola',
+]);
+
+function requiresMenuLedDiscovery(itemQuery) {
+    return buildItemAliases(itemQuery).some((alias) => MENU_LED_REQUIRED_ALIASES.has(alias));
 }
 
 function parseDbAliases(rawAliases) {
@@ -395,11 +408,11 @@ function scoreMenuItemMatch(item, aliases) {
                 best = Math.max(best, 120);
                 continue;
             }
-            if (needle.includes(alias)) {
+            if (containsNormalizedPhrase(needle, alias)) {
                 best = Math.max(best, 100);
                 continue;
             }
-            if (alias.includes(needle) && needle.length >= 5) {
+            if (needle.length >= 5 && containsNormalizedPhrase(alias, needle)) {
                 best = Math.max(best, 85);
             }
         }
@@ -411,13 +424,23 @@ function scoreMenuItemMatch(item, aliases) {
 
     if (queryTokens.length > 0) {
         const uniqueTokens = [...new Set(queryTokens)];
-        const tokenHits = uniqueTokens.filter((token) => corpus.some((needle) => needle.includes(token))).length;
+        const tokenHits = uniqueTokens.filter((token) =>
+            corpus.some((needle) => containsNormalizedPhrase(needle, token))
+        ).length;
         if (tokenHits > 0) {
             best = Math.max(best, 60 + tokenHits * 10);
         }
     }
 
     return best;
+}
+
+function containsNormalizedPhrase(haystack, phrase) {
+    if (!haystack || !phrase) return false;
+    const normalizedHaystack = ` ${haystack.replace(/\s+/g, ' ')} `;
+    const normalizedPhrase = phrase.replace(/\s+/g, ' ').trim();
+    if (!normalizedPhrase) return false;
+    return normalizedHaystack.includes(` ${normalizedPhrase} `);
 }
 
 async function fetchCityMenuRows(restaurantIds) {
@@ -458,6 +481,68 @@ async function fetchCityMenuRows(restaurantIds) {
     const { data, error } = await buildQuery();
     if (error) throw error;
     return Array.isArray(data) ? data : [];
+}
+
+async function rankRestaurantsByItemFromCandidates({ restaurants, coords, itemQuery }) {
+    const aliases = buildItemAliases(itemQuery);
+    if (!aliases.length || !Array.isArray(restaurants) || restaurants.length === 0) return [];
+
+    const restaurantIds = restaurants.map((restaurant) => restaurant?.id).filter(Boolean);
+    if (!restaurantIds.length) return [];
+
+    const menuRows = await fetchCityMenuRows(restaurantIds);
+    if (!Array.isArray(menuRows) || menuRows.length === 0) return [];
+
+    const byRestaurant = new Map();
+    for (const item of menuRows) {
+        if (item?.available === false) continue;
+        const itemName = item?.base_name || item?.name || '';
+        const score = scoreMenuItemMatch(item, aliases);
+        if (score < 85) continue;
+
+        const restaurantId = item?.restaurant_id;
+        if (!restaurantId) continue;
+
+        const existing = byRestaurant.get(restaurantId) || {
+            maxScore: 0,
+            hits: new Set(),
+        };
+        existing.maxScore = Math.max(existing.maxScore, score);
+        if (itemName) existing.hits.add(String(itemName));
+        byRestaurant.set(restaurantId, existing);
+    }
+
+    const ranked = restaurants
+        .map((restaurant) => {
+            const match = byRestaurant.get(restaurant.id);
+            if (!match) return null;
+            const matchedItems = Array.from(match.hits).slice(0, 3);
+            const distance = (coords && Number.isFinite(restaurant.lat) && Number.isFinite(restaurant.lng))
+                ? calculateDistance(coords.lat, coords.lng, restaurant.lat, restaurant.lng)
+                : restaurant.distance;
+            return {
+                ...restaurant,
+                distance,
+                item_match_score: match.maxScore,
+                matched_menu_items: matchedItems,
+            };
+        })
+        .filter(Boolean);
+
+    ranked.sort((a, b) => {
+        if ((b.item_match_score || 0) !== (a.item_match_score || 0)) {
+            return (b.item_match_score || 0) - (a.item_match_score || 0);
+        }
+        const aHits = Array.isArray(a.matched_menu_items) ? a.matched_menu_items.length : 0;
+        const bHits = Array.isArray(b.matched_menu_items) ? b.matched_menu_items.length : 0;
+        if (bHits !== aHits) return bHits - aHits;
+        if (Number.isFinite(a.distance) && Number.isFinite(b.distance)) {
+            return a.distance - b.distance;
+        }
+        return 0;
+    });
+
+    return ranked.slice(0, 10);
 }
 
 async function searchRestaurantsByItemInCity({ location, coords, itemQuery }) {
@@ -953,6 +1038,15 @@ export class FindRestaurantHandler {
                                     items: restaurant.matched_menu_items,
                                 })),
                             }));
+                        } else if (requiresMenuLedDiscovery(itemQueryCandidate)) {
+                            restaurants = [];
+                            usedItemLedDiscovery = true;
+                            gpsPromise = null; // strict menu-led query: no menu hit means no broad fallback
+                            console.log('[DISCOVERY_ITEM_LED_EMPTY]', JSON.stringify({
+                                location,
+                                itemQuery: itemQueryCandidate,
+                                aliases: buildItemAliases(itemQueryCandidate),
+                            }));
                         }
                     } catch (itemErr) {
                         console.warn('[DISCOVERY_ITEM_LED] skip_item_path_error', itemErr?.message || itemErr);
@@ -1119,6 +1213,43 @@ export class FindRestaurantHandler {
             }
 
             restaurants = filterRestaurantsToServiceCity(restaurants);
+
+            if (!usedItemLedDiscovery && Array.isArray(restaurants) && restaurants.length > 0) {
+                const itemQueryCandidate = extractItemQueryCandidate(ctx, discoveryParams);
+                if (itemQueryCandidate) {
+                    try {
+                        const itemLedMatches = await rankRestaurantsByItemFromCandidates({
+                            restaurants,
+                            coords,
+                            itemQuery: itemQueryCandidate,
+                        });
+
+                        if (itemLedMatches.length > 0) {
+                            restaurants = itemLedMatches;
+                            usedItemLedDiscovery = true;
+                            console.log('[DISCOVERY_ITEM_LED_GPS]', JSON.stringify({
+                                itemQuery: itemQueryCandidate,
+                                aliases: buildItemAliases(itemQueryCandidate),
+                                matchedRestaurants: itemLedMatches.slice(0, 5).map((restaurant) => ({
+                                    id: restaurant.id,
+                                    name: restaurant.name,
+                                    score: restaurant.item_match_score,
+                                    items: restaurant.matched_menu_items,
+                                })),
+                            }));
+                        } else if (requiresMenuLedDiscovery(itemQueryCandidate)) {
+                            restaurants = [];
+                            usedItemLedDiscovery = true;
+                            console.log('[DISCOVERY_ITEM_LED_GPS_EMPTY]', JSON.stringify({
+                                itemQuery: itemQueryCandidate,
+                                aliases: buildItemAliases(itemQueryCandidate),
+                            }));
+                        }
+                    } catch (itemErr) {
+                        console.warn('[DISCOVERY_ITEM_LED_GPS] skip_item_path_error', itemErr?.message || itemErr);
+                    }
+                }
+            }
 
             if (!restaurants || restaurants.length === 0) {
                 return {

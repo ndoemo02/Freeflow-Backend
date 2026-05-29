@@ -3,11 +3,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const restaurantsInCity = [
     { id: 'r_callzone', name: 'Pizzeria Callzone', city: 'Piekary Slaskie', cuisine_type: 'Pizzeria', lat: 50.39, lng: 18.95 },
     { id: 'r_monte', name: 'Pizzeria Monte Carlo', city: 'Piekary Slaskie', cuisine_type: 'Wloska', lat: 50.38, lng: 18.98 },
+    { id: 'r_kebab', name: 'Kebab u Orla', city: 'Piekary Slaskie', cuisine_type: 'Kebab', lat: 50.37, lng: 18.94 },
 ];
 
 const menuRows = [
     { id: 'm1', restaurant_id: 'r_callzone', name: 'Rollo wolowe', base_name: 'Rollo wolowe', available: true },
     { id: 'm2', restaurant_id: 'r_monte', name: 'Pizza Pepperoni', base_name: 'Pizza Pepperoni', available: true },
+    { id: 'm4', restaurant_id: 'r_monte', name: 'Lody waniliowe', base_name: 'Lody waniliowe', available: true },
+    { id: 'm5', restaurant_id: 'r_kebab', name: 'Kebab w bulce', base_name: 'Kebab w bulce', available: true },
+    { id: 'm6', restaurant_id: 'r_kebab', name: 'Mlody Burger', base_name: 'Mlody Burger', available: true },
     {
         id: 'm3',
         restaurant_id: 'r_callzone',
@@ -70,6 +74,76 @@ describe('FindRestaurantHandler item-led discovery', () => {
         expect(names[0]).toBe('Pizzeria Callzone');
         expect(names).not.toContain('Pizzeria Monte Carlo');
         expect(repo.searchRestaurants).not.toHaveBeenCalled();
+    });
+
+    it('filters GPS discovery by nearby candidate menus for ice cream requests', async () => {
+        const { FindRestaurantHandler } = await import('../domains/food/findHandler.js');
+
+        const repo = {
+            searchRestaurants: vi.fn().mockResolvedValue([]),
+            searchNearby: vi.fn().mockResolvedValue([
+                restaurantsInCity.find((restaurant) => restaurant.id === 'r_kebab'),
+                restaurantsInCity.find((restaurant) => restaurant.id === 'r_monte'),
+                restaurantsInCity.find((restaurant) => restaurant.id === 'r_callzone'),
+            ]),
+        };
+
+        const handler = new FindRestaurantHandler(repo);
+
+        const result = await handler.execute({
+            text: 'szukam lodow w piekarach',
+            entities: { cuisine: 'ice cream' },
+            coords: { lat: 50.39, lng: 18.95 },
+            session: {},
+            source: 'live_tool:find_nearby',
+        });
+
+        const names = (result.restaurants || []).map((restaurant) => restaurant.name);
+        expect(names).toEqual(['Pizzeria Monte Carlo']);
+        expect(result.restaurants?.[0]?.matched_menu_items).toContain('Lody waniliowe');
+        expect(result.restaurants?.[0]?.matched_menu_items).not.toContain('Mlody Burger');
+        expect(repo.searchNearby).toHaveBeenCalled();
+        expect(repo.searchRestaurants).not.toHaveBeenCalled();
+    });
+
+    it('does not fall back to broad GPS restaurants when ice cream has no menu match', async () => {
+        supabaseFromMock.mockImplementation((table) => {
+            if (table === 'menu_items_v2') {
+                const limit = vi.fn().mockResolvedValue({
+                    data: menuRows.filter((row) => row.restaurant_id !== 'r_monte'),
+                    error: null,
+                });
+                const inFn = vi.fn().mockReturnValue({ limit });
+                const select = vi.fn().mockReturnValue({ in: inFn });
+                return { select };
+            }
+
+            throw new Error(`Unexpected table: ${table}`);
+        });
+
+        const { FindRestaurantHandler } = await import('../domains/food/findHandler.js');
+
+        const repo = {
+            searchRestaurants: vi.fn().mockResolvedValue([]),
+            searchNearby: vi.fn().mockResolvedValue([
+                restaurantsInCity.find((restaurant) => restaurant.id === 'r_kebab'),
+                restaurantsInCity.find((restaurant) => restaurant.id === 'r_callzone'),
+            ]),
+        };
+
+        const handler = new FindRestaurantHandler(repo);
+
+        const result = await handler.execute({
+            text: 'szukam lodow w piekarach',
+            entities: { cuisine: 'ice cream' },
+            coords: { lat: 50.39, lng: 18.95 },
+            session: {},
+            source: 'live_tool:find_nearby',
+        });
+
+        expect(result.restaurants).toBeUndefined();
+        expect(result.reply).toContain('Nie widz');
+        expect(result.reply).toContain('ice cream');
     });
 
     it('matches item_family/item_aliases when menu name does not contain query token', async () => {
