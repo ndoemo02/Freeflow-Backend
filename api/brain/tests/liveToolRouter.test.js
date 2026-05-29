@@ -618,6 +618,156 @@ describe('Live ToolRouter', () => {
         expect(result.trace.some((entry) => entry.includes('live_find_cuisine_hallucinated_dropped_for_gps'))).toBe(true);
     });
 
+    it('keeps dessert cuisine when Polish transcript asks for dessert near GPS', async () => {
+        const sessions = new Map([
+            ['sess_live_gps_dessert', {
+                conversationPhase: 'neutral',
+                orderMode: 'neutral',
+            }],
+        ]);
+
+        const getSession = (id) => sessions.get(id) || {};
+        const updateSession = (id, patch) => {
+            const prev = sessions.get(id) || {};
+            const next = { ...prev, ...patch };
+            sessions.set(id, next);
+            return next;
+        };
+
+        let capturedText = null;
+        let capturedEntities = null;
+        const handlers = makeFakeHandlers();
+        handlers.food.find_nearby = {
+            execute: async (ctx) => {
+                capturedText = ctx.text;
+                capturedEntities = ctx.entities;
+                return {
+                    reply: 'OK',
+                    restaurants: [{ id: 'r1', name: 'Rest 1' }],
+                    contextUpdates: { expectedContext: 'select_restaurant' },
+                };
+            },
+        };
+
+        const router = new ToolRouter({
+            handlers,
+            getSession,
+            updateSession,
+        });
+
+        const result = await router.executeToolCall({
+            sessionId: 'sess_live_gps_dessert',
+            toolName: 'find_nearby',
+            args: { cuisine: 'dessert', lat: 50.39, lng: 18.95 },
+            transcript: 'jest moze jakis deser tutaj gdzies w okolicy',
+        });
+
+        expect(result.ok).toBe(true);
+        expect(capturedEntities?.cuisine).toBe('dessert');
+        expect(capturedText).toBe('szukam dessert');
+        expect(result.trace.some((entry) => entry.includes('live_find_cuisine_hallucinated_dropped_for_gps'))).toBe(false);
+    });
+
+    it('keeps ice cream cuisine when Polish transcript asks for lody near GPS', async () => {
+        const sessions = new Map([
+            ['sess_live_gps_ice_cream', {
+                conversationPhase: 'neutral',
+                orderMode: 'neutral',
+            }],
+        ]);
+
+        const getSession = (id) => sessions.get(id) || {};
+        const updateSession = (id, patch) => {
+            const prev = sessions.get(id) || {};
+            const next = { ...prev, ...patch };
+            sessions.set(id, next);
+            return next;
+        };
+
+        let capturedText = null;
+        let capturedEntities = null;
+        const handlers = makeFakeHandlers();
+        handlers.food.find_nearby = {
+            execute: async (ctx) => {
+                capturedText = ctx.text;
+                capturedEntities = ctx.entities;
+                return {
+                    reply: 'OK',
+                    restaurants: [{ id: 'r1', name: 'Rest 1' }],
+                    contextUpdates: { expectedContext: 'select_restaurant' },
+                };
+            },
+        };
+
+        const router = new ToolRouter({
+            handlers,
+            getSession,
+            updateSession,
+        });
+
+        const result = await router.executeToolCall({
+            sessionId: 'sess_live_gps_ice_cream',
+            toolName: 'find_nearby',
+            args: { cuisine: 'ice cream', lat: 50.39, lng: 18.95 },
+            transcript: 'szukam lodow w piekarach',
+        });
+
+        expect(result.ok).toBe(true);
+        expect(capturedEntities?.cuisine).toBe('ice cream');
+        expect(capturedText).toBe('szukam ice cream');
+        expect(result.trace.some((entry) => entry.includes('live_find_cuisine_hallucinated_dropped_for_gps'))).toBe(false);
+    });
+
+    it('keeps drink cuisine when Polish transcript asks for a cola near GPS', async () => {
+        const sessions = new Map([
+            ['sess_live_gps_drinks', {
+                conversationPhase: 'neutral',
+                orderMode: 'neutral',
+            }],
+        ]);
+
+        const getSession = (id) => sessions.get(id) || {};
+        const updateSession = (id, patch) => {
+            const prev = sessions.get(id) || {};
+            const next = { ...prev, ...patch };
+            sessions.set(id, next);
+            return next;
+        };
+
+        let capturedText = null;
+        let capturedEntities = null;
+        const handlers = makeFakeHandlers();
+        handlers.food.find_nearby = {
+            execute: async (ctx) => {
+                capturedText = ctx.text;
+                capturedEntities = ctx.entities;
+                return {
+                    reply: 'OK',
+                    restaurants: [{ id: 'r1', name: 'Rest 1' }],
+                    contextUpdates: { expectedContext: 'select_restaurant' },
+                };
+            },
+        };
+
+        const router = new ToolRouter({
+            handlers,
+            getSession,
+            updateSession,
+        });
+
+        const result = await router.executeToolCall({
+            sessionId: 'sess_live_gps_drinks',
+            toolName: 'find_nearby',
+            args: { cuisine: 'drinks', lat: 50.39, lng: 18.95 },
+            transcript: 'czy mozna zamowic cos do picia albo cole',
+        });
+
+        expect(result.ok).toBe(true);
+        expect(capturedEntities?.cuisine).toBe('drinks');
+        expect(capturedText).toBe('szukam drinks');
+        expect(result.trace.some((entry) => entry.includes('live_find_cuisine_hallucinated_dropped_for_gps'))).toBe(false);
+    });
+
     it('drops hallucinated location in find_nearby when GPS exists and transcript does not mention city', async () => {
         const sessions = new Map([
             ['sess_live_gps_hallucinated_location', {

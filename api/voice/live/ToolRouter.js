@@ -445,6 +445,42 @@ function transcriptMentionsLocation(transcriptText = '', locationCandidate = '')
     return locationTokens.some((token) => transcript.includes(token));
 }
 
+const CUISINE_TRANSCRIPT_ALIASES = Object.freeze([
+    {
+        cuisines: ['dessert', 'desserts', 'deser', 'desery', 'sweet', 'sweets'],
+        transcriptTerms: ['deser', 'desery', 'slodkie', 'slodkiego', 'ciasto', 'ciasta', 'lody', 'lodow'],
+    },
+    {
+        cuisines: ['ice cream', 'icecream', 'lody'],
+        transcriptTerms: ['lody', 'lodow', 'loda', 'lodowe', 'lodowy'],
+    },
+    {
+        cuisines: ['drink', 'drinks', 'beverage', 'beverages', 'napoje', 'napoj'],
+        transcriptTerms: ['napoj', 'napoje', 'napoju', 'picia', 'picie', 'cola', 'cole', 'coli', 'coca cola', 'coca'],
+    },
+]);
+
+function transcriptMentionsCuisine(transcriptText = '', cuisineCandidate = '') {
+    const transcript = normalizeLoose(transcriptText);
+    const cuisine = normalizeLoose(cuisineCandidate);
+    if (!transcript || !cuisine) return false;
+    if (transcript.includes(cuisine)) return true;
+
+    const cuisineTokens = cuisine.split(/[,\s]+/).filter((token) => token.length >= 3);
+    if (cuisineTokens.some((token) => transcript.includes(token))) return true;
+
+    return CUISINE_TRANSCRIPT_ALIASES.some((group) => {
+        const cuisineMatches = group.cuisines.some((term) => {
+            const normalizedTerm = normalizeLoose(term);
+            return cuisine === normalizedTerm
+                || cuisine.includes(normalizedTerm)
+                || normalizedTerm.includes(cuisine);
+        });
+        if (!cuisineMatches) return false;
+        return group.transcriptTerms.some((term) => transcript.includes(normalizeLoose(term)));
+    });
+}
+
 function looksLikeOrderLocationPhrase(value = '') {
     const normalized = normalizeLoose(value);
     if (!normalized) return false;
@@ -1489,14 +1525,7 @@ export class ToolRouter {
             // never mentioned food. If transcript is empty, cuisine is definitely hallucinated.
             const cuisineToCheck = (entities?.cuisine || args?.cuisine || '').trim();
             if (cuisineToCheck) {
-                let cuisineMentioned = false;
-                if (transcriptText) {
-                    const normalizedTranscript = normalizeLoose(transcriptText);
-                    const normalizedCuisine = normalizeLoose(cuisineToCheck);
-                    const cuisineTokens = normalizedCuisine.split(/[,\s]+/).filter(t => t.length >= 3);
-                    cuisineMentioned = normalizedTranscript.includes(normalizedCuisine)
-                        || cuisineTokens.some(t => normalizedTranscript.includes(t));
-                }
+                const cuisineMentioned = transcriptMentionsCuisine(transcriptText, cuisineToCheck);
                 if (!cuisineMentioned) {
                     entities.cuisine = null;
                     if (Object.prototype.hasOwnProperty.call(args, 'cuisine')) delete args.cuisine;
