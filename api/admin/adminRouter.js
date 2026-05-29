@@ -210,11 +210,16 @@ router.get('/conversations', async (req, res) => {
             return {
                 id: conv.id,
                 sessionId: conv.session_id,
+                session_id: conv.session_id,
                 status: conv.status,
                 stage,
                 stageName,
                 createdAt: conv.created_at,
-                updatedAt: conv.updated_at
+                created_at: conv.created_at,
+                startedAt: conv.created_at,
+                started_at: conv.created_at,
+                updatedAt: conv.updated_at,
+                updated_at: conv.updated_at,
             };
         });
 
@@ -292,10 +297,14 @@ router.get('/conversations/:sessionId', async (req, res) => {
         const timeline = (events || []).map(event => ({
             id: event.id,
             type: event.event_type,
+            event_type: event.event_type,
             status: event.event_status,
+            event_status: event.event_status,
             step: event.workflow_step,
+            workflow_step: event.workflow_step,
             payload: event.payload,
-            timestamp: event.created_at
+            timestamp: event.created_at,
+            created_at: event.created_at,
         }));
         const turns = buildUnifiedTurns(events || []);
 
