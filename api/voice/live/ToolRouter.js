@@ -455,10 +455,24 @@ const CUISINE_TRANSCRIPT_ALIASES = Object.freeze([
         transcriptTerms: ['lody', 'lodow', 'loda', 'lodowe', 'lodowy'],
     },
     {
-        cuisines: ['drink', 'drinks', 'beverage', 'beverages', 'napoje', 'napoj'],
+        cuisines: ['drink', 'drinks', 'beverage', 'beverages', 'napoje', 'napoj', 'cola', 'coca cola'],
         transcriptTerms: ['napoj', 'napoje', 'napoju', 'picia', 'picie', 'cola', 'cole', 'coli', 'coca cola', 'coca'],
     },
 ]);
+
+function isMenuLedCuisineCandidate(cuisineCandidate = '') {
+    const cuisine = normalizeLoose(cuisineCandidate);
+    if (!cuisine) return false;
+
+    return CUISINE_TRANSCRIPT_ALIASES.some((group) =>
+        group.cuisines.some((term) => {
+            const normalizedTerm = normalizeLoose(term);
+            return cuisine === normalizedTerm
+                || cuisine.includes(normalizedTerm)
+                || normalizedTerm.includes(cuisine);
+        })
+    );
+}
 
 function transcriptMentionsCuisine(transcriptText = '', cuisineCandidate = '') {
     const transcript = normalizeLoose(transcriptText);
@@ -1526,7 +1540,17 @@ export class ToolRouter {
             const cuisineToCheck = (entities?.cuisine || args?.cuisine || '').trim();
             if (cuisineToCheck) {
                 const cuisineMentioned = transcriptMentionsCuisine(transcriptText, cuisineToCheck);
-                if (!cuisineMentioned) {
+                const preserveMenuLedCuisine = !cuisineMentioned && isMenuLedCuisineCandidate(cuisineToCheck);
+                if (preserveMenuLedCuisine) {
+                    trace.push('live_find_cuisine_menu_led_preserved_for_gps');
+                    if (!textCameFromTranscript) {
+                        if (entities.location && entities.cuisine) {
+                            mapped.text = `szukam ${entities.cuisine} w ${entities.location}`;
+                        } else if (entities.cuisine) {
+                            mapped.text = `szukam ${entities.cuisine}`;
+                        }
+                    }
+                } else if (!cuisineMentioned) {
                     entities.cuisine = null;
                     if (Object.prototype.hasOwnProperty.call(args, 'cuisine')) delete args.cuisine;
                     if (!textCameFromTranscript && !entities.location) {
