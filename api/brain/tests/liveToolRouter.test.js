@@ -770,6 +770,106 @@ describe('Live ToolRouter', () => {
         expect(result.trace.some((entry) => entry.includes('live_find_cuisine_hallucinated_dropped_for_gps'))).toBe(false);
     });
 
+    it('recovers ice cream cuisine when Piekary is falsely mapped to bakery near GPS', async () => {
+        const sessions = new Map([
+            ['sess_live_gps_piekary_bakery_recover', {
+                conversationPhase: 'neutral',
+                orderMode: 'neutral',
+            }],
+        ]);
+
+        const getSession = (id) => sessions.get(id) || {};
+        const updateSession = (id, patch) => {
+            const prev = sessions.get(id) || {};
+            const next = { ...prev, ...patch };
+            sessions.set(id, next);
+            return next;
+        };
+
+        let capturedText = null;
+        let capturedEntities = null;
+        const handlers = makeFakeHandlers();
+        handlers.food.find_nearby = {
+            execute: async (ctx) => {
+                capturedText = ctx.text;
+                capturedEntities = ctx.entities;
+                return {
+                    reply: 'OK',
+                    restaurants: [{ id: 'r1', name: 'Rest 1' }],
+                    contextUpdates: { expectedContext: 'select_restaurant' },
+                };
+            },
+        };
+
+        const router = new ToolRouter({
+            handlers,
+            getSession,
+            updateSession,
+        });
+
+        const result = await router.executeToolCall({
+            sessionId: 'sess_live_gps_piekary_bakery_recover',
+            toolName: 'find_nearby',
+            args: { location: 'Piekary Slaskie', cuisine: 'bakery', lat: 50.39, lng: 18.95 },
+            transcript: 'szukam lodow w piekarach slaskich',
+        });
+
+        expect(result.ok).toBe(true);
+        expect(capturedEntities?.cuisine).toBe('ice cream');
+        expect(capturedText).toBe('szukam ice cream');
+        expect(result.trace.some((entry) => entry.includes('live_find_cuisine_false_positive_recovered:ice cream'))).toBe(true);
+    });
+
+    it('drops bakery cuisine when Piekary is falsely mapped to bakery without dessert recovery', async () => {
+        const sessions = new Map([
+            ['sess_live_gps_piekary_bakery_drop', {
+                conversationPhase: 'neutral',
+                orderMode: 'neutral',
+            }],
+        ]);
+
+        const getSession = (id) => sessions.get(id) || {};
+        const updateSession = (id, patch) => {
+            const prev = sessions.get(id) || {};
+            const next = { ...prev, ...patch };
+            sessions.set(id, next);
+            return next;
+        };
+
+        let capturedText = null;
+        let capturedEntities = null;
+        const handlers = makeFakeHandlers();
+        handlers.food.find_nearby = {
+            execute: async (ctx) => {
+                capturedText = ctx.text;
+                capturedEntities = ctx.entities;
+                return {
+                    reply: 'OK',
+                    restaurants: [{ id: 'r1', name: 'Rest 1' }],
+                    contextUpdates: { expectedContext: 'select_restaurant' },
+                };
+            },
+        };
+
+        const router = new ToolRouter({
+            handlers,
+            getSession,
+            updateSession,
+        });
+
+        const result = await router.executeToolCall({
+            sessionId: 'sess_live_gps_piekary_bakery_drop',
+            toolName: 'find_nearby',
+            args: { location: 'Piekary Slaskie', cuisine: 'bakery', lat: 50.39, lng: 18.95 },
+            transcript: 'szukam schabowego w piekarach slaskich',
+        });
+
+        expect(result.ok).toBe(true);
+        expect(capturedEntities?.cuisine).toBeNull();
+        expect(capturedText).toBe('gdzie zamowic');
+        expect(result.trace.some((entry) => entry.includes('live_find_cuisine_false_positive_piekary_dropped'))).toBe(true);
+    });
+
     it('keeps menu-led dessert cuisine when live transcript is missing near GPS', async () => {
         const sessions = new Map([
             ['sess_live_gps_dessert_missing_transcript', {

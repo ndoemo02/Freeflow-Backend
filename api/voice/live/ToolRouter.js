@@ -460,6 +460,32 @@ const CUISINE_TRANSCRIPT_ALIASES = Object.freeze([
     },
 ]);
 
+const TRANSCRIPT_CUISINE_RECOVERY_RULES = Object.freeze([
+    {
+        canonical: 'ice cream',
+        terms: ['lody', 'lodow', 'loda', 'lodowe', 'lodowy', 'gelato', 'ice cream', 'icecream'],
+    },
+    {
+        canonical: 'drinks',
+        terms: ['napoj', 'napoje', 'napoju', 'picia', 'picie', 'cola', 'cole', 'coli', 'coca cola', 'coca'],
+    },
+    {
+        canonical: 'dessert',
+        terms: ['deser', 'desery', 'slodkie', 'slodkiego', 'ciasto', 'ciasta', 'brownie', 'tiramisu', 'panna cotta'],
+    },
+]);
+
+const BAKERY_FALSE_POSITIVE_CUISINES = Object.freeze([
+    'bakery',
+    'cake bakery',
+    'cake_bakery',
+    'piekarnia',
+    'cukiernia',
+]);
+
+const EXPLICIT_BAKERY_CUE_RE = /\b(piekarnia|piekarni|piekarnie|cukiernia|cukierni|cukiernie|croissant|croissanty|chleb|chleba|bulka|bulki|bulek|muffin|muffiny|drozdzowk\w*)\b/i;
+const PIEKARY_LOCATION_RE = /\bpiekar(?:y|ach|ami|om|a|e|ow)?\b/i;
+
 function isMenuLedCuisineCandidate(cuisineCandidate = '') {
     const cuisine = normalizeLoose(cuisineCandidate);
     if (!cuisine) return false;
@@ -493,6 +519,37 @@ function transcriptMentionsCuisine(transcriptText = '', cuisineCandidate = '') {
         if (!cuisineMatches) return false;
         return group.transcriptTerms.some((term) => transcript.includes(normalizeLoose(term)));
     });
+}
+
+function recoverCuisineFromTranscript(transcriptText = '') {
+    const transcript = normalizeLoose(transcriptText);
+    if (!transcript) return null;
+
+    for (const rule of TRANSCRIPT_CUISINE_RECOVERY_RULES) {
+        const matched = rule.terms.some((term) => transcript.includes(normalizeLoose(term)));
+        if (matched) return rule.canonical;
+    }
+
+    return null;
+}
+
+function isBakeryCuisineFalsePositive({ transcriptText = '', locationCandidate = '', cuisineCandidate = '' }) {
+    const cuisine = normalizeLoose(cuisineCandidate);
+    if (!cuisine) return false;
+
+    const isBakeryLike = BAKERY_FALSE_POSITIVE_CUISINES.some((term) => {
+        const normalizedTerm = normalizeLoose(term);
+        return cuisine === normalizedTerm || cuisine.includes(normalizedTerm) || normalizedTerm.includes(cuisine);
+    });
+    if (!isBakeryLike) return false;
+
+    const transcript = normalizeLoose(transcriptText);
+    const location = normalizeLoose(locationCandidate);
+    const mentionsPiekary = PIEKARY_LOCATION_RE.test(transcript) || PIEKARY_LOCATION_RE.test(location);
+    if (!mentionsPiekary) return false;
+
+    const transcriptWithoutPiekary = transcript.replace(PIEKARY_LOCATION_RE, ' ').replace(/\s+/g, ' ').trim();
+    return !EXPLICIT_BAKERY_CUE_RE.test(transcriptWithoutPiekary);
 }
 
 function looksLikeOrderLocationPhrase(value = '') {
@@ -1539,25 +1596,60 @@ export class ToolRouter {
             // never mentioned food. If transcript is empty, cuisine is definitely hallucinated.
             const cuisineToCheck = (entities?.cuisine || args?.cuisine || '').trim();
             if (cuisineToCheck) {
-                const cuisineMentioned = transcriptMentionsCuisine(transcriptText, cuisineToCheck);
-                const preserveMenuLedCuisine = !cuisineMentioned && isMenuLedCuisineCandidate(cuisineToCheck);
-                if (preserveMenuLedCuisine) {
-                    trace.push('live_find_cuisine_menu_led_preserved_for_gps');
-                    if (!textCameFromTranscript) {
-                        if (entities.location && entities.cuisine) {
-                            mapped.text = `szukam ${entities.cuisine} w ${entities.location}`;
-                        } else if (entities.cuisine) {
-                            mapped.text = `szukam ${entities.cuisine}`;
+                const recoveredCuisine = recoverCuisineFromTranscript(transcriptText);
+                const bakeryFalsePositive = isBakeryCuisineFalsePositive({
+                    transcriptText,
+                    locationCandidate: locationToCheck,
+                    cuisineCandidate: cuisineToCheck,
+                });
+                if (bakeryFalsePositive) {
+                    if (recoveredCuisine) {
+                        entities.cuisine = recoveredCuisine;
+                        args.cuisine = recoveredCuisine;
+                        trace.push(`live_find_cuisine_false_positive_recovered:${recoveredCuisine}`);
+                        if (!textCameFromTranscript) {
+                            if (entities.location && entities.cuisine) {
+                                mapped.text = `szukam ${entities.cuisine} w ${entities.location}`;
+                            } else if (entities.cuisine) {
+                                mapped.text = `szukam ${entities.cuisine}`;
+                            } else {
+                                mapped.text = 'gdzie zamowic';
+                            }
+                        }
+                    } else {
+                        entities.cuisine = null;
+                        if (Object.prototype.hasOwnProperty.call(args, 'cuisine')) delete args.cuisine;
+                        trace.push('live_find_cuisine_false_positive_piekary_dropped');
+                        recordCuisineHallucination({ sessionId, cuisine: cuisineToCheck });
+                        if (!textCameFromTranscript) {
+                            if (entities.location) {
+                                mapped.text = `pokaz restauracje w ${entities.location}`;
+                            } else {
+                                mapped.text = 'gdzie zamowic';
+                            }
                         }
                     }
-                } else if (!cuisineMentioned) {
-                    entities.cuisine = null;
-                    if (Object.prototype.hasOwnProperty.call(args, 'cuisine')) delete args.cuisine;
-                    if (!textCameFromTranscript && !entities.location) {
-                        mapped.text = 'gdzie zamowic';
+                } else {
+                    const cuisineMentioned = transcriptMentionsCuisine(transcriptText, cuisineToCheck);
+                    const preserveMenuLedCuisine = !cuisineMentioned && isMenuLedCuisineCandidate(cuisineToCheck);
+                    if (preserveMenuLedCuisine) {
+                        trace.push('live_find_cuisine_menu_led_preserved_for_gps');
+                        if (!textCameFromTranscript) {
+                            if (entities.location && entities.cuisine) {
+                                mapped.text = `szukam ${entities.cuisine} w ${entities.location}`;
+                            } else if (entities.cuisine) {
+                                mapped.text = `szukam ${entities.cuisine}`;
+                            }
+                        }
+                    } else if (!cuisineMentioned) {
+                        entities.cuisine = null;
+                        if (Object.prototype.hasOwnProperty.call(args, 'cuisine')) delete args.cuisine;
+                        if (!textCameFromTranscript && !entities.location) {
+                            mapped.text = 'gdzie zamowic';
+                        }
+                        trace.push('live_find_cuisine_hallucinated_dropped_for_gps');
+                        recordCuisineHallucination({ sessionId, cuisine: cuisineToCheck });
                     }
-                    trace.push('live_find_cuisine_hallucinated_dropped_for_gps');
-                    recordCuisineHallucination({ sessionId, cuisine: cuisineToCheck });
                 }
             }
         }
