@@ -28,7 +28,10 @@ export default async function handler(req, res) {
     const stage = String(e.stage || '?').padEnd(22);
     const ms = String(e.ms || 0).padStart(5);
     const model = String(e.model || '').slice(0, 20);
-    console.log(`[PERF] ${stage} ${ms}ms  turn=${tid}  model=${model}  session=${sid}`);
+    const metadata = e.metadata && typeof e.metadata === 'object'
+      ? JSON.stringify(e.metadata).slice(0, 500)
+      : '';
+    console.log(`[PERF] ${stage} ${ms}ms  turn=${tid}  model=${model}  session=${sid}${metadata ? `  meta=${metadata}` : ''}`);
   }
 
   // Try Supabase insert if available (non-critical — don't crash if fails)
