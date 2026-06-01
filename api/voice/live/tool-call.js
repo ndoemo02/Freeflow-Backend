@@ -81,12 +81,12 @@ export default async function handler(req, res) {
       args,
       requestId,
       turnId,
-      transcript,
-      userText,
       debugLiveFlow: {
         turnTrace,
         rawArgs: args,
         finalTranscript: transcript || userText || null,
+        userText,
+        sttSource: transcript ? 'transcript' : (userText ? 'user_text' : null),
       },
     });
 
