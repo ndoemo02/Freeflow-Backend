@@ -70,6 +70,10 @@ const ALLOWED_TOOLS_BY_ORDER_MODE = Object.freeze({
     neutral: new Set([
         'find_nearby', 'select_restaurant', 'show_menu', 'show_more_options',
         'compare_restaurants',
+        // FSM (OrderModeFSM.js) allows NEUTRAL --START_ORDER--> BUILDING directly —
+        // e.g. "z restauracji Stara Kamienica poproszę rollo" skips select_restaurant.
+        // Must stay in sync or every direct-order call eats an unearned -0.35 penalty.
+        'add_item_to_cart', 'add_items_to_cart',
         'update_cart_item_quantity', 'remove_item_from_cart', 'replace_cart_item',
         'get_cart_state', 'cancel_order',
     ]),

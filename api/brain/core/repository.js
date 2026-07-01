@@ -19,7 +19,7 @@ export class SupabaseRestaurantRepository {
             query = query.ilike('cuisine_type', `%${cuisine}%`);
         }
 
-        const { data, error } = await query.limit(10);
+        const { data, error } = await query.limit(30);
         if (error) throw error;
         return data || [];
     }
@@ -52,7 +52,7 @@ export class SupabaseRestaurantRepository {
             .filter(r => r.distance <= radiusKm)
             .sort((a, b) => a.distance - b.distance);
 
-        return results.slice(0, 5); // Return top 5 closest
+        return results.slice(0, 20); // Single-service-city scale: don't silently truncate the whole area
     }
 
     async getMenu(restaurantId) {
@@ -93,7 +93,7 @@ export class InMemoryRestaurantRepository {
             return true;
         });
 
-        return matches.slice(0, 10);
+        return matches.slice(0, 30);
     }
 
     async searchNearby(lat, lng, radiusKm = 10, cuisine = null) {
@@ -112,7 +112,7 @@ export class InMemoryRestaurantRepository {
             .filter(r => r.distance <= radiusKm)
             .sort((a, b) => a.distance - b.distance);
 
-        return matches.slice(0, 5);
+        return matches.slice(0, 20);
     }
 
     async getMenu(restaurantId) {
