@@ -38,28 +38,29 @@
   "dependencies": {
     "@ai-sdk/google": "^3.0.2",
     "@ai-sdk/openai": "^3.0.2",
-    "@google-cloud/speech": "^6.0.0",
-    "@google-cloud/text-to-speech": "^5.0.0",
-    "@google-cloud/vertexai": "^1.10.0",
-    "@modelcontextprotocol/sdk": "^1.27.0",
-    "@supabase/supabase-js": "^2.39.0",
+    "@google-cloud/speech": "^7.5.0",
+    "@google-cloud/text-to-speech": "^6.4.1",
+    "@google-cloud/vertexai": "^1.12.0",
+    "@google/genai": "1.52.0",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@supabase/supabase-js": "^2.110.2",
     "ai": "^6.0.5",
-    "axios": "^1.13.5",
+    "axios": "^1.18.1",
     "cors": "^2.8.5",
     "dotenv": "^16.6.1",
     "express": "^5.1.0",
     "jsonwebtoken": "^9.0.2",
-    "morgan": "^1.10.1",
+    "morgan": "^1.11.0",
     "multer": "^1.4.5-lts.1",
     "openai": "^4.20.0",
     "stripe": "^22.0.1",
-    "ws": "^8.18.3"
+    "ws": "^8.21.0"
   },
   "devDependencies": {
-    "@vitest/coverage-v8": "^1.0.0",
+    "@vitest/coverage-v8": "^4.1.10",
     "nodemon": "^3.0.2",
     "pg": "^8.20.0",
     "supertest": "^6.3.0",
-    "vitest": "^1.0.0"
+    "vitest": "^4.1.10"
   }
 }
