@@ -1,12 +1,13 @@
 export const LIVE_TOOL_SCHEMAS = Object.freeze([
     {
         name: 'find_nearby',
-        description: 'Find nearby restaurants using optional location and cuisine filters.',
+        description: 'Find nearby restaurants. Use query for a concrete dish, ingredient, drink, or menu need; use cuisine only for a cuisine type. The backend verifies matches against real menus.',
         parameters: {
             type: 'object',
             properties: {
                 location: { type: 'string' },
                 cuisine: { type: 'string' },
+                query: { type: 'string' },
                 lat: { type: 'number' },
                 lng: { type: 'number' },
             },

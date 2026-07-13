@@ -13,10 +13,12 @@ import { liveMetricsRegisterToolCall } from './liveMetrics.js';
 import { recordGpsLocationDrop, recordCuisineHallucination, recordCartDesync, recordCartSuccessDowngrade, recordIvlBlock, recordIvlCheck, recordToolResult } from './liveHealth.js';
 import { CART_MUTATION_WHITELIST } from '../../brain/core/pipeline/IntentGroups.js';
 import { ORDER_MODE_EVENT, ORDER_MODE_STATE, transitionOrderMode } from '../../brain/core/pipeline/OrderModeFSM.js';
-import { findRestaurantInText } from '../../brain/data/restaurantCatalog.js';
+import { RESTAURANT_CATALOG, findRestaurantInText } from '../../brain/data/restaurantCatalog.js';
 import { sanitizeLocation } from '../../brain/core/ConversationGuards.js';
 import { verifyToolCall } from './IntentVerificationLayer.js';
 import { compareRestaurantsForLive } from './restaurantCompareService.js';
+import { searchGroundedMenuItems } from '../../brain/grounding/menuGrounding.js';
+import { loadMenuPreview } from '../../brain/menuService.js';
 import {
     applyHandlerDecision,
     applyRouterDecision,
@@ -42,6 +44,45 @@ const TOOL_TO_INTENT = Object.freeze({
     get_cart_state: 'get_cart_state',
     search_menu_items: 'search_menu_items',
 });
+
+const CART_COMPANION_QUERY = /\b(napoj|napoje|napoju|pici|kaw|herbat|wod|sok|cola|coca|pepsi|fanta|sprite|lemoniad|piw|win|drink|beverage|deser|frytk|sos|dodatek|dodatki)\b/i;
+
+function getCartRestaurantScope(session = {}) {
+    const cart = session?.cart || {};
+    const items = Array.isArray(cart.items) ? cart.items : [];
+    if (items.length === 0) return null;
+
+    const firstItem = items[0] || {};
+    const restaurantId = cart.restaurantId
+        || cart.restaurant_id
+        || firstItem.restaurantId
+        || firstItem.restaurant_id
+        || firstItem.restaurant?.id
+        || null;
+    const restaurantName = firstItem.restaurant_name
+        || firstItem.restaurantName
+        || firstItem.restaurant?.name
+        || (String(session?.currentRestaurant?.id || '') === String(restaurantId || '')
+            ? session.currentRestaurant?.name
+            : null)
+        || (String(session?.lastRestaurant?.id || '') === String(restaurantId || '')
+            ? session.lastRestaurant?.name
+            : null)
+        || null;
+
+    return restaurantId ? { restaurantId, restaurantName, items } : null;
+}
+
+function isCartCompanionQuery(value) {
+    const normalized = String(value || '')
+        .toLowerCase()
+        .normalize('NFKD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9\s]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+    return CART_COMPANION_QUERY.test(normalized);
+}
 
 function getOrderModeEvent(intent, preState, domainResponse) {
     const expectedContext = domainResponse?.contextUpdates?.expectedContext || null;
@@ -83,25 +124,29 @@ function mapToolPayload(toolName, args = {}, options = {}) {
     const pickText = (fallbackText) => (allowTranscriptHint && transcriptHint) ? transcriptHint : fallbackText;
     switch (toolName) {
         case 'find_nearby':
+            {
+                const itemQuery = String(args.query || args.dish || '').trim();
+                const fallbackText = args.location
+                    ? (itemQuery
+                        ? `szukam ${itemQuery} w ${args.location}`
+                        : (args.cuisine ? `szukam ${args.cuisine} w ${args.location}` : `pokaz restauracje w ${args.location}`))
+                    : (itemQuery ? `szukam ${itemQuery}` : (args.cuisine ? `szukam ${args.cuisine}` : 'gdzie zamowic'));
             return {
-                text: pickText(
-                    args.location
-                        ? (args.cuisine ? `szukam ${args.cuisine} w ${args.location}` : `pokaz restauracje w ${args.location}`)
-                        : (args.cuisine ? `szukam ${args.cuisine}` : 'gdzie zamowic'),
-                ),
+                text: pickText(fallbackText),
                 entities: {
                     location: args.location || null,
                     cuisine: args.cuisine || null,
                     quantity: 1,
                     restaurant: null,
                     restaurantId: null,
-                    dish: null,
+                    dish: itemQuery || null,
                     items: null,
                 },
                 coords: (Number.isFinite(args.lat) && Number.isFinite(args.lng))
                     ? { lat: Number(args.lat), lng: Number(args.lng) }
                     : null,
             };
+            }
         case 'select_restaurant':
             return {
                 text: pickText(args.selection_text || args.restaurant_name || 'wybieram restauracje'),
@@ -443,6 +488,64 @@ function transcriptMentionsLocation(transcriptText = '', locationCandidate = '')
     const locationTokens = location.split(' ').filter((token) => token.length >= 4);
     if (locationTokens.length === 0) return false;
     return locationTokens.some((token) => transcript.includes(token));
+}
+
+function findCatalogRestaurantById(restaurantId) {
+    const id = String(restaurantId || '').trim();
+    if (!id) return null;
+    return RESTAURANT_CATALOG.find((restaurant) => String(restaurant?.id || '') === id) || null;
+}
+
+function getExplicitRestaurantArgs(args = {}, entities = {}) {
+    return {
+        restaurantId: String(args?.restaurant_id || entities?.restaurantId || '').trim(),
+        restaurantName: String(args?.restaurant_name || entities?.restaurant || '').trim(),
+    };
+}
+
+function resolveCatalogRestaurantFromArgs(args = {}, entities = {}) {
+    const { restaurantId, restaurantName } = getExplicitRestaurantArgs(args, entities);
+    const byId = findCatalogRestaurantById(restaurantId);
+    const byName = restaurantName ? findRestaurantInText(restaurantName) : null;
+
+    if (restaurantId && !byId) {
+        return {
+            ok: false,
+            reason: 'restaurant_id_not_in_catalog',
+            restaurantId,
+            restaurantName,
+        };
+    }
+
+    if (restaurantName && !byName) {
+        return {
+            ok: false,
+            reason: 'restaurant_name_not_in_catalog',
+            restaurantId,
+            restaurantName,
+        };
+    }
+
+    if (byId && byName && String(byId.id) !== String(byName.id)) {
+        return {
+            ok: false,
+            reason: 'restaurant_name_id_mismatch',
+            restaurantId,
+            restaurantName,
+            expectedName: byId.name,
+        };
+    }
+
+    const restaurant = byId || byName || null;
+    return { ok: true, restaurant };
+}
+
+function canonicalizeRestaurantArgs(args = {}, entities = {}, restaurant) {
+    if (!restaurant) return;
+    args.restaurant_id = restaurant.id;
+    args.restaurant_name = restaurant.name;
+    entities.restaurantId = restaurant.id;
+    entities.restaurant = restaurant.name;
 }
 
 const CUISINE_TRANSCRIPT_ALIASES = Object.freeze([
@@ -1081,17 +1184,40 @@ export class ToolRouter {
                 };
             }
             const session = this.getSession(sessionId) || {};
-            const menuItems = session.menuItems || [];
-            const normalizedQuery = query.toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').trim();
-            const matches = menuItems.filter((item) => {
-                const name = (item.name || '').toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '');
-                const tags = (Array.isArray(item.item_tags) ? item.item_tags : []).join(' ').toLowerCase();
-                return name.includes(normalizedQuery) || tags.includes(normalizedQuery);
-            }).slice(0, 8);
+            const cartScope = getCartRestaurantScope(session);
+            const selectedRestaurant = cartScope || {
+                restaurantId: session?.currentRestaurant?.id || session?.lastRestaurant?.id || null,
+                restaurantName: session?.currentRestaurant?.name || session?.lastRestaurant?.name || null,
+            };
+            const scopedRestaurantId = selectedRestaurant.restaurantId;
+            const cachedMenuRestaurantId = session.last_menu_restaurant_id || null;
+            let menuItems = Array.isArray(session.last_menu)
+                && (!scopedRestaurantId || String(cachedMenuRestaurantId || '') === String(scopedRestaurantId))
+                ? session.last_menu
+                : (Array.isArray(session.menuItems) ? session.menuItems : []);
+
+            if (scopedRestaurantId && (!menuItems.length || (
+                (cartScope || cachedMenuRestaurantId)
+                && String(cachedMenuRestaurantId || '') !== String(scopedRestaurantId)
+            ))) {
+                const preview = await loadMenuPreview(scopedRestaurantId, {});
+                menuItems = Array.isArray(preview?.menu) ? preview.menu : [];
+                if (menuItems.length) {
+                    this.updateSession(sessionId, {
+                        last_menu: menuItems,
+                        last_menu_restaurant_id: scopedRestaurantId,
+                    });
+                }
+            }
+            const rankedMatches = searchGroundedMenuItems(menuItems, query, { limit: 8 });
+            const matches = rankedMatches.map((entry) => entry.item);
             const focusedMenuItemId = matches[0]?.id || matches[0]?.menuItemId || matches[0]?.menu_item_id || null;
+            const scopeLabel = selectedRestaurant.restaurantName
+                ? ` w ${selectedRestaurant.restaurantName}`
+                : '';
             const reply = matches.length
-                ? `Znalazłam ${matches.length} pasujących dań: ${matches.map(m => m.name).join(', ')}.`
-                : `Nie znalazłam dań pasujących do "${query}".`;
+                ? `Znalazłam${scopeLabel} ${matches.length} pasujących pozycji: ${matches.map(m => m.name).join(', ')}.`
+                : `Nie znalazłam${scopeLabel} pozycji pasujących do "${query}".`;
             turnTrace = applyRouterDecision(turnTrace, {
                 mappedText: query,
                 mappedIntent: intent,
@@ -1129,6 +1255,10 @@ export class ToolRouter {
                         name: x.base_name || x.name,
                         price: x.price ?? null,
                         tags: Array.isArray(x.item_tags) ? x.item_tags : [],
+                        category: x.category || null,
+                        description: x.description || null,
+                        available: x.available !== false,
+                        groundingScore: rankedMatches.find((entry) => entry.item === x)?.score || null,
                         variant: x.size_or_variant || null,
                         spicy: !!x.spicy,
                         is_vege: !!x.is_vege,
@@ -1139,6 +1269,9 @@ export class ToolRouter {
                     meta: {
                         source: 'live_tool:search_menu_items',
                         focusedMenuItemId,
+                        restaurantId: scopedRestaurantId,
+                        restaurantName: selectedRestaurant.restaurantName || null,
+                        cartScoped: Boolean(cartScope),
                         ...(finalizedTrace ? { liveTool: { turnTrace: finalizedTrace } } : {}),
                     },
                     context: session,
@@ -1154,11 +1287,99 @@ export class ToolRouter {
         const entities = mapped.entities || {};
         const textCameFromTranscript = Boolean(transcriptText && mapped.text === transcriptText);
         const sessionSnapshotForIVL = this.getSession(sessionId) || {};
+        const cartScope = getCartRestaurantScope(sessionSnapshotForIVL);
+        const discoveryQuery = String(args?.query || args?.dish || transcriptText || '').trim();
+        if (toolName === 'find_nearby' && cartScope && isCartCompanionQuery(discoveryQuery)) {
+            return this.executeToolCall({
+                sessionId,
+                toolName: 'search_menu_items',
+                args: { query: discoveryQuery },
+                requestId,
+                turnId,
+                transcript,
+                userText,
+                debugLiveFlow,
+            });
+        }
         const isAddToCartTool = toolName === 'add_item_to_cart' || toolName === 'add_items_to_cart';
+        const catalogScopedTool = [
+            'select_restaurant',
+            'show_menu',
+            'add_item_to_cart',
+            'add_items_to_cart',
+            'update_cart_item_quantity',
+            'remove_item_from_cart',
+            'replace_cart_item',
+        ].includes(toolName);
         if (textCameFromTranscript) {
             trace.push('live_transcript_hint:used');
         } else if (transcriptText && toolName === 'find_nearby') {
             trace.push('live_transcript_hint:ignored_for_find_nearby');
+        }
+
+        if (catalogScopedTool) {
+            const { restaurantId, restaurantName } = getExplicitRestaurantArgs(args, entities);
+            const allowOrderLocationRecovery =
+                isAddToCartTool
+                && !restaurantId
+                && !!restaurantName
+                && looksLikeOrderLocationPhrase(restaurantName);
+            if ((restaurantId || restaurantName) && !allowOrderLocationRecovery) {
+                const catalogScope = resolveCatalogRestaurantFromArgs(args, entities);
+                if (!catalogScope.ok) {
+                    const guardReason = catalogScope.reason || 'restaurant_not_in_catalog';
+                    trace.push(`catalog_guard_blocked:${guardReason}`);
+                    const reply = 'Nie mam tej restauracji w FreeFlow. Mogę korzystać tylko z lokali dostępnych w aplikacji.';
+                    const clarify = buildClarifyResponse(sessionId, intent, guardReason, trace);
+                    clarify.reply = reply;
+                    clarify.text = reply;
+                    clarify.meta = {
+                        ...(clarify.meta || {}),
+                        catalogGuard: {
+                            blocked: true,
+                            reason: guardReason,
+                        },
+                    };
+                    turnTrace = applyRouterDecision(turnTrace, {
+                        mappedText: mapped.text || '',
+                        mappedIntent: intent,
+                        runtimeIntent: intent,
+                        runtimeDomain: getIntentDomain(intent),
+                        args,
+                        session: sessionSnapshotForIVL,
+                    });
+                    turnTrace = applyHandlerDecision(turnTrace, {
+                        domainResponse: clarify,
+                        guardedDomainResponse: clarify,
+                        cartBefore: sessionSnapshotForIVL?.cart || {},
+                        cartAfter: sessionSnapshotForIVL?.cart || {},
+                        cartChanged: false,
+                        cartMutationPath: mutatesCart(intent),
+                        responseSuggestsSuccess: false,
+                    });
+                    const finalizedTrace = finalizeTurnTrace(turnTrace);
+                    if (finalizedTrace) {
+                        clarify.meta = {
+                            ...(clarify.meta || {}),
+                            liveTool: {
+                                ...(clarify.meta?.liveTool || {}),
+                                turnTrace: finalizedTrace,
+                            },
+                        };
+                    }
+                    return {
+                        ok: true,
+                        tool: toolName,
+                        request_id: requestId,
+                        response: clarify,
+                        trace,
+                    };
+                }
+                canonicalizeRestaurantArgs(args, entities, catalogScope.restaurant);
+                if (catalogScope.restaurant) {
+                    trace.push(`catalog_guard_ok:${catalogScope.restaurant.id}`);
+                }
+            }
         }
 
         // LIVE order robustness:

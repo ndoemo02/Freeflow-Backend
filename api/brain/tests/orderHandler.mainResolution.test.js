@@ -457,6 +457,83 @@ describe('OrderHandler main-item resolution', () => {
         expect(response.contextUpdates?.expectedContext).toBe('order_continue');
     });
 
+    it('prefers explicit post-dish repetition cue over stale single-qty entity', async () => {
+        canonicalizeDishMock.mockImplementation((text) => text);
+
+        const session = {
+            currentRestaurant: { id: 'R_DESSERT', name: 'Monte Carlo' },
+            lastRestaurant: { id: 'R_DESSERT', name: 'Monte Carlo' },
+            last_menu: [
+                {
+                    id: 'dessert-tiramisu',
+                    name: 'Tiramisu',
+                    base_name: 'Tiramisu',
+                    category: 'Desery',
+                    type: 'MAIN',
+                    price_pln: 18,
+                },
+            ],
+            cart: { items: [], total: 0 },
+        };
+
+        const response = await handler.execute({
+            text: 'tiramisu dwa razy',
+            entities: {
+                dish: 'Tiramisu',
+                quantity: 1,
+            },
+            session,
+        });
+
+        expect(response.intent).not.toBe('clarify_order');
+        expect(response.meta?.addedToCart).toBe(true);
+        expect(response.contextUpdates?.cart?.items?.[0]?.id).toBe('dessert-tiramisu');
+        expect(response.contextUpdates?.cart?.items?.[0]?.qty).toBe(2);
+    });
+
+    it('grounds a natural spicy-beef paraphrase against the scoped menu when NLU dish is null', async () => {
+        canonicalizeDishMock.mockImplementation((text) => text);
+
+        const session = {
+            currentRestaurant: { id: 'R_VIEN', name: 'Vien-Thien' },
+            lastRestaurant: { id: 'R_VIEN', name: 'Vien-Thien' },
+            last_menu: [
+                {
+                    id: 'beef-five-flavours',
+                    name: 'Wołowina 5 smaków',
+                    base_name: 'Wołowina 5 smaków',
+                    category: 'Wołowina',
+                    type: 'MAIN',
+                    price_pln: 20,
+                    available: true,
+                },
+                {
+                    id: 'beef-spicy',
+                    name: 'Wołowina pikantna',
+                    base_name: 'Wołowina pikantna',
+                    category: 'Wołowina',
+                    type: 'MAIN',
+                    price_pln: 20,
+                    available: true,
+                },
+            ],
+            cart: { items: [], total: 0 },
+        };
+
+        const response = await handler.execute({
+            text: 'Chciałbym zamówić wołowinę na ostro z Vien-Thien',
+            entities: {
+                dish: null,
+                quantity: 1,
+            },
+            session,
+        });
+
+        expect(response.intent).not.toBe('clarify_order');
+        expect(response.meta?.addedToCart).toBe(true);
+        expect(response.contextUpdates?.cart?.items?.[0]?.id).toBe('beef-spicy');
+    });
+
     it('resolves qty_2 pizza when menu item has size suffix (e.g. "33cm")', async () => {
         canonicalizeDishMock.mockImplementation((text) => {
             if (String(text || '').toLowerCase().includes('pizza margherita')) return 'Margherita';

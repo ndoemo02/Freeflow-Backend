@@ -12,6 +12,16 @@ export function isLiveModeEnabled() {
 }
 
 export function registerLiveRoutes(app) {
+    app.post('/api/voice/live/token', async (req, res) => {
+        try {
+            const { default: tokenHandler } = await import('./token.js');
+            return tokenHandler(req, res);
+        } catch (error) {
+            console.error('[LIVE_TOKEN_ROUTE_ERROR]', error?.message || 'unknown_error');
+            return res.status(500).json({ ok: false, error: 'live_token_route_unavailable' });
+        }
+    });
+
     // ── Live performance instrumentation endpoint ──
     app.post('/api/live/perf', async (req, res) => {
       try {

@@ -8,6 +8,7 @@ import { resolveRestaurantByName } from '../../services/restaurantResolver.js';
 import { loadMenuPreview } from '../../menuService.js';
 import { commitPendingOrder } from '../../session/sessionCart.js';
 import { buildClarifyOrderMessage, ORDER_REQUESTED_CATEGORY, resolveRequestedCategory } from './clarifyOrderMessage.js';
+import { resolveUniqueGroundedMenuItem } from '../../grounding/menuGrounding.js';
 
 
 
@@ -19,7 +20,8 @@ function hasExplicitQuantityInText(text = '') {
     // This avoids false positives from dish names like "6 szt.".
     const prefixPattern = /^\s*(?:\d+|jeden|jedna|jedno|dwa|dwie|trzy|cztery|piec|szesc|siedem|osiem|dziewiec|dziesiec|kilka|pare|podwojny|podwojna|podwojne|podwojnie)\b(?:\s*(?:x|razy|szt|szt\.|sztuk|porcj))?/i;
     const verbPattern = /\b(dodaj|zamawiam|wezme|chce|poprosze|poprosz)\b\s+(?:mi\s+)?(?:\d+|jeden|jedna|jedno|dwa|dwie|trzy|cztery|piec|szesc|siedem|osiem|dziewiec|dziesiec|kilka|pare|podwojny|podwojna|podwojne|podwojnie)\b/i;
-    return prefixPattern.test(normalized) || verbPattern.test(normalized);
+    const repetitionPattern = /\b(?:\d+|jeden|jedna|jedno|dwa|dwie|trzy|cztery|piec|szesc|siedem|osiem|dziewiec|dziesiec|kilka|pare)\b\s*(?:x|razy|porcj(?:a|e|i)?)\b/i;
+    return prefixPattern.test(normalized) || verbPattern.test(normalized) || repetitionPattern.test(normalized);
 }
 
 function hasLikelyMultiQuantityCue(text = '') {
@@ -1912,7 +1914,41 @@ export class OrderHandler {
             session,
             currentRestaurantId || explicitRestaurant?.id || explicitRestaurantIdRaw
         );
-        const rawRequestedDish = searchPhrase;
+        let rawRequestedDish = searchPhrase;
+        if (!entities?.dish && menu.length > 0) {
+            const restaurantName = session?.currentRestaurant?.name
+                || session?.lastRestaurant?.name
+                || explicitRestaurant?.name
+                || explicitRestaurantName
+                || '';
+            const groundedFallback = resolveUniqueGroundedMenuItem(menu, rawUserText, {
+                restaurantName,
+            });
+
+            if (groundedFallback.item) {
+                rawRequestedDish = groundedFallback.item.name || groundedFallback.item.base_name || rawRequestedDish;
+                console.log('[GROUNDED_ORDER_QUERY]', JSON.stringify({
+                    source: 'raw_text_fallback',
+                    restaurantName: restaurantName || null,
+                    input: rawUserText,
+                    resolvedItemId: groundedFallback.item.id || null,
+                    resolvedItemName: groundedFallback.item.name || null,
+                    score: groundedFallback.score,
+                }));
+            } else if (groundedFallback.ambiguous) {
+                console.log('[GROUNDED_ORDER_QUERY]', JSON.stringify({
+                    source: 'raw_text_fallback',
+                    restaurantName: restaurantName || null,
+                    input: rawUserText,
+                    ambiguous: true,
+                    candidates: groundedFallback.candidates.map((entry) => ({
+                        id: entry.item?.id || null,
+                        name: entry.item?.name || null,
+                        score: entry.score,
+                    })),
+                }));
+            }
+        }
         const singleCandidateMeta = singleCompoundCandidate?.meta && typeof singleCompoundCandidate.meta === 'object'
             ? singleCompoundCandidate.meta
             : null;

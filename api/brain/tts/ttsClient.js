@@ -9,6 +9,30 @@ let geminiModel = null;
 let vertexClient = null;
 const ttsCache = new Map();
 const stylizeCache = new Map();
+const STYLIZE_OPENAI_TIMEOUT_MS = Math.max(1000, Number(process.env.STYLIZE_OPENAI_TIMEOUT_MS || 2500));
+const STYLIZE_VERTEX_TIMEOUT_MS = Math.max(1000, Number(process.env.STYLIZE_VERTEX_TIMEOUT_MS || 3500));
+
+const STYLIZATION_BASE_PROMPT = [
+  'Jesteś Amber, głosem FreeFlow.',
+  'Przekształć surowy tekst w maksymalnie dwa krótkie, naturalne zdania.',
+  'Podczas odkrywania lokali mów jak lokalna przewodniczka kulinarna: fachowo, konkretnie i bez czytania samych kategorii.',
+].join(' ');
+
+const STYLIZATION_HARD_GUARD = [
+  'Nie dodawaj restauracji, dań, napojów, cen, składników ani ocen, których nie ma w surowym tekście.',
+  'Nie nazywaj pozycji specjalnością, regionalną ani swojską bez takiej informacji w surowym tekście.',
+  'Nie zmieniaj znaczenia wyniku wyszukiwania i nie zamieniaj braku trafienia w rekomendację.',
+].join(' ');
+
+function composeStylizationPrompt(customStyle = '', intent = 'neutral') {
+  const custom = String(customStyle || '').trim();
+  return [
+    STYLIZATION_BASE_PROMPT,
+    custom ? `Dodatkowy styl wypowiedzi: ${custom}` : '',
+    `Intencja: ${intent}.`,
+    STYLIZATION_HARD_GUARD,
+  ].filter(Boolean).join(' ');
+}
 
 // --- Stylization circuit breaker (OpenAI 429) ---
 // Exported so tests can reset it between runs.
@@ -35,7 +59,7 @@ async function _stylizeWithVertex(rawText, system) {
             userPrompt: `Przeredaguj na mowe rozmowna:\n${rawText}`,
             model: process.env.GEMINI_TEXT_MODEL || "gemini-2.5-flash",
             temperature: 0.6,
-            timeoutMs: 5000,
+            timeoutMs: STYLIZE_VERTEX_TIMEOUT_MS,
         });
     } catch {
         return null;
@@ -208,20 +232,18 @@ export async function stylizeWithGPT4o(rawText, intent = 'neutral') {
         const key = `${rawText}|${intent}`;
         if (stylizeCache.has(key)) return stylizeCache.get(key);
 
-        // Build system prompt (shared by all providers)
-        let system = `Jesteś Amber – głosem FreeFlow. Przekształć surowy tekst w krótką, naturalną wypowiedź (max 2 zdania), ciepły lokalny ton, lekko dowcipny. Nie używaj list, numeracji ani nawiasów. Nie dodawaj informacji, nie używaj znaczników i SSML. Intencja: ${intent}.`;
+        // The admin prompt controls style only. Grounding rules are always appended.
+        let customStyle = '';
         try {
             const cfg = await getConfig();
             const style = (cfg?.speech_style || 'standard').toLowerCase();
             if (cfg?.amber_prompt && typeof cfg.amber_prompt === 'string' && cfg.amber_prompt.trim().length > 0) {
-                system = cfg.amber_prompt;
+                customStyle = cfg.amber_prompt;
             } else if (style === 'silesian' || style === 'śląska' || style === 'slask') {
-                system = `Jesteś Amber – głosem FreeFlow. Przekształć surowy tekst w krótką, naturalną wypowiedź (max 2 zdania).
-Mów przyjaźnie i jasno, ale używaj śląskiej gwary (gōdka) – lekkiej i zrozumiałej dla osób spoza regionu.
-Unikaj bardzo rzadkich słów, nie przesadzaj z gwarą, tylko dodaj lokalny klimat (np. „joch”, „kaj”, “po naszymu”).
-Nie zmieniaj faktów ani liczb. Intencja użytkownika: “${intent}”.`;
+                customStyle = 'Mów przyjaźnie i jasno, używając lekkiej i zrozumiałej śląskiej gwary. Nie przesadzaj z gwarą.';
             }
         } catch { }
+        const system = composeStylizationPrompt(customStyle, intent);
 
         const model = process.env.OPENAI_MODEL;
         const openai = model ? getOpenAI() : null;
@@ -242,7 +264,7 @@ Nie zmieniaj faktów ani liczb. Intencja użytkownika: “${intent}”.`;
                         ],
                         temperature: 0.6,
                         stream: true,
-                    });
+                    }, { timeout: STYLIZE_OPENAI_TIMEOUT_MS, maxRetries: 0 });
                     let streamed = '';
                     for await (const chunk of completion) {
                         streamed += chunk?.choices?.[0]?.delta?.content || '';
@@ -256,7 +278,7 @@ Nie zmieniaj faktów ani liczb. Intencja użytkownika: “${intent}”.`;
                             { role: 'system', content: system },
                             { role: 'user', content: `Przeredaguj na mowę rozmowną:\n${rawText}` },
                         ],
-                    });
+                    }, { timeout: STYLIZE_OPENAI_TIMEOUT_MS, maxRetries: 0 });
                     out = resp?.choices?.[0]?.message?.content?.trim() || null;
                 }
                 if (out) _emitStyleTrace('openai', 'ok', false);

@@ -318,6 +318,109 @@ describe('Live ToolRouter', () => {
         expect(result.response.meta?.focusedMenuItemId).toBe('menu-1');
     });
 
+    it('search_menu_items finds drinks by menu category, not only by item name', async () => {
+        const sessions = new Map([
+            ['sess_search_drinks', {
+                menuItems: [
+                    { id: 'menu-food', name: 'Pierogi ruskie', category: 'Pierogi', price: 18 },
+                    { id: 'menu-drink', name: 'Coca-Cola 0,5 l', category: 'Napoje', price: 9 },
+                ],
+            }],
+        ]);
+        const getSession = (id) => sessions.get(id) || {};
+        const updateSession = (id, patch) => {
+            const next = { ...(sessions.get(id) || {}), ...patch };
+            sessions.set(id, next);
+            return next;
+        };
+
+        const router = new ToolRouter({
+            handlers: makeFakeHandlers(),
+            getSession,
+            updateSession,
+        });
+
+        const result = await router.executeToolCall({
+            sessionId: 'sess_search_drinks',
+            toolName: 'search_menu_items',
+            args: { query: 'coś do picia' },
+            requestId: 'req-search-drinks',
+        });
+
+        expect(result.ok).toBe(true);
+        expect(result.response.menuItems.map((item) => item.id)).toContain('menu-drink');
+        expect(result.response.menuItems.map((item) => item.id)).not.toContain('menu-food');
+    });
+
+    it('search_menu_items uses the cart restaurant even when currentRestaurant points elsewhere', async () => {
+        const sessions = new Map([
+            ['sess_cart_scoped_drink', {
+                currentRestaurant: { id: 'callzone', name: 'Callzone' },
+                cart: {
+                    restaurantId: 'vien',
+                    items: [{ id: 'beef', name: 'Wołowina na ostro', restaurant_id: 'vien', restaurant_name: 'Vien-Thien' }],
+                    total: 39,
+                },
+                last_menu_restaurant_id: 'vien',
+                last_menu: [
+                    { id: 'vien-beef', name: 'Wołowina na ostro', category: 'Dania główne', price: 39 },
+                    { id: 'vien-water', name: 'Woda mineralna', category: 'Napoje', price: 7 },
+                ],
+            }],
+        ]);
+        const getSession = (id) => sessions.get(id) || {};
+        const updateSession = (id, patch) => {
+            const next = { ...(sessions.get(id) || {}), ...patch };
+            sessions.set(id, next);
+            return next;
+        };
+        const router = new ToolRouter({ handlers: makeFakeHandlers(), getSession, updateSession });
+
+        const result = await router.executeToolCall({
+            sessionId: 'sess_cart_scoped_drink',
+            toolName: 'search_menu_items',
+            args: { query: 'coś do picia' },
+        });
+
+        expect(result.response.menuItems.map((item) => item.id)).toEqual(['vien-water']);
+        expect(result.response.meta?.restaurantId).toBe('vien');
+        expect(result.response.meta?.restaurantName).toBe('Vien-Thien');
+        expect(result.response.meta?.cartScoped).toBe(true);
+    });
+
+    it('reroutes drink discovery to the menu of the restaurant locked by the cart', async () => {
+        const sessions = new Map([
+            ['sess_cart_drink_discovery', {
+                cart: {
+                    restaurantId: 'vien',
+                    items: [{ id: 'beef', name: 'Wołowina na ostro', restaurant_id: 'vien', restaurant_name: 'Vien-Thien' }],
+                    total: 39,
+                },
+                last_menu_restaurant_id: 'vien',
+                last_menu: [
+                    { id: 'vien-tea', name: 'Herbata jaśminowa', category: 'Napoje', price: 9 },
+                ],
+            }],
+        ]);
+        const getSession = (id) => sessions.get(id) || {};
+        const updateSession = (id, patch) => {
+            const next = { ...(sessions.get(id) || {}), ...patch };
+            sessions.set(id, next);
+            return next;
+        };
+        const router = new ToolRouter({ handlers: makeFakeHandlers(), getSession, updateSession });
+
+        const result = await router.executeToolCall({
+            sessionId: 'sess_cart_drink_discovery',
+            toolName: 'find_nearby',
+            args: { query: 'napój do obiadu' },
+        });
+
+        expect(result.response.intent).toBe('search_menu_items');
+        expect(result.response.menuItems.map((item) => item.id)).toEqual(['vien-tea']);
+        expect(result.response.meta?.cartScoped).toBe(true);
+    });
+
     it('ignores live transcript for find_nearby text when args are empty', async () => {
         const sessions = new Map([
             ['sess_live_transcript', { conversationPhase: 'neutral', orderMode: 'neutral' }],
@@ -363,6 +466,45 @@ describe('Live ToolRouter', () => {
         expect(capturedText).toBe('gdzie zamowic');
         expect(capturedEntities?.location).toBeNull();
         expect(result.trace.some((entry) => entry.includes('live_transcript_hint:ignored_for_find_nearby'))).toBe(true);
+    });
+
+    it('passes an explicit dish query to find_nearby as grounded handler input', async () => {
+        const sessions = new Map([
+            ['sess_live_dish_query', { conversationPhase: 'neutral', orderMode: 'neutral' }],
+        ]);
+        const getSession = (id) => sessions.get(id) || {};
+        const updateSession = (id, patch) => {
+            const next = { ...(sessions.get(id) || {}), ...patch };
+            sessions.set(id, next);
+            return next;
+        };
+
+        let capturedText = null;
+        let capturedEntities = null;
+        const handlers = makeFakeHandlers();
+        handlers.food.find_nearby = {
+            execute: async (ctx) => {
+                capturedText = ctx.text;
+                capturedEntities = ctx.entities;
+                return {
+                    reply: 'Znalazłam wołowinę.',
+                    restaurants: [{ id: 'vien-thien', name: 'Vien-Thien' }],
+                    contextUpdates: { expectedContext: 'select_restaurant' },
+                };
+            },
+        };
+
+        const router = new ToolRouter({ handlers, getSession, updateSession });
+        const result = await router.executeToolCall({
+            sessionId: 'sess_live_dish_query',
+            toolName: 'find_nearby',
+            args: { query: 'wołowina na ostro' },
+            transcript: 'wymyślona treść nie może zastąpić argumentów narzędzia',
+        });
+
+        expect(result.ok).toBe(true);
+        expect(capturedText).toContain('wołowina na ostro');
+        expect(capturedEntities?.dish).toBe('wołowina na ostro');
     });
 
     it('promotes find_nearby to select_restaurant when transcript contains explicit restaurant name', async () => {
@@ -1090,6 +1232,104 @@ describe('Live ToolRouter', () => {
         expect(result.ok).toBe(true);
         expect(result.response.intent).toBe('menu_request');
         expect(result.trace.some((entry) => entry.includes('live_order_dish_is_restaurant:reroute_show_menu'))).toBe(true);
+    });
+
+    it('blocks show_menu for restaurant names outside the FreeFlow catalog', async () => {
+        const sessions = new Map([
+            ['sess_live_unknown_restaurant_menu', {
+                conversationPhase: 'neutral',
+                orderMode: 'neutral',
+            }],
+        ]);
+
+        const getSession = (id) => sessions.get(id) || {};
+        const updateSession = (id, patch) => {
+            const prev = sessions.get(id) || {};
+            const next = { ...prev, ...patch };
+            sessions.set(id, next);
+            return next;
+        };
+
+        let menuHandlerCalled = false;
+        const handlers = makeFakeHandlers();
+        handlers.food.menu_request = {
+            execute: async () => {
+                menuHandlerCalled = true;
+                return { reply: 'Nie powinno sie wykonac.' };
+            },
+        };
+
+        const router = new ToolRouter({
+            handlers,
+            getSession,
+            updateSession,
+        });
+
+        const result = await router.executeToolCall({
+            sessionId: 'sess_live_unknown_restaurant_menu',
+            toolName: 'show_menu',
+            args: { restaurant_name: 'Browar Piekary' },
+            transcript: 'to ja ten browar Piekary bym sprobowal',
+        });
+
+        expect(result.ok).toBe(true);
+        expect(menuHandlerCalled).toBe(false);
+        expect(result.response.meta?.catalogGuard?.reason).toBe('restaurant_name_not_in_catalog');
+        expect(result.trace.some((entry) => entry.includes('catalog_guard_blocked:restaurant_name_not_in_catalog'))).toBe(true);
+        expect(sessions.get('sess_live_unknown_restaurant_menu')?.orderMode).toBe('neutral');
+    });
+
+    it('blocks add_items_to_cart when model mixes a known restaurant id with an unknown restaurant name', async () => {
+        const sessions = new Map([
+            ['sess_live_mismatched_restaurant_order', {
+                conversationPhase: 'neutral',
+                orderMode: 'neutral',
+                cart: { items: [], total: 0 },
+            }],
+        ]);
+
+        const getSession = (id) => sessions.get(id) || {};
+        const updateSession = (id, patch) => {
+            const prev = sessions.get(id) || {};
+            const next = { ...prev, ...patch };
+            sessions.set(id, next);
+            return next;
+        };
+
+        let orderHandlerCalled = false;
+        const handlers = makeFakeHandlers();
+        handlers.ordering.create_order = {
+            execute: async () => {
+                orderHandlerCalled = true;
+                return {
+                    reply: 'Dodano.',
+                    contextUpdates: { cart: { items: [{ name: 'x', qty: 1 }], total: 1 } },
+                };
+            },
+        };
+
+        const router = new ToolRouter({
+            handlers,
+            getSession,
+            updateSession,
+        });
+
+        const result = await router.executeToolCall({
+            sessionId: 'sess_live_mismatched_restaurant_order',
+            toolName: 'add_items_to_cart',
+            args: {
+                restaurant_name: 'Remedium',
+                restaurant_id: '4d27fbe3-20d0-4eb4-b003-1935be53af25',
+                items: [{ dish: 'klasyczny burger', quantity: 1 }],
+            },
+            transcript: 'to jest moj typ klasyczny burger',
+        });
+
+        expect(result.ok).toBe(true);
+        expect(orderHandlerCalled).toBe(false);
+        expect(result.response.meta?.catalogGuard?.reason).toBe('restaurant_name_not_in_catalog');
+        expect(result.trace.some((entry) => entry.includes('catalog_guard_blocked:restaurant_name_not_in_catalog'))).toBe(true);
+        expect(sessions.get('sess_live_mismatched_restaurant_order')?.cart.items).toHaveLength(0);
     });
 });
 
