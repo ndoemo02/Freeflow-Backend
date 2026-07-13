@@ -8,6 +8,7 @@ import { extractLocation, extractCuisineType } from '../../nlu/extractors.js';
 import { pluralPl } from '../../utils/formatter.js';
 import { calculateDistance } from '../../helpers.js';
 import { supabase } from '../../../_supabase.js';
+import { scoreGroundedMenuItem } from '../../grounding/menuGrounding.js';
 
 // ── Discovery Ranking Layer (additive, non-breaking) ──────────
 // Lazy import — jeśli moduł nie istnieje (stare środowisko), discovery po
@@ -497,8 +498,10 @@ async function rankRestaurantsByItemFromCandidates({ restaurants, coords, itemQu
     for (const item of menuRows) {
         if (item?.available === false) continue;
         const itemName = item?.base_name || item?.name || '';
-        const score = scoreMenuItemMatch(item, aliases);
-        if (score < 85) continue;
+        const legacyScore = scoreMenuItemMatch(item, aliases);
+        const groundedScore = scoreGroundedMenuItem(item, itemQuery);
+        if (legacyScore < 85 && groundedScore < 75) continue;
+        const score = Math.max(legacyScore, groundedScore);
 
         const restaurantId = item?.restaurant_id;
         if (!restaurantId) continue;
@@ -568,8 +571,10 @@ async function searchRestaurantsByItemInCity({ location, coords, itemQuery }) {
     for (const item of menuRows) {
         if (item?.available === false) continue;
         const itemName = item?.base_name || item?.name || '';
-        const score = scoreMenuItemMatch(item, aliases);
-        if (score < 85) continue;
+        const legacyScore = scoreMenuItemMatch(item, aliases);
+        const groundedScore = scoreGroundedMenuItem(item, itemQuery);
+        if (legacyScore < 85 && groundedScore < 75) continue;
+        const score = Math.max(legacyScore, groundedScore);
 
         const restaurantId = item?.restaurant_id;
         if (!restaurantId) continue;
@@ -960,7 +965,11 @@ export class FindRestaurantHandler {
     async execute(ctx) {
         // 1. Resolve Mode & Context
         const discoveryParams = resolveDiscoveryMode(ctx);
-        const { mode, location, cuisine, coords, isImplicitOrder, dishEntity } = discoveryParams;
+        const { mode, location, cuisine, coords, isImplicitOrder } = discoveryParams;
+        const dishEntity = discoveryParams.dishEntity
+            || ctx?.entities?.dish
+            || ctx?.entities?.items?.[0]?.name
+            || (typeof ctx?.session?.pendingDish === 'string' ? ctx.session.pendingDish : null);
         let usedItemLedDiscovery = false;
         let cityGPSRetry = false; // set true when CITY mode fails and we retry with GPS
 
@@ -1009,7 +1018,7 @@ export class FindRestaurantHandler {
             // If CITY returns 0 results, GPS results are already waiting (no 1-2s retry gap).
             let gpsPromise = null;
             if (coords && !usedItemLedDiscovery) {
-                gpsPromise = searchNearbyWithCuisineVariants(this.repo, coords.lat, coords.lng, 10, cuisine)
+                gpsPromise = searchNearbyWithCuisineVariants(this.repo, coords.lat, coords.lng, 15, cuisine)
                     .catch(err => { console.warn('[CITY_GPS_PARALLEL] GPS prefetch failed:', err?.message || err); return []; });
             }
 
@@ -1132,7 +1141,7 @@ export class FindRestaurantHandler {
                     // Fallback: no parallel promise but coords available (item-led path failed after setting gpsPromise=null)
                     console.log(`[CITY_GPS_FALLBACK] city="${location}" 0 results, retrying with GPS lat=${coords.lat} lng=${coords.lng}`);
                     try {
-                        restaurants = await searchNearbyWithCuisineVariants(this.repo, coords.lat, coords.lng, 10, cuisine);
+                        restaurants = await searchNearbyWithCuisineVariants(this.repo, coords.lat, coords.lng, 15, cuisine);
                     } catch (gpsErr) {
                         console.warn('[CITY_GPS_FALLBACK] GPS retry failed:', gpsErr?.message || gpsErr);
                     }
@@ -1161,8 +1170,8 @@ export class FindRestaurantHandler {
 
         } else if (mode === 'GPS') {
             try {
-                // Radius: 10km default
-                restaurants = await searchNearbyWithCuisineVariants(this.repo, coords.lat, coords.lng, 10, cuisine);
+                // Radius: 15km default
+                restaurants = await searchNearbyWithCuisineVariants(this.repo, coords.lat, coords.lng, 15, cuisine);
             } catch (error) {
                 console.error('Repo Error (GPS):', error);
                 return { reply: "Nie udało mi się pobrać lokalizacji.", error: 'db_error' };
@@ -1198,7 +1207,7 @@ export class FindRestaurantHandler {
             // and merge in pizza-signal candidates.
             if (isPizzaDiscoveryQuery(ctx.text, cuisine) && Array.isArray(restaurants) && restaurants.length < 3) {
                 try {
-                    const allNearby = await this.repo.searchNearby(coords.lat, coords.lng, 10, null);
+                    const allNearby = await this.repo.searchNearby(coords.lat, coords.lng, 15, null);
                     const pizzaCandidates = (allNearby || []).filter(hasPizzaRestaurantSignal);
                     if (pizzaCandidates.length > 0) {
                         restaurants = rankPizzaFirst(mergeUniqueRestaurants(restaurants, pizzaCandidates));

@@ -32,11 +32,11 @@ export function normalizeTxt(s = '') {
 export function normalizeDish(str) {
   if (!str) return '';
 
-  const map = { ą: 'a', ć: 'c', ę: 'e', ł: 'l', ń: 'n', ó: 'o', ś: 's', ż: 'z', ź: 'z' };
-
-  return str
+  return String(str)
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[łŁ]/g, (char) => (char === 'Ł' ? 'L' : 'l'))
     .toLowerCase()
-    .replace(/[ąćęłńóśżź]/g, (c) => map[c])
     .replace(/\b(z|na|i|w)\b/g, '')
     .replace(/\b(wege|vegi)\b/g, 'vege')
     .replace(/\s+/g, ' ')

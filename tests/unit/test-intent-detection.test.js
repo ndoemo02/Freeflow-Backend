@@ -239,14 +239,14 @@ describe('Edge Cases', () => {
   it('should handle special characters in dish names', () => {
     // parseOrderItems nie jest async w intent-router.js
     const catalog = [
-      { id: '1', name: 'Crème brûlée', price: 12.00, category: 'dessert', restaurant_id: 'r1', restaurant_name: 'Test' }
+      { id: '1', name: 'Cr\u00e8me br\u00fbl\u00e9e', price: 12.00, category: 'dessert', restaurant_id: 'r1', restaurant_name: 'Test' }
     ];
 
     const result = parseOrderItems('creme brulee', catalog);
     const allItems = [...(result.available || []), ...(result.groups?.flatMap(g => g.items || []) || [])];
     expect(allItems.length).toBeGreaterThan(0);
     if (allItems.length > 0) {
-      expect(allItems[0].name).toBe('Crème brûlée');
+      expect(allItems[0].name).toBe('Cr\u00e8me br\u00fbl\u00e9e');
     }
   });
 });

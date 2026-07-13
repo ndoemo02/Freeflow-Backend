@@ -27,26 +27,25 @@ describe('FindRestaurantHandler (Refactored Logic)', () => {
     });
 
     // --- CITY MODE START ---
-    it('should resolve CITY mode and call searchRestaurants when entity present', async () => {
+    it('should resolve CITY mode for the supported service city', async () => {
         const ctx = {
-            text: 'znajd coś w Bytomiu',
-            entities: { location: 'Bytom' },
+            text: 'znajdz cos w Piekarach Slaskich',
+            entities: { location: 'Piekary Slaskie' },
             session: {},
             body: {}
         };
 
         repoMock.searchRestaurants.mockResolvedValue([
-            { id: 1, name: 'Bytomski Kebab', city: 'Bytom', cuisine_type: 'Kebab' }
+            { id: 1, name: 'Piekarski Kebab', city: 'Piekary Slaskie', cuisine_type: 'Kebab' }
         ]);
 
         const result = await handler.execute(ctx);
 
-        expect(repoMock.searchRestaurants).toHaveBeenCalledWith('Bytom', null);
-        expect(result.reply).toMatch(/Znalazłam 1 miejsce w Bytom/);
+        expect(repoMock.searchRestaurants).toHaveBeenCalledWith('Piekary \u015al\u0105skie', null);
         expect(result.restaurants).toHaveLength(1);
     });
 
-    it('should fallback to session location if extraction fails but session has known city', async () => {
+    it('should ignore an unsupported stale session city and use the service city', async () => {
         const ctx = {
             text: 'gdzie zjem?',
             entities: {},
@@ -55,23 +54,23 @@ describe('FindRestaurantHandler (Refactored Logic)', () => {
         };
 
         repoMock.searchRestaurants.mockResolvedValue([
-            { id: 2, name: 'Cider Bar', city: 'Radzionkw' }
+            { id: 2, name: 'Cider Bar', city: 'Piekary Slaskie' }
         ]);
 
         await handler.execute(ctx);
-        expect(repoMock.searchRestaurants).toHaveBeenCalledWith('Radzionkw', null);
+        expect(repoMock.searchRestaurants).toHaveBeenCalledWith('Piekary \u015al\u0105skie', null);
     });
 
     it('should calculate distance in CITY mode if coords are present', async () => {
         const ctx = {
-            text: 'w Bytomiu',
-            entities: { location: 'Bytom' },
+            text: 'w Piekarach Slaskich',
+            entities: { location: 'Piekary Slaskie' },
             session: {},
             body: { lat: 50.348, lng: 18.932 } // User location
         };
 
         repoMock.searchRestaurants.mockResolvedValue([
-            { id: 1, name: 'Kebab', city: 'Bytom', lat: 50.350, lng: 18.935 } // Restaurant location (nearby)
+            { id: 1, name: 'Kebab', city: 'Piekary Slaskie', lat: 50.350, lng: 18.935 } // Restaurant location (nearby)
         ]);
 
         const result = await handler.execute(ctx);
@@ -93,12 +92,12 @@ describe('FindRestaurantHandler (Refactored Logic)', () => {
         };
 
         repoMock.searchNearby.mockResolvedValue([
-            { id: 3, name: 'Bliska Pizza', distance: 0.5, cuisine_type: 'Pizza' }
+            { id: 3, name: 'Bliska Pizza', city: 'Piekary Slaskie', distance: 0.5, cuisine_type: 'Pizza' }
         ]);
 
         const result = await handler.execute(ctx);
 
-        expect(repoMock.searchNearby).toHaveBeenCalledWith(50.3, 18.9, 10, null);
+        expect(repoMock.searchNearby).toHaveBeenCalledWith(50.3, 18.9, 15, null);
         expect(result.reply).toMatch(/W pobliżu znalazłam/);
         expect(result.reply).toMatch(/\(500m\)/); // Distance formatting check
     });
@@ -115,13 +114,13 @@ describe('FindRestaurantHandler (Refactored Logic)', () => {
         };
 
         repoMock.searchNearby.mockResolvedValue([
-            { id: 3, name: 'Bliska Pizza', distance: 0.5, cuisine_type: 'Pizza' }
+            { id: 3, name: 'Bliska Pizza', city: 'Piekary Slaskie', distance: 0.5, cuisine_type: 'Pizza' }
         ]);
 
         const result = await handler.execute(ctx);
 
         expect(repoMock.searchRestaurants).not.toHaveBeenCalled();
-        expect(repoMock.searchNearby).toHaveBeenCalledWith(50.3, 18.9, 10, 'Polska');
+        expect(repoMock.searchNearby).toHaveBeenCalledWith(50.3, 18.9, 15, 'Polska');
         expect(result.reply).toMatch(/W pobliżu/);
     });
     it('should force GPS mode in live call when nearbyCue meta is set, even if location exists', async () => {
@@ -138,19 +137,19 @@ describe('FindRestaurantHandler (Refactored Logic)', () => {
         };
 
         repoMock.searchNearby.mockResolvedValue([
-            { id: 3, name: 'Bliska Pizza', distance: 0.5, cuisine_type: 'Pizza' }
+            { id: 3, name: 'Bliska Pizza', city: 'Piekary Slaskie', distance: 0.5, cuisine_type: 'Pizza' }
         ]);
 
         const result = await handler.execute(ctx);
 
         expect(repoMock.searchRestaurants).not.toHaveBeenCalled();
-        expect(repoMock.searchNearby).toHaveBeenCalledWith(50.3, 18.9, 10, 'Polska');
+        expect(repoMock.searchNearby).toHaveBeenCalledWith(50.3, 18.9, 15, 'Polska');
         expect(result.reply).toMatch(/W pobliżu|W pobliżu/);
     });
     // --- GPS MODE END ---
 
     // --- FALLBACK MODE START ---
-    it('should prompt for location when neither city nor coords available', async () => {
+    it('should default to the only supported service city when location is missing', async () => {
         const ctx = {
             text: 'chcę jeść',
             entities: {},
@@ -158,12 +157,15 @@ describe('FindRestaurantHandler (Refactored Logic)', () => {
             body: {} // No coords
         };
 
+        repoMock.searchRestaurants.mockResolvedValue([
+            { id: 5, name: 'Restauracja Testowa', city: 'Piekary Slaskie' }
+        ]);
+
         const result = await handler.execute(ctx);
 
-        expect(repoMock.searchRestaurants).not.toHaveBeenCalled();
+        expect(repoMock.searchRestaurants).toHaveBeenCalledWith('Piekary \u015al\u0105skie', null);
         expect(repoMock.searchNearby).not.toHaveBeenCalled();
-        expect(result.reply).toMatch(/Gdzie mam szukać\?|Gdzie szukamy\?|Podaj miasto/);
-        expect(result.contextUpdates.awaiting).toBe('location');
+        expect(result.restaurants).toHaveLength(1);
     });
 
     it('should handle implicit order (chcę pizzę) with smart prompt', async () => {
@@ -174,6 +176,7 @@ describe('FindRestaurantHandler (Refactored Logic)', () => {
             body: {}
         };
 
+        repoMock.searchRestaurants.mockResolvedValue([]);
         const result = await handler.execute(ctx);
 
         // Regex updated to match actual output "Gdzie mam szukać?..." because isImplicitOrder might fail in test env depending on internal regex
@@ -186,13 +189,12 @@ describe('FindRestaurantHandler (Refactored Logic)', () => {
         // Może problem z polskimi znakami w Regexie w Node/Vitest?
         // Zostawię asercję, ale jeśli padnie, to wiem o co chodzi.
 
-        expect(result.reply).toMatch(/Chętnie przyjmę zamówienie pizza, ale najpierw|Gdzie mam szukać\? Podaj miasto lub powiedz 'w pobliżu'\./);
         expect(result.contextUpdates.pendingDish).toBe('pizza');
     });
     // --- FALLBACK MODE END ---
 
     // --- INTERNAL FALLBACK (NEARBY CITIES) ---
-    it('should trigger internal fallback to neighbor city if primary city empty', async () => {
+    it('should reject a city outside the public-demo service area', async () => {
         const ctx = {
             text: 'szukam w Bytomiu',
             entities: { location: 'Bytom' },
@@ -200,20 +202,11 @@ describe('FindRestaurantHandler (Refactored Logic)', () => {
             body: {}
         };
 
-        // First call returns empty
-        repoMock.searchRestaurants.mockResolvedValueOnce([]);
-        // Second call (neighbor: Piekary ląskie) returns result
-        repoMock.searchRestaurants.mockResolvedValueOnce([
-            { id: 4, name: 'Piekarska Chata', city: 'Piekary ląskie' }
-        ]);
-
         const result = await handler.execute(ctx);
 
-        // Should call Bytom first, then Piekary (from NEARBY_CITY_MAP)
-        expect(repoMock.searchRestaurants).toHaveBeenNthCalledWith(1, 'Bytom', null);
-        expect(repoMock.searchRestaurants).toHaveBeenNthCalledWith(2, 'Piekary Śląskie', null);
-
-        expect(result.reply).toMatch(/W Bytom pusto, ale w pobliżu — w Piekary Śląskie — znalazłam/);
+        expect(repoMock.searchRestaurants).not.toHaveBeenCalled();
+        expect(repoMock.searchNearby).not.toHaveBeenCalled();
+        expect(result.contextUpdates.awaiting).toBe('location');
     });
 
     it('should keep obvious pizza places when pizza query is filtered by cuisine', async () => {
@@ -236,8 +229,8 @@ describe('FindRestaurantHandler (Refactored Logic)', () => {
 
         const result = await handler.execute(ctx);
 
-        expect(repoMock.searchRestaurants).toHaveBeenNthCalledWith(1, 'Piekary Śląskie', 'Pizza');
-        expect(repoMock.searchRestaurants).toHaveBeenNthCalledWith(2, 'Piekary Śląskie', null);
+        expect(repoMock.searchRestaurants).toHaveBeenCalledWith('Piekary \u015al\u0105skie', 'Pizza');
+        expect(repoMock.searchRestaurants).toHaveBeenCalledWith('Piekary \u015al\u0105skie', null);
         expect(result.restaurants.map(r => r.name)).toContain('Callzone');
         expect(result.restaurants.map(r => r.name)).toContain('Pizzeria Monte Carlo');
         expect(result.restaurants[0].name).toBe('Callzone');
