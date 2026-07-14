@@ -34,9 +34,37 @@ const CORS_ORIGINS_DEV = [
   'http://localhost:3000',
   'https://backend-hrth4zsvt-freeflow-build.vercel.app'
 ];
-const ALLOWED_ORIGINS = process.env.NODE_ENV === 'production'
+
+function parseConfiguredOrigins(...values) {
+  return values
+    .flatMap((value) => String(value || '').split(','))
+    .map((value) => value.trim().replace(/\/+$/, ''))
+    .filter((value) => {
+      if (!value) return false;
+      try {
+        const parsed = new URL(value);
+        return parsed.protocol === 'https:' || parsed.protocol === 'http:';
+      } catch {
+        return false;
+      }
+    });
+}
+
+const CONFIGURED_CORS_ORIGINS = parseConfiguredOrigins(
+  process.env.CORS_ALLOWED_ORIGINS,
+  process.env.LIVE_ALLOWED_ORIGINS,
+  process.env.FRONTEND_URL,
+  process.env.APP_URL,
+  process.env.WEB_URL,
+  process.env.VITE_FRONTEND_URL,
+);
+const DEFAULT_CORS_ORIGINS = process.env.NODE_ENV === 'production'
   ? CORS_ORIGINS_PROD
   : [...CORS_ORIGINS_PROD, ...CORS_ORIGINS_DEV];
+const ALLOWED_ORIGINS = Array.from(new Set([
+  ...DEFAULT_CORS_ORIGINS,
+  ...CONFIGURED_CORS_ORIGINS,
+]));
 
 app.use(cors({
   origin: ALLOWED_ORIGINS,
