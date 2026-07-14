@@ -8,7 +8,7 @@ import { extractLocation, extractCuisineType } from '../../nlu/extractors.js';
 import { pluralPl } from '../../utils/formatter.js';
 import { calculateDistance } from '../../helpers.js';
 import { supabase } from '../../../_supabase.js';
-import { scoreGroundedMenuItem } from '../../grounding/menuGrounding.js';
+import { normalizeGroundedMenuQuery, scoreGroundedMenuItem } from '../../grounding/menuGrounding.js';
 
 // ── Discovery Ranking Layer (additive, non-breaking) ──────────
 // Lazy import — jeśli moduł nie istnieje (stare środowisko), discovery po
@@ -103,6 +103,7 @@ function normalizeLooseText(value) {
         .toLowerCase()
         .normalize('NFKD')
         .replace(/[\u0300-\u036f]/g, '')
+        .replace(/ł/g, 'l')
         .replace(/[^a-z0-9\s]/g, ' ')
         .replace(/\s+/g, ' ')
         .trim();
@@ -390,7 +391,8 @@ function extractItemQueryCandidate(ctx, discoveryParams) {
         return null;
     }
 
-    return meaningfulTokens.join(' ');
+    const groundedCandidate = normalizeGroundedMenuQuery(candidate);
+    return groundedCandidate || meaningfulTokens.join(' ');
 }
 
 function scoreMenuItemMatch(item, aliases) {

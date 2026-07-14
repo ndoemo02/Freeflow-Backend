@@ -33,6 +33,7 @@ vi.mock('../../_supabase.js', () => {
                         };
                     }
                     const queryBuilder = Promise.resolve(responseBase);
+                    queryBuilder.eq = vi.fn().mockReturnValue(queryBuilder);
                     queryBuilder.in = vi.fn().mockReturnValue(Promise.resolve(responseBase));
                     return queryBuilder;
                 })

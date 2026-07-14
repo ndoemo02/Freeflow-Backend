@@ -1,8 +1,10 @@
 const QUERY_STOPWORDS = new Set([
     'a', 'albo', 'bym', 'chce', 'chcialbym', 'chcialabym', 'cos', 'czy', 'dla',
-    'do', 'i', 'ja', 'jakies', 'mi', 'moge', 'na', 'o', 'od', 'poprosze',
+    'do', 'i', 'ja', 'jakies', 'jako', 'mi', 'moge', 'na', 'o', 'od', 'poprosze',
     'obiad', 'obiadu', 'posilku', 'prosze', 'restauracji', 'restauracja', 'sie', 'to', 'w', 'wezme', 'z', 'za',
     'zamow', 'zamowic', 'zamawiam', 'ze',
+    'normalny', 'normalna', 'normalne', 'normalnego',
+    'zwykly', 'zwykla', 'zwykle', 'zwyklego',
 ]);
 
 const TOKEN_CANONICALIZERS = [

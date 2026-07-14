@@ -21,6 +21,12 @@ describe('menu grounding', () => {
         )).toBe('wolowina pikant');
     });
 
+    it('drops ordinary-meal phrasing from a spicy beef discovery query', () => {
+        expect(normalizeGroundedMenuQuery(
+            'Chcę wołowinę na ostro jako zwykły obiad',
+        )).toBe('wolowina pikant');
+    });
+
     it('resolves a unique spicy beef item without guessing another beef dish', () => {
         const result = resolveUniqueGroundedMenuItem(
             menu,

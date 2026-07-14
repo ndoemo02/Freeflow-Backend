@@ -4,6 +4,7 @@ const restaurantsInCity = [
     { id: 'r_callzone', name: 'Pizzeria Callzone', city: 'Piekary Slaskie', cuisine_type: 'Pizzeria', lat: 50.39, lng: 18.95 },
     { id: 'r_monte', name: 'Pizzeria Monte Carlo', city: 'Piekary Slaskie', cuisine_type: 'Wloska', lat: 50.38, lng: 18.98 },
     { id: 'r_kebab', name: 'Kebab u Orla', city: 'Piekary Slaskie', cuisine_type: 'Kebab', lat: 50.37, lng: 18.94 },
+    { id: 'r_vien', name: 'Vien-Thien', city: 'Piekary Slaskie', cuisine_type: 'Wietnamska', lat: 50.40, lng: 18.96 },
 ];
 
 const menuRows = [
@@ -12,6 +13,7 @@ const menuRows = [
     { id: 'm4', restaurant_id: 'r_monte', name: 'Lody waniliowe', base_name: 'Lody waniliowe', available: true },
     { id: 'm5', restaurant_id: 'r_kebab', name: 'Kebab w bulce', base_name: 'Kebab w bulce', available: true },
     { id: 'm6', restaurant_id: 'r_kebab', name: 'Mlody Burger', base_name: 'Mlody Burger', available: true },
+    { id: 'm7', restaurant_id: 'r_vien', name: 'Wołowina pikantna', base_name: 'Wołowina pikantna', available: true },
     {
         id: 'm3',
         restaurant_id: 'r_callzone',
@@ -39,7 +41,8 @@ describe('FindRestaurantHandler item-led discovery', () => {
             if (table === 'restaurants') {
                 const limit = vi.fn().mockResolvedValue({ data: restaurantsInCity, error: null });
                 const ilike = vi.fn().mockReturnValue({ limit });
-                const select = vi.fn().mockReturnValue({ ilike });
+                const eq = vi.fn().mockReturnValue({ ilike });
+                const select = vi.fn().mockReturnValue({ eq });
                 return { select };
             }
 
@@ -73,6 +76,26 @@ describe('FindRestaurantHandler item-led discovery', () => {
         const names = (result.restaurants || []).map((restaurant) => restaurant.name);
         expect(names[0]).toBe('Pizzeria Callzone');
         expect(names).not.toContain('Pizzeria Monte Carlo');
+        expect(repo.searchRestaurants).not.toHaveBeenCalled();
+    });
+
+    it('keeps the dish signal when the user clarifies they want an ordinary spicy beef meal', async () => {
+        const { FindRestaurantHandler } = await import('../domains/food/findHandler.js');
+
+        const repo = {
+            searchRestaurants: vi.fn().mockResolvedValue([]),
+            searchNearby: vi.fn().mockResolvedValue([]),
+        };
+
+        const handler = new FindRestaurantHandler(repo);
+        const result = await handler.execute({
+            text: 'Chcę wołowinę na ostro jako zwykły obiad',
+            entities: { tag: 'spicy', tags: ['spicy'] },
+            session: {},
+        });
+
+        expect(result.restaurants?.[0]?.name).toBe('Vien-Thien');
+        expect(result.restaurants?.[0]?.matched_menu_items).toContain('Wołowina pikantna');
         expect(repo.searchRestaurants).not.toHaveBeenCalled();
     });
 
@@ -139,7 +162,8 @@ describe('FindRestaurantHandler item-led discovery', () => {
             if (table === 'restaurants') {
                 const limit = vi.fn().mockResolvedValue({ data: restaurantsInCity, error: null });
                 const ilike = vi.fn().mockReturnValue({ limit });
-                const select = vi.fn().mockReturnValue({ ilike });
+                const eq = vi.fn().mockReturnValue({ ilike });
+                const select = vi.fn().mockReturnValue({ eq });
                 return { select };
             }
 
