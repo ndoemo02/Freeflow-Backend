@@ -256,6 +256,14 @@ function requiresMenuLedDiscovery(itemQuery) {
     return buildItemAliases(itemQuery).some((alias) => MENU_LED_REQUIRED_ALIASES.has(alias));
 }
 
+const GROUNDED_REQUIRED_QUALIFIERS = new Set(['pikant']);
+
+function requiresGroundedQualifierMatch(itemQuery) {
+    return normalizeGroundedMenuQuery(itemQuery)
+        .split(' ')
+        .some((token) => GROUNDED_REQUIRED_QUALIFIERS.has(token));
+}
+
 function parseDbAliases(rawAliases) {
     if (Array.isArray(rawAliases)) {
         return rawAliases
@@ -502,6 +510,7 @@ async function rankRestaurantsByItemFromCandidates({ restaurants, coords, itemQu
         const itemName = item?.base_name || item?.name || '';
         const legacyScore = scoreMenuItemMatch(item, aliases);
         const groundedScore = scoreGroundedMenuItem(item, itemQuery);
+        if (requiresGroundedQualifierMatch(itemQuery) && groundedScore < 75) continue;
         if (legacyScore < 85 && groundedScore < 75) continue;
         const score = Math.max(legacyScore, groundedScore);
 
@@ -576,6 +585,7 @@ async function searchRestaurantsByItemInCity({ location, coords, itemQuery }) {
         const itemName = item?.base_name || item?.name || '';
         const legacyScore = scoreMenuItemMatch(item, aliases);
         const groundedScore = scoreGroundedMenuItem(item, itemQuery);
+        if (requiresGroundedQualifierMatch(itemQuery) && groundedScore < 75) continue;
         if (legacyScore < 85 && groundedScore < 75) continue;
         const score = Math.max(legacyScore, groundedScore);
 

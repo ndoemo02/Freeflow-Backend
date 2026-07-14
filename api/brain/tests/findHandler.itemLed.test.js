@@ -14,6 +14,7 @@ const menuRows = [
     { id: 'm5', restaurant_id: 'r_kebab', name: 'Kebab w bulce', base_name: 'Kebab w bulce', available: true },
     { id: 'm6', restaurant_id: 'r_kebab', name: 'Mlody Burger', base_name: 'Mlody Burger', available: true },
     { id: 'm7', restaurant_id: 'r_vien', name: 'Wołowina pikantna', base_name: 'Wołowina pikantna', available: true },
+    { id: 'm8', restaurant_id: 'r_callzone', name: 'Better Than Drwal - Wołowina', base_name: 'Better Than Drwal - Wołowina', available: true },
     {
         id: 'm3',
         restaurant_id: 'r_callzone',
@@ -96,6 +97,7 @@ describe('FindRestaurantHandler item-led discovery', () => {
 
         expect(result.restaurants?.[0]?.name).toBe('Vien-Thien');
         expect(result.restaurants?.[0]?.matched_menu_items).toContain('Wołowina pikantna');
+        expect(result.restaurants?.map((restaurant) => restaurant.name)).toEqual(['Vien-Thien']);
         expect(repo.searchRestaurants).not.toHaveBeenCalled();
     });
 
