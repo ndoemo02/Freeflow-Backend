@@ -13,6 +13,7 @@ export class SupabaseRestaurantRepository {
         let query = supabase
             .from('restaurants')
             .select('id, name, address, city, cuisine_type, lat, lng, delivery_available, price_level, taxonomy_groups, taxonomy_cats, taxonomy_tags, maps_rating, maps_ratings_total, opening_hours, phone, website, image_url, photo_gallery')
+            .eq('is_active', true)
             .ilike('city', `%${city}%`);
 
         if (cuisine) {
@@ -32,6 +33,7 @@ export class SupabaseRestaurantRepository {
         let query = supabase
             .from('restaurants')
             .select('id, name, address, city, cuisine_type, lat, lng, delivery_available, price_level, taxonomy_groups, taxonomy_cats, taxonomy_tags, maps_rating, maps_ratings_total, opening_hours, phone, website, image_url, photo_gallery')
+            .eq('is_active', true)
             .gte('lat', lat - delta)
             .lte('lat', lat + delta)
             .gte('lng', lng - delta)
@@ -82,6 +84,7 @@ export class InMemoryRestaurantRepository {
         const cityNorm = city.toLowerCase();
 
         const matches = this.restaurants.filter(r => {
+            if (r.is_active === false) return false;
             const rCity = (r.city || "").toLowerCase();
             if (!rCity.includes(cityNorm)) return false;
 
@@ -98,6 +101,7 @@ export class InMemoryRestaurantRepository {
 
     async searchNearby(lat, lng, radiusKm = 10, cuisine = null) {
         const matches = this.restaurants.filter(r => {
+            if (r.is_active === false) return false;
             if (!r.lat || !r.lng) return false;
             if (cuisine) {
                 const cType = (r.cuisine_type || "").toLowerCase();

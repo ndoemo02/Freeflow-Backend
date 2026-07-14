@@ -757,7 +757,10 @@ app.post("/api/tts", async (req, res) => {
 // === RESTAURANTS ===
 app.get("/api/restaurants", async (req, res) => {
   try {
-    const { data, error } = await supabase.from("restaurants").select("*");
+    const { data, error } = await supabase
+      .from("restaurants")
+      .select("*")
+      .eq("is_active", true);
     if (error) throw error;
     res.json({ ok: true, data });
   } catch (err) {

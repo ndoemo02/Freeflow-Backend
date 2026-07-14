@@ -405,6 +405,7 @@ async function loadMenuCatalog(session) {
       supabase
         .from('restaurants')
         .select('id,name')
+        .eq('is_active', true)
         .in('id', restaurantIds),
       new Promise((_, reject) =>
         setTimeout(() => reject(new Error('Restaurants query timeout (2s)')), 2000)
@@ -982,7 +983,8 @@ export async function detectIntent(text, session = null, entities = {}) {
           // ?? Timeout protection: 3s max dla query
           const restaurantsQuery = supabase
             .from('restaurants')
-            .select('id, name');
+            .select('id, name')
+            .eq('is_active', true);
 
           const { data } = await withTimeout(
             restaurantsQuery,
@@ -1408,7 +1410,8 @@ export async function detectIntent(text, session = null, entities = {}) {
     if (!restaurantsList) {
       const { data } = await supabase
         .from('restaurants')
-        .select('id, name');
+        .select('id, name')
+        .eq('is_active', true);
       restaurantsList = data;
     }
 

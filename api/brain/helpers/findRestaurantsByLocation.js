@@ -29,6 +29,7 @@ export async function findRestaurantsByLocation(location, cuisineType = null) {
     let query = supabase
       .from('restaurants')
       .select('id, name, address, city, cuisine_type, lat, lng')
+      .eq('is_active', true)
       .ilike('city', `%${location}%`);
 
     if (cuisineType) {
@@ -58,7 +59,6 @@ export async function findRestaurantsByLocation(location, cuisineType = null) {
     clearTimeout(timeoutId);
   }
 }
-
 
 
 

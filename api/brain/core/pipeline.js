@@ -1589,7 +1589,10 @@ if (intentResult?.intent === 'UNKNOWN_INTENT') {
             if (intent === 'clarify_order' && !sessionContext?.currentRestaurant && (sessionContext?.conversationPhase === 'idle' || !sessionContext?.conversationPhase)) {
                 try {
                     const { supabase } = await import('../../_supabase.js');
-                    const { data } = await supabase.from('restaurants').select('city');
+                    const { data } = await supabase
+                        .from('restaurants')
+                        .select('city')
+                        .eq('is_active', true);
                     if (data) {
                         const cities = [...new Set(data.map(d => d.city).filter(Boolean))].map(c => c.toLowerCase());
                         const lowerText = text.toLowerCase();

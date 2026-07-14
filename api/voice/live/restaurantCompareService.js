@@ -110,7 +110,8 @@ async function queryRestaurantsByIds(ids = []) {
 
     const query = supabase
         .from('restaurants')
-        .select('id, name, city');
+        .select('id, name, city')
+        .eq('is_active', true);
 
     let result;
     if (query && typeof query.in === 'function') {
@@ -128,6 +129,7 @@ async function queryRestaurantsByCity(city, limit = 12) {
     const query = supabase
         .from('restaurants')
         .select('id, name, city')
+        .eq('is_active', true)
         .limit(limit);
 
     const result = await query;

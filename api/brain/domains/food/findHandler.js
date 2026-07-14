@@ -555,6 +555,7 @@ async function searchRestaurantsByItemInCity({ location, coords, itemQuery }) {
     const { data: cityRestaurants, error: restErr } = await supabase
         .from('restaurants')
         .select('id, name, address, city, cuisine_type, lat, lng, delivery_available, price_level, taxonomy_groups, taxonomy_cats, taxonomy_tags, maps_rating, maps_ratings_total, opening_hours, phone, website, image_url, photo_gallery')
+        .eq('is_active', true)
         .ilike('city', `%${location}%`)
         .limit(80);
 

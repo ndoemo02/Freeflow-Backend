@@ -16,7 +16,8 @@ export async function findRestaurant(name) {
   try {
     const { data: restaurants, error } = await supabase
       .from('restaurants')
-      .select('id, name, address, city, lat, lng');
+      .select('id, name, address, city, lat, lng')
+      .eq('is_active', true);
 
     if (error || !restaurants?.length) {
       console.warn('⚠️ findRestaurant: brak danych z Supabase');

@@ -17,7 +17,8 @@ router.get("/nearby", async (req, res) => {
 
     const { data: restaurants, error } = await supabase
       .from("restaurants")
-      .select("id, name, address, lat, lng");
+      .select("id, name, address, lat, lng")
+      .eq("is_active", true);
 
     if (error) throw error;
 

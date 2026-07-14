@@ -39,6 +39,7 @@ export async function resolveRestaurantByName(name, entityCacheRestaurants = [])
         const { data } = await supabase
             .from('restaurants')
             .select('id, name')
+            .eq('is_active', true)
             .ilike('name', `%${name}%`)
             .limit(3);
 
