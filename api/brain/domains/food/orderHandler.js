@@ -1,7 +1,7 @@
 // Food Domain: Order Handler
 // Odpowiada za proces skÄąâ€šadania zamÄ‚Ĺ‚wienia (Parsowanie -> Koszyk -> Potwierdzenie).
 
-import { extractQuantity, normalizeDish, findBestDishMatch, levenshtein } from '../../helpers.js';
+import { extractQuantity, normalizeDish, findBestDishMatch, levenshtein, tokensMatchWithTolerance } from '../../helpers.js';
 import { canonicalizeDish } from '../../nlu/dishCanon.js';
 import { resolveMenuItemConflict, DISAMBIGUATION_RESULT } from '../../services/DisambiguationService.js';
 import { resolveRestaurantByName } from '../../services/restaurantResolver.js';
@@ -319,7 +319,11 @@ function hasDishSignalCompatibility(searchPhrase = '', candidate = null) {
         if (candidateFamilies.has(family)) return true;
     }
 
-    const overlap = searchTokens.filter((token) => candidateTokens.has(token));
+    // Tolerancja literowa skalowana dlugoscia tokenu — bez niej ta bramka
+    // odrzucala trafienie, ktore `findBestDishMatch` juz znalazlo („margarita"
+    // wobec „Margherita"), i uzytkownik dostawal „nie jestem pewna".
+    const overlap = searchTokens.filter((token) => candidateTokens.has(token)
+        || [...candidateTokens].some((candidateToken) => tokensMatchWithTolerance(candidateToken, token)));
     if (overlap.length === 0) {
         return false;
     }
