@@ -127,6 +127,40 @@ export function fuzzyIncludes(name, text) {
   return overlap.length > 0;
 }
 
+/**
+ * Budzet bledu literowego dla pojedynczego tokenu, skalowany jego dlugoscia.
+ *
+ * Krotkie slowa gesto wypelniaja przestrzen jezyka: „kawa" i „lawa" roznia sie
+ * jedna litera i OBA sa prawdziwymi slowami, wiec tolerancja na tej dlugosci
+ * tworzylaby falszywe trafienia. Przy dluzszych nazwach jest odwrotnie —
+ * „margarita" vs „margherita" to ta sama pizza zapisana ze sluchu.
+ */
+function tokenErrorBudget(token = '') {
+  const length = String(token).length;
+  if (length >= 8) return 2;
+  if (length >= 5) return 1;
+  return 0;
+}
+
+/**
+ * Czy dwa tokeny to najpewniej to samo slowo, dopuszczajac literowke.
+ *
+ * Budzet bierzemy z KROTSZEGO tokenu — inaczej dlugi wyraz rozluznialby
+ * dopasowanie krotkiego (np. „lawa" wobec „lawenda").
+ */
+export function tokensMatchWithTolerance(a = '', b = '') {
+  const left = String(a || '');
+  const right = String(b || '');
+  if (!left || !right) return false;
+  if (left === right) return true;
+
+  const budget = Math.min(tokenErrorBudget(left), tokenErrorBudget(right));
+  if (budget <= 0) return false;
+  if (Math.abs(left.length - right.length) > budget) return false;
+
+  return levenshtein(left, right) <= budget;
+}
+
 export function findBestDishMatch(dishText, catalog) {
   const inputNorm = normalizeDish(dishText);
   if (!inputNorm || !catalog || catalog.length === 0) return null;
@@ -142,7 +176,9 @@ export function findBestDishMatch(dishText, catalog) {
 
     const baseTokens = base.split(' ').filter(Boolean);
     const inputTokens = input.split(' ').filter(Boolean);
-    const overlap = inputTokens.filter(t => baseTokens.includes(t)).length;
+    // Tolerancja literowa: bez niej jedna litera („margarita" / „margherita")
+    // zerowala ten skladnik, ktory jest najwiekszy w calej punktacji.
+    const overlap = inputTokens.filter(t => baseTokens.some(bt => tokensMatchWithTolerance(bt, t))).length;
     if (inputTokens.length > 0) {
       score += (overlap / inputTokens.length) * 0.6;
     }

@@ -95,6 +95,46 @@ describe('search_menu_items — cena pozycji', () => {
         expect(result.response.menuItems[0].price).toBe(18);
     });
 
+    it('przenosi dietary_flags do skroconej listy dla modelu', async () => {
+        // Shortlist `menuItems` jest tym, co model traktuje jako WYNIK wyszukiwania.
+        // Pelna karta (`menu`) niesie `dietary_flags`, ale shortlist ich nie mial,
+        // wiec na pytanie „czy to bezglutenowe?" po wczesniejszym wyszukaniu model
+        // odpowiadal z niepelnych danych. To informacja alergenowa — musi byc przy
+        // pozycji, na ktora model patrzy.
+        const router = makeRouter('sess_flags', [
+            {
+                id: 'gf-1',
+                base_name: 'Placki ziemniaczane',
+                price_pln: 29,
+                dietary_flags: ['gluten_free', 'vegetarian'],
+            },
+        ]);
+
+        const result = await router.executeToolCall({
+            sessionId: 'sess_flags',
+            toolName: 'search_menu_items',
+            args: { query: 'placki' },
+            requestId: 'req-flags',
+        });
+
+        expect(result.response.menuItems[0].dietary_flags).toEqual(['gluten_free', 'vegetarian']);
+    });
+
+    it('daje pusta liste flag, gdy pozycja ich nie ma', async () => {
+        const router = makeRouter('sess_flags_empty', [
+            { id: 'plain-1', base_name: 'Rosol', price_pln: 18 },
+        ]);
+
+        const result = await router.executeToolCall({
+            sessionId: 'sess_flags_empty',
+            toolName: 'search_menu_items',
+            args: { query: 'rosol' },
+            requestId: 'req-flags-empty',
+        });
+
+        expect(result.response.menuItems[0].dietary_flags).toEqual([]);
+    });
+
     it('zostawia null, gdy pozycja naprawde nie ma ceny', async () => {
         const router = makeRouter('sess_price_missing', [
             { id: 'noprice-1', base_name: 'Danie dnia', item_tags: ['danie'] },

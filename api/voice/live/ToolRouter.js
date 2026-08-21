@@ -1277,6 +1277,11 @@ export class ToolRouter {
                         variant: x.size_or_variant || null,
                         spicy: !!x.spicy,
                         is_vege: !!x.is_vege,
+                        // Informacja alergenowa (gluten_free / vegan / lactose_free).
+                        // Byla wylacznie w pelnej karcie, a model odpowiada na podstawie
+                        // TEJ listy — wiec pytanie „czy to bezglutenowe?" po wyszukaniu
+                        // trafialo na niepelne dane.
+                        dietary_flags: Array.isArray(x.dietary_flags) ? x.dietary_flags : [],
                         safety: x.safety_data && typeof x.safety_data === 'object' ? {
                             removable: Array.isArray(x.safety_data.removable_ingredients) ? x.safety_data.removable_ingredients : [],
                         } : null,

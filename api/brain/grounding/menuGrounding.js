@@ -1,3 +1,5 @@
+import { tokensMatchWithTolerance } from '../helpers.js';
+
 const QUERY_STOPWORDS = new Set([
     'a', 'albo', 'bym', 'chce', 'chcialbym', 'chcialabym', 'cos', 'czy', 'dla',
     'do', 'i', 'ja', 'jakies', 'jako', 'mi', 'moge', 'na', 'o', 'od', 'poprosze',
@@ -107,8 +109,13 @@ export function scoreGroundedMenuItem(item = {}, query = '', options = {}) {
 
     const corpus = buildItemCorpus(item);
     const allTokens = new Set([...corpus.primaryTokens, ...corpus.metadataTokens]);
-    const totalMatches = queryTokens.filter((token) => allTokens.has(token)).length;
-    const primaryMatches = queryTokens.filter((token) => corpus.primaryTokens.has(token)).length;
+    // `has()` porownuje znakowo, wiec jedna litera zerowala trafienie
+    // („margarita" wobec „margherita"). Tolerancja jest skalowana dlugoscia
+    // tokenu, zeby krotkie slowa nadal wymagaly dokladnosci — patrz helpers.
+    const matchesToken = (pool, token) => pool.has(token)
+        || [...pool].some((candidate) => tokensMatchWithTolerance(candidate, token));
+    const totalMatches = queryTokens.filter((token) => matchesToken(allTokens, token)).length;
+    const primaryMatches = queryTokens.filter((token) => matchesToken(corpus.primaryTokens, token)).length;
     const coverage = totalMatches / queryTokens.length;
     const primaryCoverage = primaryMatches / queryTokens.length;
 
