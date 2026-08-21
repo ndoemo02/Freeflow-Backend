@@ -80,7 +80,9 @@ function setCorsHeaders(req, res) {
 
   res.setHeader('Access-Control-Allow-Origin', origin);
   res.setHeader('Access-Control-Allow-Methods', 'POST,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  // Patrz komentarz w `token.js` — `Authorization` przychodzi z frontendu tylko
+  // dla zalogowanych, wiec jego brak w tej liscie wywracal Live po zalogowaniu.
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   res.setHeader('Vary', 'Origin');
   return originCheck;
 }

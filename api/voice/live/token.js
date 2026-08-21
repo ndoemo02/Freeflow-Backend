@@ -66,7 +66,11 @@ export default async function handler(req, res) {
     if (originAllowed) {
         res.setHeader?.('Access-Control-Allow-Origin', origin);
         res.setHeader?.('Access-Control-Allow-Methods', 'POST,OPTIONS');
-        res.setHeader?.('Access-Control-Allow-Headers', 'Content-Type');
+        // `Authorization` MUSI byc dopuszczony: frontend dokłada go warunkowo
+        // dla zalogowanego uzytkownika, wiec bez tego przegladarka blokuje
+        // zadanie na preflighcie i Live nie wchodzi — ale tylko po zalogowaniu.
+        // Endpoint tego naglowka nie czyta (P6); to jest zgoda CORS, nie auth.
+        res.setHeader?.('Access-Control-Allow-Headers', 'Content-Type, Authorization');
         res.setHeader?.('Vary', 'Origin');
     }
 
