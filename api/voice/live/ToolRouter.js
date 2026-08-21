@@ -1263,7 +1263,12 @@ export class ToolRouter {
                     menuItems: matches.map((x) => ({
                         id: x.id,
                         name: x.base_name || x.name,
-                        price: x.price ?? null,
+                        // `price_pln` MUSI byc pierwszy — tak nazywa sie kolumna
+                        // w bazie. Samo `x.price` dawalo `null` dla kazdej pozycji,
+                        // wiec model dostawal nazwy dan bez cen (`show_menu` czytal
+                        // poprawne pole, stad niekonsekwentny objaw). Kolejnosc
+                        // zgodna z `readItemUnitPrice()` wyzej w tym pliku.
+                        price: x.price_pln ?? x.price ?? null,
                         tags: Array.isArray(x.item_tags) ? x.item_tags : [],
                         category: x.category || null,
                         description: x.description || null,
