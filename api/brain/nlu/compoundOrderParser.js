@@ -1,4 +1,4 @@
-import { findBestDishMatch, levenshtein } from '../helpers.js';
+import { findBestDishMatch, levenshtein, MENU_UNIT_TOKENS } from '../helpers.js';
 
 const SPLIT_REGEX = /\s*(?:,|\+|\boraz\b|\bi\b)\s*/gi;
 const LETTER_PATTERN = '[a-zA-ZąćęłńóśźżĄĆĘŁŃÓŚŹŻ]';
@@ -31,7 +31,14 @@ const QTY_WORDS = new Map([
 ]);
 const QTY_WORD_KEYS = [...QTY_WORDS.keys()].join('|');
 const LEADING_WORD_QTY_REGEX = new RegExp(`^\\s*(${QTY_WORD_KEYS})\\s*(?:x|razy)?\\b\\s*`, 'i');
-const INLINE_QTY_BREAK_REGEX = new RegExp(`\\s+(?=(?:\\d+\\s*(?:x|razy)?\\s*${LETTER_PATTERN}|(?:${QTY_WORD_KEYS})\\s+${LETTER_PATTERN}))`, 'gi');
+
+// Liczba, po ktorej stoi jednostka miary z karty ("32 cm", "500 ml", "6 szt.")
+// nalezy do NAZWY dania, nie do ilosci — nie wolno w tym miejscu dzielic zamowienia.
+// Lista jednostek zywi sie z helpers.js, zeby nie powstala jej druga kopia.
+const MENU_UNIT_PATTERN = MENU_UNIT_TOKENS.join('|');
+const NUMBER_WITH_MENU_UNIT = `\\d+\\s*(?:${MENU_UNIT_PATTERN})\\b`;
+
+const INLINE_QTY_BREAK_REGEX = new RegExp(`\\s+(?!${NUMBER_WITH_MENU_UNIT})(?=(?:\\d+\\s*(?:x|razy)?\\s*${LETTER_PATTERN}|(?:${QTY_WORD_KEYS})\\s+${LETTER_PATTERN}))`, 'gi');
 
 const FILLER_WORDS = new Set([
     'mi', 'prosze', 'poprosze', 'dodaj', 'chce', 'wezme', 'wezme', 'zamawiam', 'podaj', 'oraz', 'i', 'zamowie',

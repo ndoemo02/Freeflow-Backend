@@ -240,6 +240,20 @@ Object.assign(QTY_WORDS, {
   podwojnie: 2,
 });
 
+/**
+ * Jednostki miary, ktore w karcie nalezą do NAZWY dania, nie do liczby sztuk:
+ * "Pizza Margherita 32 cm", "Cola 500 ml", "Pierogi 6 szt.".
+ *
+ * Zrodlo prawdy dla obu miejsc liczacych ilosc — `extractQuantity` ponizej
+ * oraz `compoundOrderParser`. Trzymane w jednym miejscu swiadomie: w sesji 18g
+ * ta sama logika istniala w dwoch kopiach, ochrone mial tylko `extractQuantity`,
+ * a compound parser robil z "32 cm" osobna pozycje o ilosci 32. Patrz §9 CLAUDE.md.
+ *
+ * Kolejnosc ma znaczenie przy budowie alternatywy regexowej — dluzsze warianty
+ * musza stac przed krotszymi, inaczej "sztuk" zostanie zjedzone przez "szt".
+ */
+export const MENU_UNIT_TOKENS = ['sztuki', 'sztuk', 'szt', 'gramow', 'gram', 'kg', 'cm', 'ml', 'g', 'l'];
+
 export function extractQuantity(text) {
   if (!text) return 1;
   const normalized = normalizeTxt(text);
@@ -261,7 +275,7 @@ export function extractQuantity(text) {
 
   // 3. Bare number fallback (e.g. "2 burgery"), skipping menu spec units
   // like "... 6 szt." / "30 cm" / "500 ml" that usually belong to dish names.
-  const unitLikeNextTokens = ['szt', 'sztuk', 'sztuki', 'cm', 'ml', 'l', 'g', 'kg', 'gram', 'gramow'];
+  const unitLikeNextTokens = MENU_UNIT_TOKENS;
   const numberRegex = /\b(\d+)\b/g;
   let numberMatch;
   while ((numberMatch = numberRegex.exec(normalized)) !== null) {
