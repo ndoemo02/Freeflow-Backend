@@ -10,7 +10,7 @@ import { calculateDistance } from '../../helpers.js';
 import { supabase } from '../../../_supabase.js';
 import { normalizeGroundedMenuQuery, scoreGroundedMenuItem } from '../../grounding/menuGrounding.js';
 import { filterRestaurantsForPublicDemo, isPublicDemoCatalogOnly } from '../../data/restaurantCatalog.js';
-import { DEMO_SCENARIOS, DEFAULT_DEMO_SCENARIO_ID } from '../../../demo/demoContext.js';
+import { resolveDemoCatalogScope } from '../../../demo/demoContext.js';
 import { buildDiscoveryRawText, resolveDiscoverySource } from '../../discovery/queryContext.js';
 import { verifyMenuItemAgainstQuery } from '../../discovery/itemTaxonomyVerification.js';
 import {
@@ -71,15 +71,10 @@ const NEARBY_CITY_MAP = {
 // --- Helper Functions (Pure Logic) ---
 
 function resolveServiceProfile(session = {}) {
-    const hasExplicitDemoContext = Boolean(
-        session?.demoScenarioId
-        || session?.demoDatasetId
-        || session?.demoContext
-    );
-    const scenarioId = session?.demoScenarioId
-        || session?.demoContext?.scenarioId
-        || DEFAULT_DEMO_SCENARIO_ID;
-    const scenario = DEMO_SCENARIOS[scenarioId] || DEMO_SCENARIOS[DEFAULT_DEMO_SCENARIO_ID];
+    // Predykat kontekstu demo zyje w `demo/demoContext.js`, zeby `menu_request`
+    // liczyl go tak samo jak `find_nearby` — rozjazd tych dwoch miejsc byl
+    // przyczyna wycieku nazw realnych lokali z 18g §K.
+    const { hasExplicitDemoContext, scenario } = resolveDemoCatalogScope(session);
     return {
         scenarioId: scenario.id,
         city: scenario.city,

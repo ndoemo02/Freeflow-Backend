@@ -1,6 +1,8 @@
 import { supabase } from "../_supabase.js";
 import { getSession } from "./context.js";
 import { normalize, fuzzyMatch } from "./orderService.js";
+import { filterRestaurantsForPublicDemo, isPublicDemoCatalogOnly } from "./data/restaurantCatalog.js";
+import { resolveDemoCatalogScope } from "../demo/demoContext.js";
 
 const CUISINE_ALIASES = {
   azjatyckie: ["Wietnamska", "Chińska", "Tajska"],
@@ -298,26 +300,81 @@ export async function findRestaurantByName(name) {
 export async function getLocationFallback(
   sessionId,
   prevLocation,
-  messageTemplate
+  messageTemplate,
+  callerSession = null
 ) {
   if (!prevLocation) return null;
 
   console.log(`🧭 Semantic fallback: using last_location = ${prevLocation}`);
-  const session = getSession(sessionId);
+
+  // UWAGA (18h): `getSession` pochodzi z `brain/context.js`, ktore trzyma WLASNA
+  // mape sesji — inna niz `brain/session/sessionStore.js`, do ktorej pisze pipeline.
+  // W runtime nikt do tej pierwszej nie pisze, wiec odczyt zwraca `null`. Zostawiony
+  // wylacznie jako zrodlo `locationCache`, zeby nie wlaczac po cichu martwego cache
+  // przy okazji naprawy P0 (osobna zmiana zachowania, poza zakresem).
+  const cacheSession = getSession(sessionId);
   const locationRestaurants = await findRestaurantsByLocation(
     prevLocation,
     null,
-    session
+    cacheSession
   );
 
   if (!locationRestaurants?.length) return null;
 
-  const restaurantList = locationRestaurants
+  // Zasieg katalogu MUSI isc z sesji pipeline'u, ktora podaje wolajacy — inaczej
+  // liczylby sie z pustki i filtr nigdy by sie nie wlaczyl (18g powtorzone).
+  const { hasExplicitDemoContext, datasetId } = resolveDemoCatalogScope(
+    callerSession ?? cacheSession
+  );
+
+  return buildLocationFallbackMessage(
+    locationRestaurants,
+    prevLocation,
+    messageTemplate,
+    {
+      demoOnly: isPublicDemoCatalogOnly() || hasExplicitDemoContext,
+      datasetId,
+    }
+  );
+}
+
+/**
+ * Buduje komunikat „najpierw wybierz restauracje" — czysta funkcja, bez I/O.
+ *
+ * P0 z sesji 18g §K: ta lista trafia do uzytkownika I do TTS, wiec musi przejsc
+ * przez ten sam filtr katalogu co discovery. Bez tego `menu_request` wymienial
+ * z nazwy piec REALNYCH restauracji o `publication_status='private'`, ktore nie
+ * wyrazily zgody na publikacje (§8). Filtr byl wolany wylacznie w findHandler.js
+ * — czyli stal przy jednym wejsciu zamiast przy zrodle.
+ *
+ * Wydzielone z `getLocationFallback` swiadomie: w 18g proba przetestowania tej
+ * logiki nie powiodla sie, bo `findRestaurantsByLocation` jest w tym samym module
+ * i wolana bezposrednio, wiec w ESM nie da sie jej podmienic — test przechodzil
+ * trywialnie i zostal usuniety. Rozdzielenie I/O od skladania tekstu usuwa problem
+ * zamiast z nim walczyc. Kontrakt: `locationFallbackDemoFilter.test.js`.
+ *
+ * Argumenty `demoOnly` i `datasetId` sa te same, ktore podaje `findHandler.js`
+ * przy `find_nearby` — rozjazd tych dwoch wywolan byl przyczyna wycieku.
+ */
+export function buildLocationFallbackMessage(
+  restaurants,
+  prevLocation,
+  messageTemplate,
+  { demoOnly = isPublicDemoCatalogOnly(), datasetId = null } = {}
+) {
+  const publishable = filterRestaurantsForPublicDemo(restaurants, demoOnly, datasetId);
+  if (!publishable.length) return null;
+
+  const restaurantList = publishable
     .map((r, i) => `${i + 1}. ${r.name}`)
     .join("\n");
+
+  // Licznik MUSI isc z listy po filtrze. Przed naprawa czytal surowa liste, wiec
+  // komunikat mowil „(10)" i wypisywal 5 pozycji — zdradzajac istnienie ukrytych
+  // lokali nawet bez podania ich nazw.
   return messageTemplate
     .replace("{location}", prevLocation)
-    .replace("{count}", locationRestaurants.length)
+    .replace("{count}", publishable.length)
     .replace("{list}", restaurantList);
 }
 

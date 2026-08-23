@@ -223,7 +223,10 @@ export class MenuHandler {
             const fallback = await getLocationFallback(
                 sessionId,
                 session?.last_location,
-                'Najpierw wybierz restauracje w {location}, a potem pokaze menu:\n{list}\n\nKtora Cie interesuje?'
+                'Najpierw wybierz restauracje w {location}, a potem pokaze menu:\n{list}\n\nKtora Cie interesuje?',
+                // Sesja pipeline'u — bez niej filtr katalogu demo nie ma z czego
+                // wyliczyc zasiegu i lista wymienia realne lokale (18g §K).
+                session
             );
 
             if (fallback) {

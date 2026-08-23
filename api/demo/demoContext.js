@@ -81,3 +81,36 @@ export function buildDemoSessionPatch(context) {
         preferredLocale: resolved.preferredLocale,
     };
 }
+
+/**
+ * Zasieg katalogu demo wynikajacy z SESJI — wspolne zrodlo prawdy dla wszystkich
+ * miejsc, ktore pokazuja uzytkownikowi liste lokali.
+ *
+ * Powstalo w sesji 18h. Do tej pory ta logika istniala wylacznie jako prywatna
+ * `resolveServiceProfile()` w `findHandler.js`, przez co `find_nearby` filtrowal
+ * katalog, a `menu_request` (przez `getLocationFallback`) juz nie — i wymienial
+ * z nazwy realne lokale bez zgody na publikacje (18g §K).
+ *
+ * UWAGA — dlaczego to NIE jest oparte o `FREEFLOW_DEMO_CATALOG_ONLY`: ta zmienna
+ * nie jest ustawiona na zadnym srodowisku (sprawdzone `vercel env ls`, 2026-08-23).
+ * Filtrowanie widoczne na produkcji bralo sie wylacznie stad — z kontekstu sesji.
+ * Zapis w 18g „zmienna jest ustawiona" byl wnioskiem z obserwacji, nie odczytem.
+ */
+export function resolveDemoCatalogScope(session) {
+    const hasExplicitDemoContext = Boolean(
+        session?.demoScenarioId
+        || session?.demoDatasetId
+        || session?.demoContext
+    );
+    const scenarioId = session?.demoScenarioId
+        || session?.demoContext?.scenarioId
+        || DEFAULT_DEMO_SCENARIO_ID;
+    const scenario = DEMO_SCENARIOS[scenarioId] || DEMO_SCENARIOS[DEFAULT_DEMO_SCENARIO_ID];
+
+    return {
+        hasExplicitDemoContext,
+        scenarioId: scenario.id,
+        datasetId: scenario.datasetId,
+        scenario,
+    };
+}
