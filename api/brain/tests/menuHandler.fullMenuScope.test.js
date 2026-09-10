@@ -1,3 +1,4 @@
+vi.mock('../../demo/demoVenueAccess.js', () => ({ requireDemoVenues: vi.fn(async () => {}) }));
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../menuService.js', () => ({

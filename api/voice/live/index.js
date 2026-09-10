@@ -1,14 +1,11 @@
+import { runLiveSessionOperation } from './liveSessionQueue.js';
 import { ToolRouter } from './ToolRouter.js';
 import { LIVE_TOOL_SCHEMAS, toGeminiFunctionDeclarations } from './ToolSchemas.js';
 import { GeminiLiveGateway } from './GeminiLiveGateway.js';
 import { validateLiveInternalKey, validateLiveOrigin } from './liveSecurity.js';
 import { buildInitialTurnTrace } from './liveTurnLedger.js';
 import openAIRealtimeSessionHandler, { getOpenAIRealtimeFallbackConfig } from './openai-session.js';
-import { updateSession } from '../../brain/session/sessionStore.js';
-import {
-    buildDemoSessionPatch,
-    resolveDemoContextFromRequest,
-} from '../../demo/demoContext.js';
+import { prepareLiveSession, persistLiveSession, liveSessionErrorResponse } from './liveSessionBoundary.js';
 import { validateSessionId } from '../../brain/session/sessionIdContract.js';
 
 let gateway = null;
@@ -147,8 +144,8 @@ export function registerLiveRoutes(app) {
 
         const normalizedSessionId = sessionIdVerdict.sessionId;
         try {
-      const demoContext = resolveDemoContextFromRequest(body);
-      updateSession(normalizedSessionId, buildDemoSessionPatch(demoContext));
+      return await runLiveSessionOperation(normalizedSessionId, async () => {
+      await prepareLiveSession(normalizedSessionId, body, req);
       const turnTrace = buildInitialTurnTrace({
         sessionId: normalizedSessionId,
         turnId,
@@ -174,19 +171,16 @@ export function registerLiveRoutes(app) {
         },
       });
 
+      await persistLiveSession(normalizedSessionId);
       const backendMs = result.backend_ms || (Date.now() - t0);
       result.backend_ms = backendMs;
 
             const status = result.ok ? 200 : 400;
             return res.status(status).json(result);
+      });
         } catch (error) {
-            if (error?.statusCode === 400) {
-                return res.status(400).json({
-                    ok: false,
-                    error: 'invalid_demo_context',
-                    detail: error.message,
-                });
-            }
+            const failure = liveSessionErrorResponse(error);
+            if (failure) return res.status(failure.status).json(failure.body);
             return res.status(500).json({
                 ok: false,
                 error: 'live_tool_router_error',

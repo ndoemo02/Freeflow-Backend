@@ -190,16 +190,6 @@ describe('T7 / zamrozenie stanu confirmHandler', () => {
     expect(withoutComments).not.toMatch(/persistOrderToDB\s*\(/);
   });
 
-  it('api/orders.js NIE zapisuje idempotency_key - nie moze deduplikowac', () => {
-    const file = path.resolve(process.cwd(), 'api/orders.js');
-    const source = fs.readFileSync(file, 'utf8');
-    const withoutComments = source
-      .replace(/\/\*[\s\S]*?\*\//g, '')
-      .replace(/^\s*\/\/.*$/gm, '');
+  // Manual POST deduplication is covered behaviorally in paymentFlow.test.js.
 
-    // Zywa scieszka zapisu nie zna klucza idempotencji, wiec dwa identyczne
-    // POSTy tworza dwa zamowienia. To jest realne ryzyko duplikatu DZIS,
-    // niezaleznie od tego, czy persistOrderToDB kiedykolwiek zostanie wlaczone.
-    expect(withoutComments).not.toMatch(/idempotency_key/);
-  });
 });

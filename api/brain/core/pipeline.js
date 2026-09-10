@@ -1624,7 +1624,7 @@ if (intentResult?.intent === 'UNKNOWN_INTENT') {
                     const { data } = await supabase
                         .from('restaurants')
                         .select('city')
-                        .eq('is_active', true);
+                        .eq('is_active', true).eq('publication_status', 'demo_fictional');
                     if (data) {
                         const cities = [...new Set(data.map(d => d.city).filter(Boolean))].map(c => c.toLowerCase());
                         const lowerText = text.toLowerCase();

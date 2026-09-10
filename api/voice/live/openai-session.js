@@ -1,11 +1,8 @@
+import { runLiveSessionOperation } from './liveSessionQueue.js';
 import { createHash } from 'node:crypto';
 import { LIVE_TOOL_SCHEMAS } from './ToolSchemas.js';
 import { validateLiveOrigin } from './liveSecurity.js';
-import { updateSession } from '../../brain/session/sessionStore.js';
-import {
-  buildDemoSessionPatch,
-  resolveDemoContextFromRequest,
-} from '../../demo/demoContext.js';
+import { prepareLiveSession, liveSessionErrorResponse } from './liveSessionBoundary.js';
 import { validateSessionId } from '../../brain/session/sessionIdContract.js';
 
 const DEFAULT_MODEL = 'gpt-realtime-2.1-mini';
@@ -170,15 +167,12 @@ export default async function openAIRealtimeSessionHandler(req, res) {
   const sessionId = sessionIdVerdict.sessionId;
   let demoContext;
   try {
-    demoContext = resolveDemoContextFromRequest(body);
+    const session = await runLiveSessionOperation(sessionId, () => prepareLiveSession(sessionId, body, req));
+    demoContext = session.demoContext;
   } catch (error) {
-    return res.status(400).json({
-      ok: false,
-      error: 'invalid_demo_context',
-      detail: error?.message || 'invalid_demo_context',
-    });
+    const failure = liveSessionErrorResponse(error);
+    return res.status(failure?.status || 503).json(failure?.body || { ok: false, error: 'live_session_unavailable' });
   }
-  updateSession(sessionId, buildDemoSessionPatch(demoContext));
   const sessionConfig = buildSessionConfig(body.instructions, demoContext);
 
   try {

@@ -1,5 +1,10 @@
 {
   "version": 2,
+  "git": {
+    "deploymentEnabled": {
+      "fix/demo-order-transitions": false
+    }
+  },
   "builds": [
     {
       "src": "api/server-vercel.js",

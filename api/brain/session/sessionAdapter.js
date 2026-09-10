@@ -1,3 +1,4 @@
+import { getDefault } from '../ai/contextState.js';
 import { createClient } from '@supabase/supabase-js';
 import { requireValidSessionId } from './sessionIdContract.js';
 
@@ -29,9 +30,11 @@ function hasSupabaseConfig() {
     return Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
 }
 
-function getSupabase() {
-    if (!hasSupabaseConfig()) return null;
-    if (supabaseMode === 'memory') return null;
+function getSupabase({ requireDurable = false } = {}) {
+    if (!hasSupabaseConfig() || supabaseMode === 'memory') {
+        if (requireDurable) throw new Error('durable_session_store_unavailable');
+        return null;
+    }
 
     if (!supabaseClient) {
         supabaseClient = createClient(
@@ -116,7 +119,8 @@ function writeToMemory(sessionId, data, updatedAt = nowIso()) {
     };
 }
 
-async function loadFromSupabase(supabase, sessionId) {
+async function loadFromSupabase(supabase, sessionId, { requireDurable = false } = {}) {
+    let schemaError;
     for (const mode of modeCandidates()) {
         let data = null;
         let error = null;
@@ -137,10 +141,12 @@ async function loadFromSupabase(supabase, sessionId) {
 
         if (error) {
             if (isMissingTableError(error) || isPermissionDeniedError(error)) {
+                if (requireDurable) throw error;
                 disableSupabase(error);
                 return null;
             }
             if (isSchemaMismatchError(error)) {
+                schemaError = error;
                 continue;
             }
             throw error;
@@ -156,10 +162,12 @@ async function loadFromSupabase(supabase, sessionId) {
         };
     }
 
+    if (requireDurable) throw schemaError || new Error('durable_session_schema_unavailable');
     return null;
 }
 
-async function saveToSupabase(supabase, sessionId, data, updatedAt) {
+async function saveToSupabase(supabase, sessionId, data, updatedAt, { requireDurable = false } = {}) {
+    let schemaError;
     for (const mode of modeCandidates()) {
         let error = null;
 
@@ -189,10 +197,12 @@ async function saveToSupabase(supabase, sessionId, data, updatedAt) {
 
         if (error) {
             if (isMissingTableError(error) || isPermissionDeniedError(error)) {
+                if (requireDurable) throw error;
                 disableSupabase(error);
                 return null;
             }
             if (isSchemaMismatchError(error)) {
+                schemaError = error;
                 continue;
             }
             throw error;
@@ -206,6 +216,7 @@ async function saveToSupabase(supabase, sessionId, data, updatedAt) {
         };
     }
 
+    if (requireDurable) throw schemaError || new Error('durable_session_schema_unavailable');
     return null;
 }
 
@@ -253,20 +264,27 @@ async function touchInSupabase(supabase, sessionId, updatedAt) {
     return null;
 }
 
-export async function loadSession(sessionId) {
+export async function loadSession(sessionId, options = {}) {
     const normalizedSessionId = ensureSessionId(sessionId);
-    const supabase = getSupabase();
+    const supabase = getSupabase(options);
 
     if (!supabase) {
         return readFromMemory(normalizedSessionId);
     }
 
-    const row = await loadFromSupabase(supabase, normalizedSessionId);
+    const row = await loadFromSupabase(supabase, normalizedSessionId, options);
     if (!row) {
+        if (options.requireDurable) return null;
         return readFromMemory(normalizedSessionId);
     }
 
     if (isExpired(row.updated_at)) {
+        // Expiration resets conversation data, never the authenticated ownership.
+        // Deleting/recreating an owned row would permit another user to claim its ID.
+        if (row.data?.ownerUserId) {
+            return { ...row, data: { ...getDefault(), ownerUserId: row.data.ownerUserId }, updated_at: nowIso() };
+        }
+        if (options.requireDurable) return null;
         try {
             if (supabaseMode === 'session_payload') {
                 await supabase.from('brain_sessions').delete().eq('session_id', normalizedSessionId);
@@ -284,17 +302,17 @@ export async function loadSession(sessionId) {
     return row;
 }
 
-export async function saveSession(session) {
+export async function saveSession(session, options = {}) {
     const normalizedSessionId = ensureSessionId(session?.id);
     const data = (session?.data && typeof session.data === 'object') ? session.data : {};
     const updatedAt = nowIso();
-    const supabase = getSupabase();
+    const supabase = getSupabase(options);
 
     if (!supabase) {
         return writeToMemory(normalizedSessionId, data, updatedAt);
     }
 
-    const saved = await saveToSupabase(supabase, normalizedSessionId, data, updatedAt);
+    const saved = await saveToSupabase(supabase, normalizedSessionId, data, updatedAt, options);
     if (!saved) {
         return writeToMemory(normalizedSessionId, data, updatedAt);
     }

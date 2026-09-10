@@ -125,7 +125,7 @@ export async function authenticateOwner(req) {
   try {
     const { supabase } = await import('./_supabase.js');
     const { data, error } = await supabase.auth.getUser(token);
-    if (error || !data?.user?.id) {
+    if (error || !data?.user?.id || data.user.is_anonymous === true) {
       return { ok: false, status: 401, error: 'unauthorized' };
     }
     return { ok: true, userId: data.user.id };

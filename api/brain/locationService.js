@@ -84,7 +84,6 @@ const NEARBY_CITY_SUGGESTIONS = {
   chorzow: ["Katowice", "Piekary Śląskie", "Bytom"],
 };
 
-const LOCATION_CACHE_TTL = 5 * 60 * 1000; // 5 minut
 
 function withTimeout(promise, timeoutMs, operationName) {
   const timeoutPromise = new Promise((_, reject) => {
@@ -193,27 +192,13 @@ export async function findRestaurantsByLocation(
   const cacheKey = `${normalize(location)}_${cuisineType || "all"}`;
   const now = Date.now();
 
-  if (session?.locationCache?.[cacheKey]) {
-    const cached = session.locationCache[cacheKey];
-    if (cached.timestamp > now - LOCATION_CACHE_TTL) {
-      console.log(
-        `💾 Cache HIT for location: "${location}"${
-          cuisineType ? ` (cuisine: ${cuisineType})` : ""
-        }`
-      );
-      return cached.data;
-    }
-    console.log(
-      `💾 Cache EXPIRED for location: "${location}" (age: ${Math.round(
-        (now - cached.timestamp) / 1000
-      )}s)`
-    );
-  }
+  // Query current publication status instead of trusting a stale location cache.
 
   try {
     let query = supabase
       .from("restaurants")
-      .select("id, name, address, city, cuisine_type, lat, lng")
+      .select("id, name, address, city, cuisine_type, lat, lng, publication_status, is_active")
+      .eq("publication_status", "demo_fictional").eq("is_active", true)
       .ilike("city", `%${location}%`);
 
     if (cuisineType) {
@@ -268,7 +253,8 @@ export async function findRestaurantByName(name) {
   try {
     const { data: restaurants, error } = await supabase
       .from("restaurants")
-      .select("id, name, address, city, lat, lng");
+      .select("id, name, address, city, lat, lng")
+      .eq("publication_status", "demo_fictional").eq("is_active", true);
 
     if (error || !restaurants?.length) {
       console.warn("⚠️ findRestaurant: brak danych z Supabase");

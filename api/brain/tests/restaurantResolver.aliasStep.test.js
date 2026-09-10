@@ -48,11 +48,12 @@ beforeEach(() => {
 });
 
 describe('resolveRestaurantByName — krok 1 (entity cache)', () => {
-  it('trafienie w cache nie odpytuje bazy w ogole', async () => {
+  it('stale cache cannot bypass current catalog visibility', async () => {
     const cache = [{ id: 'cache-1', name: 'Klaps Burgers' }];
     const result = await resolveRestaurantByName('klaps', cache);
-    expect(result).toEqual({ id: 'cache-1', name: 'Klaps Burgers' });
-    expect(ilikeSpy).not.toHaveBeenCalled();
+    expect(result).toBeNull();
+    expect(ilikeSpy).toHaveBeenCalledWith('name', '%klaps%');
+    expect(ilikeSpy).toHaveBeenCalledWith('aliases', '%klaps%');
   });
 });
 

@@ -1,4 +1,6 @@
-﻿/**
+import { createHash } from 'node:crypto';
+import { priceOrder, cents, paymentError, canonicalJson } from './orders/orderPricing.js';
+/**
  * api/orders.js
  * â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
  * @DEPRECATED dla Voice/Brain V2 flow
@@ -18,7 +20,8 @@
 import { supabase } from "./_supabase.js";
 import { applyCORS } from "./_cors.js";
 import { normalizeTxt, levenshtein } from "./brain/helpers.js";
-import { isAdminRequest, requireAdmin } from "./_auth.js";
+import { isAdminRequest, requireAdmin, requireOwner } from "./_auth.js";
+import { requireSessionAccess, sessionAccessError } from './brain/session/sessionAccess.js';
 
 /**
  * @DEPRECATED - Używaj ConfirmOrderHandler dla Voice flow
@@ -243,7 +246,7 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,POST');
   res.setHeader(
     'Access-Control-Allow-Headers',
-    'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization, X-Admin-Token'
+    'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization, X-Admin-Token, Idempotency-Key'
   );
 
   if (req.method === 'OPTIONS') {
@@ -256,19 +259,11 @@ export default async function handler(req, res) {
     try {
       const { user_id, restaurant_id } = req.query;
       const admin = isAdminRequest(req);
+      const auth = admin ? null : await requireOwner(req, res);
+      if (!admin && !auth) return;
 
-      // T1 / filtr autoryzacyjny (etap 1 z SS9 planu hardeningu).
-      // Przed zmiana: brak parametrow ALBO samo user_email (ktore i tak bylo
-      // jawnie ignorowane) zwracalo CALA tabele orders razem z PII
-      // kazdemu anonimowemu klientowi. Teraz pelna lista wymaga tokenu admina,
-      // a kazdy inny odczyt musi podac zakres.
-      if (!admin && !restaurant_id && !user_id) {
-        return res.status(400).json({
-          ok: false,
-          error: 'scope_required',
-          detail: 'Podaj restaurant_id albo user_id. Pelna lista wymaga naglowka x-admin-token.'
-        });
-      }
+      // Query parameters only narrow results; JWT identity grants customer access.
+      if (!admin && user_id && user_id !== auth.userId) return res.status(404).json({ ok: false, error: 'not_found' });
 
       let query = supabase
         .from('orders')
@@ -281,6 +276,9 @@ export default async function handler(req, res) {
         `)
         .order('created_at', { ascending: false });
 
+      if (!admin) query = query.eq('user_id', auth.userId);
+      const orderId = extractOrderId(req);
+      if (orderId) query = query.eq('id', orderId);
       if (restaurant_id) {
         query = query.eq('restaurant_id', restaurant_id);
       } else if (user_id) {
@@ -313,11 +311,18 @@ export default async function handler(req, res) {
   // POST - utwórz zamówienie
   if (req.method === 'POST') {
     try {
+      const auth = await requireOwner(req, res);
+      if (!auth) return;
+      const requestKey = req.headers['idempotency-key'];
+      if (typeof requestKey !== 'string' || !/^[a-zA-Z0-9_-]{16,128}$/.test(requestKey)) throw paymentError('idempotency_key_required', 400);
+      const idempotencyKey = createHash('sha256').update(`${auth.userId}:${requestKey}`).digest('hex');
+      const sessionId = req.body?.session_id || req.headers['x-amber-session-id'] || null;
+      if (sessionId) await requireSessionAccess(req, sessionId);
       // đź”Ą Check if this is a cart order (from frontend)
       if (req.body.restaurant_id && req.body.items && Array.isArray(req.body.items)) {
-        console.log('đź›’ Cart order detected:', req.body);
 
-        const { restaurant_id, items, user_id, customer_name, customer_phone, delivery_address, notes } = req.body;
+
+        const { restaurant_id, items, customer_name, customer_phone, delivery_address, notes } = req.body;
 
         let { total_price, total_cents } = req.body;
 
@@ -336,41 +341,20 @@ export default async function handler(req, res) {
           });
         }
 
-        // --- Currency Normalization Strategy ---
-        // 1. If explicit total_cents is provided (New Frontend), use it as ground truth.
-        // 2. If valid total_price (PLN) is provided, derive cents from it.
-        // 3. Fallback: calculate from items.
-
-        let finalCents = 0;
-        let finalPLN = 0;
-
-        if (total_cents !== undefined && total_cents !== null && !isNaN(Number(total_cents))) {
-          finalCents = Number(total_cents);
-          finalPLN = finalCents / 100;
-        } else if (total_price !== undefined && total_price !== null && !isNaN(Number(total_price))) {
-          // Heuristic: If total_price seems huge (legacy cents), treat as cents.
-          // Note: Frontend update fixed this to send explicit floats for PLN.
-          // But to be safe for mixed versions:
-          // If we assume new frontend sends floats like 50.00, treat as PLN
-          finalPLN = Number(total_price);
-          finalCents = Math.round(finalPLN * 100);
-        } else {
-          // Calculate from items
-          finalCents = items.reduce((sum, item) => sum + ((item.unit_price_cents || 0) * (item.qty || item.quantity || 1)), 0);
-          finalPLN = finalCents / 100;
+        const priced = await priceOrder(restaurant_id, items);
+        if ((total_cents != null && (!Number.isSafeInteger(total_cents) || total_cents !== priced.totalCents))
+            || (total_price != null && cents(total_price) !== priced.totalCents)) {
+          throw paymentError('price_changed_review_required');
         }
 
-        const requestedStatus = String(req.body?.status || '').trim().toLowerCase();
-        const allowedStatuses = new Set(['pending', 'cancelled', 'confirmed']);
-        const safeStatus = allowedStatuses.has(requestedStatus) ? requestedStatus : 'pending';
-
         const orderData = {
-          user_id: user_id || null,
+          idempotency_key: idempotencyKey,
+          user_id: auth.userId,
+          session_id: sessionId,
           restaurant_id: restaurant_id,
-          items: items,
-          total_price: finalPLN,   // PLN (float)
-          // total_cents: finalCents, // Cents (integer) - Commented out to prevent "column does not exist" error
-          status: safeStatus,
+          items: priced.items,
+          total_price: priced.totalCents / 100,
+          status: 'pending',
           customer_name: customer_name || null,
           customer_phone: customer_phone || null,
           delivery_address: delivery_address || null,
@@ -378,18 +362,25 @@ export default async function handler(req, res) {
           created_at: new Date().toISOString(),
         };
 
-        console.log('đź“ť Cart order data:', orderData);
 
-        const { data: order, error: orderErr } = await supabase
+
+        let { data: order, error: orderErr } = await supabase
           .from('orders')
           .insert([orderData])
           .select()
           .single();
 
-        if (orderErr) {
-          console.error('âťŚ Cart order error:', orderErr);
-          return res.status(500).json({ error: orderErr.message });
+        if (orderErr?.code === '23505') {
+          const existing = await supabase.from('orders').select('*').eq('idempotency_key', idempotencyKey).eq('user_id', auth.userId).maybeSingle();
+          if (existing.error || !existing.data) throw paymentError('order_unavailable', 503);
+          order = existing.data;
+          const same = ['restaurant_id', 'session_id', 'customer_name', 'customer_phone', 'delivery_address', 'notes'].every(key => order[key] === orderData[key])
+            && Number(order.total_price) === orderData.total_price && canonicalJson(order.items) === canonicalJson(orderData.items);
+          if (!same) throw paymentError('idempotency_conflict');
+          // A retry must not clear a newer cart from this session.
+          return res.json({ ok: true, id: order.id, order });
         }
+        if (orderErr) throw paymentError('order_unavailable', 503);
 
         console.log('✅ Cart order created:', order.id);
 
@@ -425,136 +416,12 @@ export default async function handler(req, res) {
       }
 
       // đź”Ą Legacy order creation (voice commands)
-      let { message, restaurant_name, user_email } = req.body;
-
-      // Bezpieczny fallback dla undefined values
-      const safeString = (v) => {
-        if (v == null) return "";
-        if (typeof v === "string") return v;
-        if (typeof v === "number") return String(v);
-        if (typeof v === "object") {
-          if (v.name) return String(v.name);
-          try { return JSON.stringify(v); } catch { return String(v); }
-        }
-        return String(v);
-      };
-
-      message = safeString(message);
-      restaurant_name = safeString(restaurant_name);
-      user_email = user_email || "";
-
-      console.log("đźźˇ INPUT:", { message, restaurant_name, user_email });
-      // Guard: reject empty requests — prevents ghost orders from empty POST bodies
-      if (!message.trim() && !restaurant_name.trim()) {
-        console.warn("❌ Odrzucono puste zapytanie legacy — brak message i restaurant_name");
-        return res.status(400).json({ ok: false, error: "Puste zapytanie — podaj nazwę dania lub restauracji." });
-      }
-
-      // Get user_id from Supabase Auth if available
-      let user_id = null;
-      const authHeader = req.headers.authorization;
-      if (authHeader && authHeader.startsWith('Bearer ')) {
-        try {
-          const token = authHeader.substring(7);
-          const { data: { user }, error } = await supabase.auth.getUser(token);
-          if (user && !error) {
-            user_id = user.id;
-            console.log("âś… User authenticated:", user.email, "ID:", user_id);
-          }
-        } catch (authError) {
-          console.log("âš ď¸Ź Auth error:", authError.message);
-        }
-      }
-
-      // Pobierz restauracje
-      console.log("đźŹŞ Pobieram listę restauracji...");
-      const { data: restaurants, error: restErr } = await supabase.from("restaurants").select("*");
-      if (restErr) throw restErr;
-      console.log(`đź“‹ Znaleziono ${restaurants?.length || 0} restauracji`);
-
-      const restMatch = findBestMatch(restaurants, restaurant_name, "name");
-      if (!restMatch) {
-        console.warn("âťŚ Nie znaleziono restauracji:", restaurant_name);
-        return res.json({ reply: `Nie mogę znaleźć restauracji "${restaurant_name}".` });
-      }
-
-      console.log("âś… Restauracja dopasowana:", restMatch.name, "(ID:", restMatch.id, ")");
-
-      // Pobierz menu restauracji
-      console.log("đźŤ˝ď¸Ź Pobieram menu dla restauracji:", restMatch.id);
-      const { data: menu, error: menuErr } = await supabase
-        .from("menu_items")
-        .select("*")
-        .eq("restaurant_id", restMatch.id);
-
-      if (menuErr || !menu?.length) {
-        console.warn("âťŚ Brak menu dla:", restMatch.name, "Błąd:", menuErr);
-        return res.json({ reply: `Nie znalazłem menu dla "${restMatch.name}".` });
-      }
-
-      console.log(`đź“‹ Znaleziono ${menu.length} pozycji w menu:`);
-      menu.forEach((item, i) => {
-        console.log(`  ${i + 1}. "${item.name}" - ${item.price} zł`);
-      });
-
-      // Parsuj ilość
-      let quantity = 1;
-      let cleaned = message;
-      const match = message.match(/(\d+)\s*x\s*(.+)/i);
-      if (match) {
-        quantity = parseInt(match[1]);
-        cleaned = match[2];
-        console.log(`đź”˘ Parsowanie ilości: "${message}" â†’ ${quantity}x "${cleaned}"`);
-      } else {
-        console.log(`đź”˘ Brak ilości w komendzie, domyślnie: 1x "${cleaned}"`);
-      }
-
-      // Szukaj pozycji
-      console.log("đź”Ť Szukam pozycji w menu...");
-      const item = findBestMatch(menu, cleaned);
-      if (!item) {
-        console.warn("âťŚ Brak pozycji:", cleaned);
-        return res.json({ reply: `Nie znalazłem "${cleaned}" w menu. Spróbuj powiedzieć np. "pizza" lub "burger".` });
-      }
-
-      console.log("âś… Pozycja dopasowana:", item.name, "-", item.price, "zł");
-
-      // Dodaj zamówienie
-      console.log("đź’ľ Tworzę zamówienie w bazie danych...");
-      const orderData = {
-        user_id: user_id || null,
-        restaurant_id: restMatch.id,
-        restaurant_name: restMatch.name,
-        dish_name: item.name,
-        total_price: item.price * quantity,
-        items: [{
-          name: item.name,
-          price: item.price,
-          quantity: quantity
-        }],
-        status: "pending",
-      };
-
-      console.log("đź“ť Dane zamówienia:", orderData);
-
-      const { data: order, error: orderErr } = await supabase.from("orders").insert([orderData]).select();
-
-      if (orderErr) {
-        console.error("âťŚ Błąd tworzenia zamówienia:", orderErr);
-        throw orderErr;
-      }
-
-      console.log("âś… Zamówienie utworzone:", order[0]?.id);
-
-      const response = {
-        reply: `Zamówiłem ${quantity}x ${item.name} w ${restMatch.name} za ${item.price * quantity} zł.`,
-        order_id: order[0]?.id,
-      };
-
-      console.log("đź“¤ Odpowiedź:", response);
-      return res.json(response);
+      return res.status(400).json({ ok: false, error: 'structured_cart_required' });
 
     } catch (err) {
+      const failure = sessionAccessError(err);
+      if (failure) return res.status(failure.status).json(failure.body);
+      if (err.code && err.statusCode) return res.status(err.statusCode).json({ ok: false, error: err.code });
       console.error("đź”Ą Błąd POST orders:", err);
       return res.status(500).json({ error: err.message });
     }

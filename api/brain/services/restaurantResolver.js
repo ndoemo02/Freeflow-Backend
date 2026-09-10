@@ -7,7 +7,7 @@
  * public GET /api/restaurants/resolve endpoint (api/restaurants/resolve.js).
  *
  * Resolution order:
- *  1. Entity cache  — restaurants shown to user recently, no DB call
+ *  1. Revalidate current database publication; entity cache is not authorization
  *  2. DB fallback   — ilike query on restaurants.name
  *  3. DB fallback   — ilike query on restaurants.aliases
  *
@@ -28,17 +28,7 @@ export async function resolveRestaurantByName(name, entityCacheRestaurants = [])
     if (!name) return null;
     const normalized = normalizeDish(name);
 
-    // 1. Entity cache — restaurants the user has seen recently
-    if (Array.isArray(entityCacheRestaurants) && entityCacheRestaurants.length > 0) {
-        const hit = entityCacheRestaurants.find(r => {
-            const rName = normalizeDish(r.name || '');
-            return rName === normalized || rName.includes(normalized) || normalized.includes(rName);
-        });
-        if (hit?.id) {
-            console.log(`[RESTAURANT_RESOLVE] cache hit: "${hit.name}" (id=${hit.id})`);
-            return { id: hit.id, name: hit.name };
-        }
-    }
+    // Revalidate publication in the database; cached names are not access proof.
 
     // 2. DB fallback — match against name
     try {
@@ -47,6 +37,7 @@ export async function resolveRestaurantByName(name, entityCacheRestaurants = [])
             .from('restaurants')
             .select('id, name')
             .eq('is_active', true)
+            .eq('publication_status', 'demo_fictional')
             .ilike('name', `%${name}%`)
             .limit(3);
 
@@ -69,6 +60,7 @@ export async function resolveRestaurantByName(name, entityCacheRestaurants = [])
             .from('restaurants')
             .select('id, name')
             .eq('is_active', true)
+            .eq('publication_status', 'demo_fictional')
             .ilike('aliases', `%${name}%`)
             .limit(3);
 

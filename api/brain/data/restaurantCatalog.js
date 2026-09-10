@@ -224,7 +224,9 @@ export function filterRestaurantsForPublicDemo(
         ? DEMO_RESTAURANT_IDS_BY_DATASET.get(datasetId)
         : DEMO_RESTAURANT_IDS;
     if (!allowedIds) return [];
-    return restaurants.filter((restaurant) => allowedIds.has(String(restaurant?.id || '')));
+    return restaurants.filter((restaurant) => allowedIds.has(String(restaurant?.id || ''))
+        && restaurant?.is_active !== false
+        && (restaurant?.publication_status == null || restaurant.publication_status === 'demo_fictional'));
 }
 
 import { normalizeTxt } from '../intents/intentRouterGlue.js';

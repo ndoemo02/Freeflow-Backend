@@ -61,6 +61,7 @@ function membership({ accountId = 'acc-1', capabilities = OWNER_CAPS, status = '
 function makeQueryBuilder(resultGetter) {
   const qb = {
     eq: (...args) => { eqSpy(...args); return qb; },
+    is: (...args) => { eqSpy(...args); return qb; },
     in: (...args) => { inSpy(...args); return qb; },
     select: (...args) => { selectSpy(...args); return qb; },
     limit: (...args) => { limitSpy(...args); return Promise.resolve(resultGetter()); },
@@ -260,7 +261,8 @@ describe('PATCH /api/owner/orders/:id — ksztalt zadania', () => {
       authAs('user-1');
       memberResult = { data: [membership({ capabilities: STAFF_CAPS })], error: null };
       restaurantResult = { data: [{ id: 'rest-1' }], error: null };
-      orderResult = { data: { id: 'ord-1', status }, error: null };
+      const source = { accepted: 'confirmed', preparing: 'confirmed', completed: 'preparing', delivered: 'completed', cancelled: 'pending' }[status];
+      orderResult = { data: { id: 'ord-1', restaurant_id: 'rest-1', status: source, confirmed_at: source === 'pending' ? null : '2026-09-10T12:00:00Z' }, error: null };
 
       const res = await call(createReq({
         method: 'PATCH', headers: BEARER, params: { id: 'ord-1' }, body: { status },
@@ -309,7 +311,7 @@ describe('PATCH /api/owner/orders/:id — zasieg', () => {
     authAs('user-1');
     memberResult = { data: [membership({ capabilities: STAFF_CAPS })], error: null };
     restaurantResult = { data: [{ id: 'rest-moj' }], error: null };
-    orderResult = { data: { id: 'ord-1', status: 'preparing' }, error: null };
+    orderResult = { data: { id: 'ord-1', restaurant_id: 'rest-1', status: 'confirmed', confirmed_at: '2026-09-10T12:00:00Z' }, error: null };
 
     await call(createReq({
       method: 'PATCH',
@@ -328,7 +330,7 @@ describe('PATCH /api/owner/orders/:id — zasieg', () => {
     authAs('user-1');
     memberResult = { data: [membership({ capabilities: STAFF_CAPS })], error: null };
     restaurantResult = { data: [{ id: 'rest-1' }], error: null };
-    orderResult = { data: { id: 'ord-1', status: 'preparing' }, error: null };
+    orderResult = { data: { id: 'ord-1', restaurant_id: 'rest-1', status: 'confirmed', confirmed_at: '2026-09-10T12:00:00Z' }, error: null };
 
     await call(createReq({
       method: 'PATCH',

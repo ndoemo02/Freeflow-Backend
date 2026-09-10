@@ -27,6 +27,11 @@ global.BRAIN_DEBUG = process.env.BRAIN_DEBUG === 'true';
 
 // --- App setup ---
 const app = express();
+// Signature verification requires the original bytes, before JSON middleware.
+app.post('/api/payments/webhook', express.raw({ type: 'application/json', limit: '256kb' }), async (req, res) => {
+  const { default: handler } = await import('./payments/webhook.js');
+  return handler(req, res);
+});
 app.use(express.json());
 
 // CORS — MUST be before any route registration
@@ -78,7 +83,7 @@ app.use(cors({
   origin: ALLOWED_ORIGINS,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   credentials: true,
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-admin-token'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-admin-token', 'Idempotency-Key'],
   exposedHeaders: ['x-admin-token']
 }));
 
@@ -90,7 +95,7 @@ app.options(/.*/, (req, res) => {
     return res.status(403).end();
   }
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-admin-token');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-admin-token, Idempotency-Key');
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.status(200).end();
 });
@@ -188,7 +193,7 @@ async function runStartupHealthReport() {
 //
 // Teraz:
 //   publicCatalogClient  (klucz anon)   -> wylacznie restaurants / menu
-//   privateServerClient  (service_role) -> orders, RPC
+//   privateServerClient  (service_role) -> orders, RPC, explicitly filtered demo catalog
 // Zaslepki nie ma: blad konfiguracji ma byc bledem, nie pusta lista.
 // ===========================================================================
 
@@ -283,11 +288,13 @@ app.post("/api/brain/reset", async (req, res) => {
     const sessionIdVerdict = validateSessionId(body.session_id || body.sessionId);
     if (!sessionIdVerdict.ok) return res.status(400).json({ ok: false, error: sessionIdVerdict.error });
     const sessionId = sessionIdVerdict.sessionId;
+    const { requireSessionAccess } = await import('./brain/session/sessionAccess.js');
+    await requireSessionAccess(req, sessionId);
     updateSession(sessionId, { expectedContext: null, lastRestaurant: null, pendingOrder: null, last_restaurants_list: null });
     res.json({ ok: true, cleared: true, session: getSession(sessionId) });
   } catch (e) {
     console.error('reset error', e);
-    res.status(500).json({ ok: false, error: e.message });
+    res.status(e.statusCode || 500).json({ ok: false, error: e.code || 'internal_error' });
   }
 });
 
@@ -359,14 +366,14 @@ app.post("/api/tts", async (req, res) => {
 // === RESTAURANTS ===
 app.get("/api/restaurants", async (req, res) => {
   try {
-    // Katalog publiczny -> klient anon. Kolumny zawezone do zatwierdzonego
-    // kontraktu PUBLIC restaurants (audyt B1, 2026-08-10) - zgodne z grantem
-    // etapu 10 (supabase/migrations/20260808000400_stage10_public_catalog_rls.sql).
+    // publication_status is private: apply both filters server-side and return
+    // only the explicit public column list, never service-role select(*).
     // Ksztalt odpowiedzi { ok, data } bez zmian - to nie jest naprawa kontraktu API.
-    const { data, error } = await publicCatalogClient
+    const { data, error } = await privateServerClient
       .from("restaurants")
       .select("id,name,address,city,cuisine_type,lat,lng,delivery_available,price_level,is_active,taxonomy_groups,taxonomy_cats,taxonomy_tags,image_url")
-      .eq("is_active", true);
+      .eq("is_active", true)
+      .eq("publication_status", "demo_fictional");
     if (error) throw error;
     res.json({ ok: true, data });
   } catch (err) {
@@ -481,20 +488,20 @@ app.all("/api/orders", async (req, res) => {
   }
 });
 
-app.all("/api/orders/:id", async (req, res) => {
+// === ORDER FINALIZE (post-Stripe cleanup; before generic :id route) ===
+app.post("/api/orders/finalize", async (req, res) => {
   try {
-    const ordersHandler = await import("./orders.js");
-    return ordersHandler.default(req, res);
+    const finalizeHandler = await import("./orders/finalizeOrder.js");
+    return finalizeHandler.default(req, res);
   } catch (err) {
     res.status(500).json({ ok: false, error: err.message });
   }
 });
 
-// === ORDER FINALIZE (post-Stripe cleanup) ===
-app.post("/api/orders/finalize", async (req, res) => {
+app.all("/api/orders/:id", async (req, res) => {
   try {
-    const finalizeHandler = await import("./orders/finalizeOrder.js");
-    return finalizeHandler.default(req, res);
+    const ordersHandler = await import("./orders.js");
+    return ordersHandler.default(req, res);
   } catch (err) {
     res.status(500).json({ ok: false, error: err.message });
   }

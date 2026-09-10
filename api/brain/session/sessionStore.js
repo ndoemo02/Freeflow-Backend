@@ -1,4 +1,4 @@
-﻿import { getDefault, update } from "../ai/contextState.js";
+import { getDefault, update } from "../ai/contextState.js";
 import {
     loadSession as loadSessionFromAdapter,
     saveSession as saveSessionToAdapter,
@@ -275,7 +275,7 @@ export function getOrCreateActiveSession(sessionId) {
 
     if (existing.status === 'closed') {
         const newId = generateNewSessionId();
-        const newSession = getDefault();
+        const newSession = { ...getDefault(), ownerUserId: existing.ownerUserId };
 
         if (existing.currentRestaurant) {
             newSession.currentRestaurant = existing.currentRestaurant;
@@ -307,7 +307,7 @@ export async function getOrCreateActiveSessionAsync(sessionId) {
 
     if (existing.status === 'closed') {
         const newId = generateNewSessionId();
-        const newSession = getDefault();
+        const newSession = { ...getDefault(), ownerUserId: existing.ownerUserId };
 
         if (existing.currentRestaurant) {
             newSession.currentRestaurant = existing.currentRestaurant;
@@ -349,6 +349,37 @@ export async function updateSessionAsync(sessionId, patch) {
     update(sess, patch);
     await setSession(normalizedSessionId, sess);
     return sess;
+}
+
+/**
+ * Strict request boundary. Never trusts an optimistic/legacy cache entry or
+ * accepts an adapter memory fallback. Serialize read/merge/write behind local
+ * pending writes; publish the merged snapshot only after durable persistence.
+ * The patch factory can derive a patch from the hydrated snapshot.
+ */
+export async function updateSessionDurable(sessionId, patch = {}) {
+    const normalizedSessionId = ensureSessionId(sessionId);
+    return queueWrite(normalizedSessionId, async () => {
+        // A legacy read can publish its cache after our write unless drained first.
+        await pendingReads.get(normalizedSessionId);
+        const row = await loadSessionFromAdapter(normalizedSessionId, { requireDurable: true });
+        const session = structuredClone(row?.data || getDefault());
+        update(session, typeof patch === 'function' ? patch(session) : patch);
+        const saved = await saveSessionToAdapter({ id: normalizedSessionId, data: session }, { requireDurable: true });
+        return setCache(normalizedSessionId, session, saved?.updated_at || nowIso());
+    });
+}
+
+/** Await legacy tool writes, then durably checkpoint the hydrated working state. */
+export async function persistSessionDurable(sessionId) {
+    const normalizedSessionId = ensureSessionId(sessionId);
+    return queueWrite(normalizedSessionId, async () => {
+        const session = getCache(normalizedSessionId);
+        if (!session) throw new Error('live_session_not_hydrated');
+        const snapshot = structuredClone(session);
+        const saved = await saveSessionToAdapter({ id: normalizedSessionId, data: snapshot }, { requireDurable: true });
+        return setCache(normalizedSessionId, snapshot, saved?.updated_at || nowIso());
+    });
 }
 
 // Alias dla kompatybilności

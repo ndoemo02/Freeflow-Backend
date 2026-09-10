@@ -1,3 +1,4 @@
+import { requireDemoVenues } from '../../demo/demoVenueAccess.js';
 
 import { supabase } from '../../_supabase.js';
 import { calculateDistance } from '../helpers.js';
@@ -14,7 +15,7 @@ export class SupabaseRestaurantRepository {
             .from('restaurants')
             .select('id, name, address, city, cuisine_type, lat, lng, delivery_available, price_level, taxonomy_groups, taxonomy_cats, taxonomy_tags, maps_rating, maps_ratings_total, opening_hours, phone, website, image_url, photo_gallery')
             .eq('name', name)
-            .eq('is_active', true)
+            .eq('is_active', true).eq('publication_status', 'demo_fictional')
             .limit(1);
 
         if (error) throw error;
@@ -26,7 +27,7 @@ export class SupabaseRestaurantRepository {
             .from('restaurants')
             .select('id, name, address, city, cuisine_type, lat, lng, delivery_available, price_level, taxonomy_groups, taxonomy_cats, taxonomy_tags, maps_rating, maps_ratings_total, opening_hours, phone, website, image_url, photo_gallery')
             .eq('id', restaurantId)
-            .eq('is_active', true)
+            .eq('is_active', true).eq('publication_status', 'demo_fictional')
             .maybeSingle();
 
         if (error) throw error;
@@ -37,7 +38,7 @@ export class SupabaseRestaurantRepository {
         let query = supabase
             .from('restaurants')
             .select('id, name, address, city, cuisine_type, lat, lng, delivery_available, price_level, taxonomy_groups, taxonomy_cats, taxonomy_tags, maps_rating, maps_ratings_total, opening_hours, phone, website, image_url, photo_gallery')
-            .eq('is_active', true)
+            .eq('is_active', true).eq('publication_status', 'demo_fictional')
             .ilike('city', `%${city}%`);
 
         if (cuisine) {
@@ -57,7 +58,7 @@ export class SupabaseRestaurantRepository {
         let query = supabase
             .from('restaurants')
             .select('id, name, address, city, cuisine_type, lat, lng, delivery_available, price_level, taxonomy_groups, taxonomy_cats, taxonomy_tags, maps_rating, maps_ratings_total, opening_hours, phone, website, image_url, photo_gallery')
-            .eq('is_active', true)
+            .eq('is_active', true).eq('publication_status', 'demo_fictional')
             .gte('lat', lat - delta)
             .lte('lat', lat + delta)
             .gte('lng', lng - delta)
@@ -82,6 +83,7 @@ export class SupabaseRestaurantRepository {
     }
 
     async getMenu(restaurantId) {
+        await requireDemoVenues([restaurantId]);
         const { data, error } = await supabase
             .from('menu_items_v2')
             .select('id, name, price_pln, description, category, available, section_order')

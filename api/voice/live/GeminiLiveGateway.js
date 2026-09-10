@@ -10,17 +10,17 @@ import {
     liveMetricsSessionStart,
 } from './liveMetrics.js';
 import { buildInitialTurnTrace } from './liveTurnLedger.js';
-import { updateSession } from '../../brain/session/sessionStore.js';
+import { updateSessionDurable } from '../../brain/session/sessionStore.js';
 import {
     summarizeLiveToolResult,
     validateLiveOrigin,
 } from './liveSecurity.js';
-import { getSession } from '../../brain/session/sessionStore.js';
-import {
-    buildDemoSessionPatch,
-    resolveDemoContextFromRequest,
-} from '../../demo/demoContext.js';
+import { prepareLiveSession, persistLiveSession, liveSessionErrorResponse } from './liveSessionBoundary.js';
 import { validateSessionId } from '../../brain/session/sessionIdContract.js';
+import { runLiveSessionOperation } from './liveSessionQueue.js';
+import { requireSessionAccess } from '../../brain/session/sessionAccess.js';
+
+const VERIFIED_SESSION = Symbol('verifiedLiveSession');
 
 const TOOL_EXECUTION_TIMEOUT_MS = 12000;
 const DEFAULT_LIVE_MODEL = process.env.GEMINI_LIVE_MODEL || process.env.LIVE_MODEL || 'gemini-2.5-flash-native-audio-preview-12-2025';
@@ -68,6 +68,7 @@ function compactText(value, max = 260) {
 }
 
 function toFiniteNumber(value) {
+    if (value == null || value === '') return null;
     const parsed = Number(value);
     return Number.isFinite(parsed) ? parsed : null;
 }
@@ -160,7 +161,20 @@ export class GeminiLiveGateway {
     attach(server, path = '/api/voice/live/ws') {
         if (this.wss) return this.wss;
 
-        this.wss = new WebSocketServer({ server, path });
+        this.wss = new WebSocketServer({ server, path,
+            handleProtocols: protocols => protocols.has('freeflow') ? 'freeflow' : false,
+            verifyClient: (info, done) => {
+                const req = info.req;
+                const sessionId = new URL(req.url, 'http://localhost').searchParams.get('session_id');
+                const protocols = String(req.headers?.['sec-websocket-protocol'] || '').split(',').map(value => value.trim());
+                const credential = protocols.find(value => value.startsWith('bearer.'));
+                const authRequest = { headers: { authorization: credential ? `Bearer ${credential.slice(7)}` : req.headers?.authorization } };
+                requireSessionAccess(authRequest, sessionId).then(() => {
+                    req[VERIFIED_SESSION] = { sessionId, authRequest };
+                    done(true);
+                }).catch(error => done(false, error.statusCode || 503, 'Live access denied'));
+            },
+        });
         this._activeSockets = new Map();
 
         // Keepalive — ping wszystkich klientów co 15s, zapobiega terminacji
@@ -192,6 +206,11 @@ export class GeminiLiveGateway {
                 return;
             }
             const sessionId = sessionIdVerdict.sessionId;
+            if (req[VERIFIED_SESSION]?.sessionId !== sessionId) {
+                socket.close(4003, 'UNAUTHORIZED');
+                return;
+            }
+            const authRequest = req[VERIFIED_SESSION].authRequest;
 
             // Deduplikacja: zamknij poprzedni socket dla tego samego sessionId
             // przed rejestracją nowego — zapobiega data race w sessionStore.
@@ -207,11 +226,22 @@ export class GeminiLiveGateway {
 
             // Rejestruj handler message PRZED await resolveRuntimeLiveModel.
             // Eliminuje okno ~200ms gdzie przychodzące wiadomości były gubione.
-            socket.on('message', async (rawPayload) => {
+            // Queue by session, not socket: replacement connections must wait
+            // for an already-running tool and its durable checkpoint.
+            let closed = false;
+            const isCurrentSocket = () => !closed && socket.readyState === 1
+                && this._activeSockets.get(sessionId) === socket;
+            const sendIfCurrent = payload => {
+                if (!isCurrentSocket()) return;
+                try { socket.send(payload); } catch { closed = true; }
+            };
+            let sessionInitError = null;
+            const processMessage = async (rawPayload) => {
+                if (!isCurrentSocket()) return;
                 const parsed = safeJsonParse(rawPayload.toString());
 
                 if (!parsed) {
-                    socket.send(JSON.stringify({ type: 'tool_error', error: 'invalid_json' }));
+                    sendIfCurrent(JSON.stringify({ type: 'tool_error', error: 'invalid_json' }));
                     return;
                 }
 
@@ -224,7 +254,7 @@ export class GeminiLiveGateway {
                             sessionId,
                             payload: parsed,
                         });
-                        socket.send(JSON.stringify({
+                        sendIfCurrent(JSON.stringify({
                             type: 'metrics_ack',
                             session_id: sessionId,
                         }));
@@ -232,51 +262,47 @@ export class GeminiLiveGateway {
                     }
                     if (parsed.type === 'session_init') {
                         try {
-                            const demoContext = resolveDemoContextFromRequest(parsed);
-                            updateSession(sessionId, buildDemoSessionPatch(demoContext));
-                        } catch (error) {
-                            socket.send(JSON.stringify({
-                                type: 'tool_error',
-                                error: 'invalid_demo_context',
-                                detail: error?.message || 'invalid_demo_context',
-                            }));
-                            return;
-                        }
-                        const lat = typeof parsed.lat === 'number' ? parsed.lat : null;
-                        const lng = typeof parsed.lng === 'number' ? parsed.lng : null;
-                        if (Number.isFinite(lat) && Number.isFinite(lng)) {
-                            const sessionSnapshot = getSession(sessionId) || {};
-                            const prevLat = toFiniteNumber(sessionSnapshot?.session_lat);
-                            const prevLng = toFiniteNumber(sessionSnapshot?.session_lng);
-                            let movedKm = 0;
-                            let geoSoftResetApplied = false;
-
-                            if (prevLat != null && prevLng != null) {
-                                movedKm = haversineKm(prevLat, prevLng, lat, lng);
-                                if (movedKm >= GPS_SOFT_RESET_DISTANCE_KM && canApplyGeoSoftReset(sessionSnapshot)) {
-                                    updateSession(sessionId, buildGeoSoftResetPatch());
-                                    geoSoftResetApplied = true;
+                            const sessionSnapshot = await prepareLiveSession(sessionId, parsed, authRequest);
+                            if (!isCurrentSocket()) return;
+                            const lat = typeof parsed.lat === 'number' ? parsed.lat : null;
+                            const lng = typeof parsed.lng === 'number' ? parsed.lng : null;
+                            if (Number.isFinite(lat) && Number.isFinite(lng)) {
+                                const prevLat = toFiniteNumber(sessionSnapshot?.session_lat);
+                                const prevLng = toFiniteNumber(sessionSnapshot?.session_lng);
+                                const movedKm = prevLat != null && prevLng != null
+                                    ? haversineKm(prevLat, prevLng, lat, lng) : 0;
+                                const geoSoftResetApplied = movedKm >= GPS_SOFT_RESET_DISTANCE_KM && canApplyGeoSoftReset(sessionSnapshot);
+                                await updateSessionDurable(sessionId, {
+                                    ...(geoSoftResetApplied ? buildGeoSoftResetPatch() : {}),
+                                    session_lat: lat,
+                                    session_lng: lng,
+                                    session_geo_updated_at: new Date().toISOString(),
+                                });
+                                console.log(`[SESSION_INIT] GPS saved sessionId=${sessionId} lat=${lat} lng=${lng}`);
+                                if (geoSoftResetApplied) {
+                                    console.log(`[SESSION_GPS_MOVE_RESET] sessionId=${sessionId} movedKm=${movedKm.toFixed(2)} cart=empty pendingOrder=false`);
                                 }
                             }
-
-                            updateSession(sessionId, {
-                                session_lat: lat,
-                                session_lng: lng,
-                                session_geo_updated_at: new Date().toISOString(),
-                            });
-                            console.log(`[SESSION_INIT] GPS saved sessionId=${sessionId} lat=${lat} lng=${lng}`);
-                            if (geoSoftResetApplied) {
-                                console.log(`[SESSION_GPS_MOVE_RESET] sessionId=${sessionId} movedKm=${movedKm.toFixed(2)} cart=empty pendingOrder=false`);
-                            }
+                            sessionInitError = null;
+                        } catch (error) {
+                            sessionInitError = liveSessionErrorResponse(error)?.body.error || 'live_session_unavailable';
+                            sendIfCurrent(JSON.stringify({
+                                type: 'tool_error',
+                                error: sessionInitError,
+                            }));
                         }
                         return;
                     }
-                    socket.send(JSON.stringify({ type: 'tool_error', error: 'unsupported_message_type' }));
+                    sendIfCurrent(JSON.stringify({ type: 'tool_error', error: 'unsupported_message_type' }));
                     return;
                 }
 
                 const toolName = parsed.tool;
                 const requestId = parsed.request_id || null;
+                if (sessionInitError) {
+                    sendIfCurrent(JSON.stringify({ type: 'tool_error', request_id: requestId, tool: toolName, error: sessionInitError }));
+                    return;
+                }
                 const turnId = parsed.turn_id || requestId || `live_turn_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
                 const transcriptFinal = compactText(parsed.transcript_final || '');
                 const turnTrace = buildInitialTurnTrace({
@@ -298,7 +324,7 @@ export class GeminiLiveGateway {
                 if (!validation.valid) {
                     console.warn(`[LiveDiag-BE] Validation failed: ${toolName} error:${validation.error} field:${validation.field}`);
                     liveLog.toolFail({ sessionId, toolName, requestId, error: validation.error, field: validation.field });
-                    socket.send(JSON.stringify({
+                    sendIfCurrent(JSON.stringify({
                         type: 'tool_error',
                         request_id: requestId,
                         tool: toolName,
@@ -308,28 +334,33 @@ export class GeminiLiveGateway {
                     return;
                 }
 
-                // Persist GPS from tool args as session context (fallback when session_init is delayed/missed).
-                // NIE nadpisuj jeśli session ma już GPS z session_init — Gemini może halucynować współrzędne.
-                if (toolName === 'find_nearby') {
-                    const lat = Number(validation.sanitized?.lat);
-                    const lng = Number(validation.sanitized?.lng);
-                    if (Number.isFinite(lat) && Number.isFinite(lng)) {
-                        const session = getSession(sessionId);
-                        const hasSessionGps = Number.isFinite(Number(session?.session_lat)) && Number.isFinite(Number(session?.session_lng));
-                        if (!hasSessionGps) {
-                            updateSession(sessionId, { session_lat: lat, session_lng: lng });
-                            console.log(`[SESSION_GPS_FROM_TOOL] sessionId=${sessionId} lat=${lat} lng=${lng}`);
-                        } else {
-                            console.log(`[SESSION_GPS_FROM_TOOL] SKIP — session already has GPS (session_init), ignoring tool GPS lat=${lat} lng=${lng}`);
+                try {
+                    const session = await prepareLiveSession(sessionId, parsed, authRequest);
+                    if (!isCurrentSocket()) return;
+                    // Persist GPS from tool args as context when session_init is delayed/missed.
+                    // Keep existing session GPS: Gemini may hallucinate coordinates.
+                    if (toolName === 'find_nearby') {
+                        const lat = Number(validation.sanitized?.lat);
+                        const lng = Number(validation.sanitized?.lng);
+                        if (Number.isFinite(lat) && Number.isFinite(lng)) {
+                            const hasSessionGps = toFiniteNumber(session?.session_lat) != null && toFiniteNumber(session?.session_lng) != null;
+                            if (!hasSessionGps) {
+                                try {
+                                    await updateSessionDurable(sessionId, { session_lat: lat, session_lng: lng });
+                                } catch (cause) {
+                                    throw Object.assign(new Error('live_session_unavailable', { cause }), { code: 'live_session_unavailable', statusCode: 503 });
+                                }
+                                console.log(`[SESSION_GPS_FROM_TOOL] sessionId=${sessionId} lat=${lat} lng=${lng}`);
+                            } else {
+                                console.log(`[SESSION_GPS_FROM_TOOL] SKIP — session already has GPS (session_init), ignoring tool GPS lat=${lat} lng=${lng}`);
+                            }
                         }
                     }
-                }
 
-                liveLog.toolCall({ sessionId, toolName, requestId });
+                    if (!isCurrentSocket()) return;
+                    liveLog.toolCall({ sessionId, toolName, requestId });
 
-                try {
-                    const result = await withTimeout(
-                        this.toolRouter.executeToolCall({
+                    const execution = this.toolRouter.executeToolCall({
                             sessionId,
                             toolName,
                             args: validation.sanitized,
@@ -342,9 +373,22 @@ export class GeminiLiveGateway {
                                 rawArgs: parsed.args || {},
                                 finalTranscript: parsed.transcript_final || transcriptFinal || null,
                             },
-                        }),
-                        TOOL_EXECUTION_TIMEOUT_MS,
-                    );
+                        });
+                    let result;
+                    try {
+                        result = await withTimeout(execution, TOOL_EXECUTION_TIMEOUT_MS);
+                    } catch (error) {
+                        if (error?.message !== 'tool_timeout') throw error;
+                        sendIfCurrent(JSON.stringify({ type: 'tool_error', request_id: requestId, tool: toolName, error: 'tool_timeout' }));
+                        // A timeout cannot cancel a legacy tool. Keep the session
+                        // locked until it settles; never publish its late result.
+                        await execution.catch(() => undefined);
+                        try { await persistLiveSession(sessionId); } catch {
+                            sessionInitError = 'live_session_unavailable';
+                        }
+                        return;
+                    }
+                    await persistLiveSession(sessionId);
 
                     const reply = result.response?.reply || result.response?.text || '(empty)';
                     const summary = summarizeLiveToolResult(result, toolName);
@@ -358,7 +402,7 @@ export class GeminiLiveGateway {
                     const cartAfter = liveMeta.cartAfter || null;
 
 
-                    socket.send(JSON.stringify({
+                    sendIfCurrent(JSON.stringify({
                         type: 'tool_result',
                         request_id: requestId,
                         turn_id: liveMeta.turnId || turnId,
@@ -370,38 +414,47 @@ export class GeminiLiveGateway {
                     console.log(`[InteractionBridge] backend_execution_done turn_id=${liveMeta.turnId || turnId} session_id=${sessionId} tool=${toolName} ok=${result.ok !== false}`);
 
                     if (Array.isArray(result.response?.events) && result.response.events.length > 0) {
-                        socket.send(JSON.stringify({
+                        sendIfCurrent(JSON.stringify({
                             type: 'ui_events',
                             request_id: requestId,
                             events: result.response.events,
                         }));
                     }
                 } catch (error) {
-                    const errMsg = error?.message || 'live_gateway_error';
+                    const errMsg = liveSessionErrorResponse(error)?.body.error || error?.message || 'live_gateway_error';
                     console.error(`[LiveDiag-BE] ToolRouter threw: ${toolName} error:${errMsg}`);
                     liveLog.toolFail({ sessionId, toolName, requestId, error: errMsg });
-                    socket.send(JSON.stringify({
+                    sendIfCurrent(JSON.stringify({
                         type: 'tool_error',
                         request_id: requestId,
                         tool: toolName,
                         error: errMsg,
                     }));
                 }
+            };
+            socket.on('message', (rawPayload) => {
+                return runLiveSessionOperation(sessionId, () => processMessage(rawPayload)).catch(() => {
+                    sessionInitError = 'live_session_unavailable';
+                    sendIfCurrent(JSON.stringify({ type: 'tool_error', error: sessionInitError }));
+                });
             });
 
             socket.on('close', (code) => {
+                closed = true;
                 if (this._activeSockets.get(sessionId) === socket) {
                     this._activeSockets.delete(sessionId);
+                    liveMetricsSessionClose({ sessionId });
                 }
                 liveLog.wsDisconnect({ sessionId, code });
-                liveMetricsSessionClose({ sessionId });
             });
+            socket.on('error', () => { closed = true; });
 
             const runtimeModel = await resolveRuntimeLiveModel();
+            if (!isCurrentSocket()) return;
             console.log(`[LIVE BACK MODEL] ${runtimeModel} sessionId=${sessionId}`);
             liveMetricsSessionStart({ sessionId, model: runtimeModel });
 
-            socket.send(JSON.stringify({
+            sendIfCurrent(JSON.stringify({
                 type: 'live_ready',
                 session_id: sessionId,
                 tools: LIVE_TOOL_SCHEMAS.map((tool) => tool.name),

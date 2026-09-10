@@ -16,6 +16,11 @@ export async function getMenuItems(
   { includeUnavailable = false, limit = null, withDb = null, fresh = false } = {}
 ) {
   if (!restaurantId) return [];
+  // Publication is checked before cached menu data can be returned.
+  const { data: venue, error: venueError } = await supabase.from('restaurants')
+    .select('id').eq('id', restaurantId).eq('is_active', true)
+    .eq('publication_status', 'demo_fictional').maybeSingle();
+  if (venueError || !venue) return [];
   const key = cacheKey(restaurantId, includeUnavailable);
   const cached = cache.get(key);
   if (!fresh && cached && Date.now() - cached.t < MENU_CACHE_TTL_MS) {

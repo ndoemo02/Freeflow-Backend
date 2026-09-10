@@ -1,4 +1,11 @@
+vi.mock('../../../brain/session/sessionAccess.js', async importOriginal => ({ ...(await importOriginal()), requireSessionAccess: vi.fn(async () => ({ userId: 'test-user' })) }));
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+vi.mock('../../../brain/session/sessionAdapter.js', () => ({
+    loadSession: vi.fn(async () => null),
+    saveSession: vi.fn(async (session) => session),
+    touchSession: vi.fn(async () => null),
+}));
 
 const mocks = vi.hoisted(() => ({
     executeToolCall: vi.fn(),

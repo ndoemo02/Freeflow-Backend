@@ -184,7 +184,7 @@ async function fetchRestaurantsByIds(restaurantIds = []) {
     const uniqueIds = [...new Set((restaurantIds || []).filter(Boolean))];
     if (uniqueIds.length === 0) return [];
 
-    const query = supabase.from('restaurants').select('id, name').eq('is_active', true);
+    const query = supabase.from('restaurants').select('id, name').eq('is_active', true).eq('publication_status', 'demo_fictional');
     if (query && typeof query.in === 'function') {
         const { data, error } = await query.in('id', uniqueIds);
         if (error || !Array.isArray(data)) return [];

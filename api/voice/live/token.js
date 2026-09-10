@@ -1,10 +1,7 @@
+import { runLiveSessionOperation } from './liveSessionQueue.js';
 import { GoogleGenAI } from '@google/genai';
 import { isLiveOriginAllowed } from './liveSecurity.js';
-import { updateSession } from '../../brain/session/sessionStore.js';
-import {
-    buildDemoSessionPatch,
-    resolveDemoContextFromRequest,
-} from '../../demo/demoContext.js';
+import { prepareLiveSession, liveSessionErrorResponse } from './liveSessionBoundary.js';
 import { validateSessionId } from '../../brain/session/sessionIdContract.js';
 
 const DEFAULT_LIVE_MODEL =
@@ -115,15 +112,12 @@ export default async function handler(req, res) {
 
     let demoContext;
     try {
-        demoContext = resolveDemoContextFromRequest(req.body);
+        const session = await runLiveSessionOperation(sessionId, () => prepareLiveSession(sessionId, req.body, req));
+        demoContext = session.demoContext;
     } catch (error) {
-        return res.status(400).json({
-            ok: false,
-            error: 'invalid_demo_context',
-            detail: error?.message || 'invalid_demo_context',
-        });
+        const failure = liveSessionErrorResponse(error);
+        return res.status(failure?.status || 503).json(failure?.body || { ok: false, error: 'live_session_unavailable' });
     }
-    updateSession(sessionId, buildDemoSessionPatch(demoContext));
 
     const now = Date.now();
     const expireTime = new Date(now + 30 * 60_000).toISOString();

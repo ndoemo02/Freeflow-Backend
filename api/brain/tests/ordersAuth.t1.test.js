@@ -274,33 +274,33 @@ describe('T1 / PATCH domena statusu', () => {
 // ---------------------------------------------------------------------------
 
 describe('T1 / GET filtr autoryzacyjny', () => {
-  it('bez zakresu i bez tokenu -> 400 zamiast zrzutu calej tabeli', async () => {
+  it('bez zakresu i bez tokenu -> 401 zamiast zrzutu calej tabeli', async () => {
     const res = await call(createReq({ method: 'GET', url: '/api/orders', query: {} }));
-    expect(res.statusCode).toBe(400);
-    expect(res.body).toMatchObject({ ok: false, error: 'scope_required' });
+    expect(res.statusCode).toBe(401);
+    expect(res.body).toMatchObject({ ok: false, error: 'unauthorized' });
   });
 
   it('samo user_email nie otwiera juz pelnej listy', async () => {
     const res = await call(
       createReq({ method: 'GET', url: '/api/orders', query: { user_email: 'kto@example.com' } })
     );
-    expect(res.statusCode).toBe(400);
-    expect(res.body).toMatchObject({ error: 'scope_required' });
+    expect(res.statusCode).toBe(401);
+    expect(res.body).toMatchObject({ error: 'unauthorized' });
   });
 
-  it('z restaurant_id -> przechodzi', async () => {
+  it('z restaurant_id bez JWT -> 401', async () => {
     const res = await call(
       createReq({ method: 'GET', url: '/api/orders', query: { restaurant_id: 'rest-1' } })
     );
-    expect(res.statusCode).toBe(200);
-    expect(res.body).toHaveProperty('orders');
+    expect(res.statusCode).toBe(401);
+    expect(res.body.error).toBe('unauthorized');
   });
 
-  it('z user_id -> przechodzi', async () => {
+  it('z user_id bez JWT -> 401', async () => {
     const res = await call(
       createReq({ method: 'GET', url: '/api/orders', query: { user_id: 'user-1' } })
     );
-    expect(res.statusCode).toBe(200);
+    expect(res.statusCode).toBe(401);
   });
 
   it('token admina pozwala na pelna liste bez zakresu', async () => {
@@ -325,7 +325,7 @@ describe('T1 / GET filtr autoryzacyjny', () => {
         query: {},
       })
     );
-    expect(res.statusCode).toBe(400);
-    expect(res.body).toMatchObject({ error: 'scope_required' });
+    expect(res.statusCode).toBe(401);
+    expect(res.body).toMatchObject({ error: 'unauthorized' });
   });
 });

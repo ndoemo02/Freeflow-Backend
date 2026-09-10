@@ -1,3 +1,4 @@
+vi.mock('../session/sessionAccess.js', async importOriginal => ({ ...(await importOriginal()), requireSessionAccess: vi.fn(async () => ({ userId: 'test-user' })) }));
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
@@ -23,6 +24,7 @@ vi.mock('../../demo/demoContext.js', () => ({
 }));
 
 import handler from '../brainV2.js';
+import { requireSessionAccess } from '../session/sessionAccess.js';
 
 function response() {
   return {
@@ -73,4 +75,14 @@ describe('Brain V2 session boundary', () => {
     expect(res.statusCode).toBe(500);
     expect(res.body.error).toBe('internal_server_error');
   });
+});
+
+it.each([[401, 'unauthorized'], [403, 'session_not_owned'], [503, 'session_unavailable']])('denies text with %s before hydration or pipeline', async (statusCode, code) => {
+    vi.clearAllMocks();
+    requireSessionAccess.mockRejectedValueOnce(Object.assign(new Error(code), { statusCode, code }));
+    const res = response();
+    await handler({ method: 'POST', body: { session_id: 'sess_boundary_1', input: 'czesc' } }, res);
+    expect(res.statusCode).toBe(statusCode);
+    expect(mocks.updateSessionAsync).not.toHaveBeenCalled();
+    expect(mocks.process).not.toHaveBeenCalled();
 });

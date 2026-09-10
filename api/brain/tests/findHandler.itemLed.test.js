@@ -42,7 +42,7 @@ describe('FindRestaurantHandler item-led discovery', () => {
             if (table === 'restaurants') {
                 const limit = vi.fn().mockResolvedValue({ data: restaurantsInCity, error: null });
                 const ilike = vi.fn().mockReturnValue({ limit });
-                const eq = vi.fn().mockReturnValue({ ilike });
+                const eq = vi.fn(() => ({ ilike, eq }));
                 const select = vi.fn().mockReturnValue({ eq });
                 return { select };
             }
@@ -128,7 +128,7 @@ describe('FindRestaurantHandler item-led discovery', () => {
             if (table === 'restaurants') {
                 const limit = vi.fn().mockResolvedValue({ data: restaurantsInCity, error: null });
                 const ilike = vi.fn().mockReturnValue({ limit });
-                const eq = vi.fn().mockReturnValue({ ilike });
+                const eq = vi.fn(() => ({ ilike, eq }));
                 const select = vi.fn().mockReturnValue({ eq });
                 return { select };
             }
@@ -186,7 +186,7 @@ describe('FindRestaurantHandler item-led discovery', () => {
             if (table === 'restaurants') {
                 const limit = vi.fn().mockResolvedValue({ data: restaurantsInCity, error: null });
                 const ilike = vi.fn().mockReturnValue({ limit });
-                const eq = vi.fn().mockReturnValue({ ilike });
+                const eq = vi.fn(() => ({ ilike, eq }));
                 const select = vi.fn().mockReturnValue({ eq });
                 return { select };
             }
@@ -288,7 +288,7 @@ describe('FindRestaurantHandler item-led discovery', () => {
             if (table === 'restaurants') {
                 const limit = vi.fn().mockResolvedValue({ data: restaurantsInCity, error: null });
                 const ilike = vi.fn().mockReturnValue({ limit });
-                const eq = vi.fn().mockReturnValue({ ilike });
+                const eq = vi.fn(() => ({ ilike, eq }));
                 const select = vi.fn().mockReturnValue({ eq });
                 return { select };
             }

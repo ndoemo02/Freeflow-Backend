@@ -72,6 +72,35 @@ const ORDER_FIELDS = [
   'created_at', 'confirmed_at', 'updated_at',
 ].join(',');
 
+// `confirmed_at` is written by the server payment finalizer, never by this route.
+// Direct database write permissions remain a separate RLS deployment gate.
+const KITCHEN_TRANSITIONS = Object.freeze({
+  pending: ['cancelled'],
+  confirmed: ['accepted', 'preparing', 'cancelled'],
+  accepted: ['preparing', 'cancelled'],
+  preparing: ['completed', 'cancelled'],
+  completed: ['delivered'],
+  delivered: [],
+  cancelled: [],
+});
+
+function transitionError(order, target) {
+  const next = KITCHEN_TRANSITIONS[order.status];
+  if (!Array.isArray(next)) return 'invalid_order_transition';
+  if (!['pending', 'cancelled'].includes(order.status)
+      && (typeof order.confirmed_at !== 'string' || !Number.isFinite(Date.parse(order.confirmed_at)))) {
+    return 'payment_not_verified';
+  }
+  return target === order.status || next.includes(target) ? null : 'invalid_order_transition';
+}
+
+async function readScopedOrder(orderId, restaurantIds) {
+  const { data, error } = await supabase.from('orders').select(ORDER_FIELDS)
+    .eq('id', orderId).in('restaurant_id', restaurantIds).maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
 const DEFAULT_LIMIT = 100;
 const MAX_LIMIT = 200;
 
@@ -135,22 +164,33 @@ export default async function handler(req, res) {
         return res.status(404).json({ ok: false, error: 'not_found' });
       }
 
-      // Id i zasieg w JEDNYM query. Zero zaktualizowanych wierszy znaczy
-      // „nie ma takiego zamowienia ALBO nie jest twoje" — wywolujacy nie ma
-      // jak odroznic tych przypadkow, bo rozne statusy ujawnialyby istnienie
-      // cudzych rekordow.
-      const { data, error } = await supabase
-        .from('orders')
+      const current = await readScopedOrder(orderId, restaurantIds);
+      if (!current) return res.status(404).json({ ok: false, error: 'not_found' });
+      const invalid = transitionError(current, status);
+      if (invalid) return res.status(409).json({ ok: false, error: invalid });
+      // Same-state retries do not change updated_at or produce another write.
+      if (current.status === status) return res.status(200).json({ ok: true, data: current });
+
+      // Compare-and-set keeps a concurrent payment, cancellation or kitchen
+      // action from being overwritten after our authorized read.
+      let query = supabase.from('orders')
         .update({ status, updated_at: new Date().toISOString() })
-        .eq('id', orderId)
-        .in('restaurant_id', restaurantIds)
-        .select(ORDER_FIELDS)
-        .maybeSingle();
+        .eq('id', orderId).in('restaurant_id', restaurantIds)
+        .eq('restaurant_id', current.restaurant_id).eq('status', current.status);
+      query = current.confirmed_at == null
+        ? query.is('confirmed_at', null)
+        : query.eq('confirmed_at', current.confirmed_at);
+      const { data, error } = await query.select(ORDER_FIELDS).maybeSingle();
       if (error) throw error;
-      if (!data) {
-        return res.status(404).json({ ok: false, error: 'not_found' });
+      if (data) return res.status(200).json({ ok: true, data });
+
+      const latest = await readScopedOrder(orderId, restaurantIds);
+      if (!latest) return res.status(404).json({ ok: false, error: 'not_found' });
+      if (latest.status === status && latest.restaurant_id === current.restaurant_id
+          && latest.confirmed_at === current.confirmed_at && !transitionError(latest, status)) {
+        return res.status(200).json({ ok: true, data: latest });
       }
-      return res.status(200).json({ ok: true, data });
+      return res.status(409).json({ ok: false, error: 'order_transition_conflict' });
     }
 
     // ── GET ──

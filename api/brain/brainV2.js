@@ -16,6 +16,7 @@ import {
     resolveDemoContextFromRequest,
 } from '../demo/demoContext.js';
 import { validateSessionId } from './session/sessionIdContract.js';
+import { requireSessionAccess, sessionAccessError } from './session/sessionAccess.js';
 
 // Singleton Initialization (Warm Start)
 const nlu = new NLURouter();
@@ -45,6 +46,7 @@ export default async function handler(req, res) {
         }
 
         const normalizedSessionId = sessionIdVerdict.sessionId;
+        await requireSessionAccess(req, normalizedSessionId);
         const demoContext = resolveDemoContextFromRequest(body);
 
         // Serverless safety: hydrate the durable session before adding request
@@ -83,6 +85,8 @@ export default async function handler(req, res) {
 
         return res.status(200).json(safeResult);
     } catch (error) {
+        const accessError = sessionAccessError(error);
+        if (accessError) return res.status(accessError.status).json(accessError.body);
         const statusCode = error?.statusCode || error?.status || 500;
 
         if (statusCode === 400) {

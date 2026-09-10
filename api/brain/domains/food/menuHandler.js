@@ -1,3 +1,4 @@
+import { requireDemoVenues } from '../../../demo/demoVenueAccess.js';
 ﻿/**
  * Food Domain: Menu Handler
  * Odpowiada za wyswietlanie karty dan (Menu).
@@ -238,6 +239,8 @@ export class MenuHandler {
                 contextUpdates: { expectedContext: 'find_nearby' },
             };
         }
+
+        await requireDemoVenues([restaurant.id]);
 
         // 2.5 Base Context Updates
         const baseContextUpdates = {

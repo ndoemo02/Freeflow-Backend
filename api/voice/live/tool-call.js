@@ -1,3 +1,4 @@
+import { runLiveSessionOperation } from './liveSessionQueue.js';
 // Serverless handler for Vercel — POST /api/voice/live/tool-call
 // Mirror of the Express route in index.js :: registerLiveRoutes()
 
@@ -6,6 +7,7 @@ import { ToolRouter } from './ToolRouter.js';
 import { validateLiveInternalKey, validateLiveOrigin } from './liveSecurity.js';
 import { buildInitialTurnTrace } from './liveTurnLedger.js';
 import { validateSessionId } from '../../brain/session/sessionIdContract.js';
+import { prepareLiveSession, persistLiveSession, liveSessionErrorResponse } from './liveSessionBoundary.js';
 
 function isLiveModeEnabled() {
   return String(process.env.LIVE_MODE || '').toLowerCase() === 'true';
@@ -67,6 +69,8 @@ export default async function handler(req, res) {
   const normalizedSessionId = sessionIdVerdict.sessionId;
 
   try {
+    return await runLiveSessionOperation(normalizedSessionId, async () => {
+    await prepareLiveSession(normalizedSessionId, body, req);
     console.log(`[InteractionBridge] toolcall_received turn_id=${turnId || '?'} session_id=${normalizedSessionId} tool=${toolName} source=http`);
     const t0 = Date.now();
     const turnTrace = buildInitialTurnTrace({
@@ -94,11 +98,15 @@ export default async function handler(req, res) {
       },
     });
 
+    await persistLiveSession(normalizedSessionId);
     result.backend_ms = result.backend_ms || (Date.now() - t0);
 
     const status = result.ok ? 200 : 400;
     return res.status(status).json(result);
+    });
   } catch (error) {
+    const failure = liveSessionErrorResponse(error);
+    if (failure) return res.status(failure.status).json(failure.body);
     return res.status(500).json({
       ok: false,
       error: 'live_tool_router_error',
