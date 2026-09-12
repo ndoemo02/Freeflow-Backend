@@ -5,7 +5,7 @@ import { verifyPayment, confirmVerifiedPayment, paymentFailure } from '../paymen
 // A payment return confirms only the recorded order. Cart/session cleanup belongs
 // to manual order submission; a late payment return must not erase a newer cart.
 export default async function finalizeOrder(req, res) {
-    applyCORS(res);
+    if (applyCORS(req, res)) return;
     if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'Method not allowed' });
     try {
         const auth = await requireOwner(req, res); if (!auth) return;
