@@ -45,6 +45,7 @@ describe('kontrakt tras api/owner', () => {
 
   it('trasy KDS istnieja dokladnie w ksztalcie, ktorego uzywa kdsApi.ts', () => {
     const source = readRepoFile('api/server-vercel.js');
+    expect(source).toContain("app.get('/api/owner/workspace-access'");
 
     // GET  /api/owner/orders?restaurant_id=…  (kdsApi.ts fetchKDSOrders)
     expect(source).toContain("app.get('/api/owner/orders'");

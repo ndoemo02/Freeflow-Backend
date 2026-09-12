@@ -382,6 +382,15 @@ app.get("/api/restaurants", async (req, res) => {
 });
 
 // === OWNER RESTAURANTS (B1 owner-read + D3 owner-write: auth.getUser + owner_id server-side) ===
+app.get('/api/owner/workspace-access', async (req, res) => {
+  try {
+    const mod = await import('./owner/workspaceAccess.js');
+    return await mod.default(req, res);
+  } catch {
+    res.status(500).json({ ok: false, error: 'workspace_access_unavailable' });
+  }
+});
+
 app.get('/api/owner/restaurants', async (req, res) => {
   try {
     const mod = await import('./owner/restaurants.js');
