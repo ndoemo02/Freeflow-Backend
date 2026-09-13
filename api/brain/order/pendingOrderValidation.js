@@ -59,6 +59,7 @@ export function validatePendingOrderAgainstMenu(pendingOrder, menu) {
             ...pendingItem,
             id: itemId,
             name: currentItem.name || pendingItem.name,
+            size_or_variant: currentItem.size_or_variant ?? null,
             price: Number(currentItem.price_pln ?? currentItem.price),
             price_pln: Number(currentItem.price_pln ?? currentItem.price),
             quantity,

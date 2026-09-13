@@ -1758,7 +1758,7 @@ export class ToolRouter {
                 args,
                 session: sessionSnapshotForIVL,
             });
-            const beforeCart = sessionSnapshotForIVL?.cart || {};
+            const beforeCart = structuredClone(sessionSnapshotForIVL?.cart || {});
             const editResult = await this._executeCartEditTool({
                 sessionId,
                 toolName,
@@ -1775,7 +1775,15 @@ export class ToolRouter {
             const afterItems = Array.isArray(afterCart?.items) ? afterCart.items.length : 0;
             const beforeTotal = Number(beforeCart?.total || 0);
             const afterTotal = Number(afterCart?.total || 0);
-            const cartChanged = beforeItems !== afterItems || beforeTotal !== afterTotal;
+            const cartChanged = JSON.stringify(auditCartSnapshot(beforeCart)) !== JSON.stringify(auditCartSnapshot(afterCart));
+            if (editResult?.response) {
+                editResult.response.meta = {
+                    ...(editResult.response.meta || {}),
+                    liveTool: { ...(editResult.response.meta?.liveTool || {}), cartChanged,
+                        cartBefore: { items: beforeItems, total: beforeTotal },
+                        cartAfter: { items: afterItems, total: afterTotal } },
+                };
+            }
             turnTrace = applyHandlerDecision(turnTrace, {
                 domainResponse: editResult?.response,
                 guardedDomainResponse: editResult?.response,

@@ -3,6 +3,7 @@
 
 import { extractQuantity, normalizeDish, findBestDishMatch, levenshtein, tokensMatchWithTolerance } from '../../helpers.js';
 import { canonicalizeDish } from '../../nlu/dishCanon.js';
+import { normalizeSize } from '../../order/variantNormalizer.js';
 import { resolveMenuItemConflict, DISAMBIGUATION_RESULT } from '../../services/DisambiguationService.js';
 import { resolveRestaurantByName } from '../../services/restaurantResolver.js';
 import { loadMenuPreview } from '../../menuService.js';
@@ -2266,6 +2267,13 @@ export class OrderHandler {
             menuLength: menu.length,
             directMatch: directMatch?.name || null
         }));
+
+        // Tool dish labels may omit a size still present in the final transcript.
+        const requestedSize = normalizeSize(rawUserText) || normalizeSize(rawRequestedDish);
+        const selectedSize = normalizeSize(directMatch?.size_or_variant || directMatch?.name);
+        if (directMatch && requestedSize && requestedSize !== selectedSize) {
+            return buildItemClarifyResponse({ options: [directMatch], query: rawUserText });
+        }
 
         // Guard: detect variant mismatch before silently substituting
         if (directMatch && menu.length > 0) {

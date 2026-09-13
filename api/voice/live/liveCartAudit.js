@@ -3,6 +3,7 @@ export function auditCartSnapshot(cart) {
   return {
     items: (Array.isArray(cart?.items) ? cart.items : []).map(i => ({
       id: i.id || i.menu_item_id || null, name: i.name || null,
+      variant: i.size_or_variant ?? i.variant ?? null,
       qty: i.qty ?? i.quantity ?? null, price: i.price_pln ?? i.price ?? null,
       restaurant_id: i.restaurant_id || null,
     })),

@@ -19,6 +19,7 @@ export function commitPendingOrder(session) {
   const toAdd = session.pendingOrder.items.map(it => ({
     id: it.id || it.menu_item_id || crypto.randomUUID?.() || String(Date.now()),
     name: it.name || it.item_name || 'pozycja',
+    size_or_variant: it.size_or_variant ?? null,
     price_pln: Number(it.price_pln ?? it.price ?? 0),
     qty: Number(it.quantity || it.qty || 1),
     restaurant_id: session.pendingOrder.restaurant_id || it.restaurant_id,
