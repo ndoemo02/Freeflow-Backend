@@ -1,5 +1,7 @@
 # FreeFlow TraceLab v1 — Phase A
 
+Phase B adds a separately gated, single-session production capture capability and Vercel/browser merge. See `PHASE_B_CAPTURE.md` for the exact enable/export procedure. Production defaults remain OFF; no capture or deployment is performed by the local checkpoint. The Phase A local procedure below remains supported.
+
 Local, offline diagnostic checkpoint. Reuses `recordLiveCartAudit` in both repositories; each existing call emits one envelope. No UI, database, Supabase persistence, application endpoint, auth bypass, prompt changes or Live refactor. Automatic persistent trace storage belongs to a later phase; Phase A persists only explicitly exported JSON/report files.
 
 ## Contract
@@ -59,7 +61,7 @@ $env:LIVE_CART_AUDIT_RUN_ID='manual-20260913-01'
 $env:LIVE_CART_AUDIT_SESSION_ID='sess_example'
 ```
 
-The backend collector and in-process export are disabled when NODE_ENV or VERCEL_ENV is `production`, even with the flag. No production env was modified for this checkpoint.
+The debug flag alone cannot enable production capture. Production additionally requires the pinned run/session, bounded time window and separate override documented in `PHASE_B_CAPTURE.md`. No production env was modified for this checkpoint.
 
 Frontend: start the local Vite development process with `VITE_FREEFLOW_TRACELAB_DEBUG=1`. In its DevTools initialize a fresh existing collector for each run:
 
@@ -69,7 +71,7 @@ window.__FREEFLOW_CART_AUDIT__ = {
 };
 ```
 
-The frontend additionally requires `import.meta.env.DEV`; a production consumer setting the global cannot enable tracing or export. Do not enable a production debug build to work around this gate.
+The local procedure additionally requires `import.meta.env.DEV`; a production consumer setting the global cannot enable tracing. Only the separately pinned production build/window and manual start in `PHASE_B_CAPTURE.md` permit one production test capture.
 
 ## Export and analyze one run
 
@@ -89,7 +91,7 @@ $env:FREEFLOW_TRACELAB_DEBUG='1'
 node tools/tracelab/cli.mjs --run manual-20260913-01 --out C:/Temp/tracelab-run-01 backend-console.log frontend-run.json
 ```
 
-CLI accepts v1 wrapper JSON, event arrays or raw JSONL/console audit lines. It selects exactly one run and writes `run.json`, `report.json`, `report.md`; existing output files are not overwritten. It has no network or database access. CLI itself requires the debug flag. Exit codes: 0 PASS, 2 FAIL, 3 UNKNOWN, 1 invalid input/operation error. Raw console log completeness cannot be guaranteed; a truncated wrapper records this explicitly.
+CLI accepts v1 wrapper JSON, event arrays, raw JSONL/console audit lines and Vercel request-log wrappers. It selects exactly one run (and optionally `--session`), merges/deduplicates events and writes `run.json`, `report.json`, `report.md`; existing output files are not overwritten. It has no network or database access. CLI itself requires the debug flag. Exit codes: 0 PASS, 2 FAIL, 3 UNKNOWN, 1 invalid input/operation error. Raw console log completeness cannot be guaranteed; a truncated wrapper or collector sequence gap records missing evidence explicitly.
 
 ## Deterministic invariants
 

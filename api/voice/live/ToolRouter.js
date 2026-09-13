@@ -1106,7 +1106,7 @@ export class ToolRouter {
     async executeToolCall({ sessionId, toolName, args = {}, requestId = null, turnId = null, transcript = null, userText = null, debugLiveFlow = null }) {
         recordLiveCartAudit(sessionId, 'tool_selected', {
             request_id: requestId, turn_id: turnId, tool: toolName,
-            transcript: transcript || userText, args,
+            transcript: transcript || userText || debugLiveFlow?.finalTranscript || null, args,
             cart: auditCartSnapshot(this.getSession(sessionId)?.cart),
         });
         const startedAt = Date.now();

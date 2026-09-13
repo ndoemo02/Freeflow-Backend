@@ -6,7 +6,7 @@ function enable(run = 'trace-test') {
   vi.stubEnv('FREEFLOW_TRACELAB_DEBUG', '1'); vi.stubEnv('NODE_ENV', 'test'); vi.stubEnv('VERCEL_ENV', '');
   vi.stubEnv('LIVE_CART_AUDIT_RUN_ID', run); vi.stubEnv('LIVE_CART_AUDIT_SESSION_ID', 'session');
 }
-it('requires debug, exact session and run; production cannot enable it', () => {
+it('requires debug, exact session and run; production requires a separate override', () => {
   const log = vi.spyOn(console, 'info').mockImplementation(() => {});
   enable(); vi.stubEnv('FREEFLOW_TRACELAB_DEBUG', '');
   recordLiveCartAudit('session', 'tool_selected', {});
@@ -27,4 +27,24 @@ it('reuses the log event, exports only selected run, bounds and redacts the buff
   expect(exportLiveCartAuditRun('other')).toBeNull();
   enable('next'); recordLiveCartAudit('session', 'tool_selected', {});
   expect(JSON.parse(exportLiveCartAuditRun('next')).events).toHaveLength(1);
+});
+it('production capture needs explicit override, exact session and bounded active window; export survives expiry', () => {
+  const log = vi.spyOn(console, 'info').mockImplementation(() => {});
+  enable('production-test'); vi.stubEnv('NODE_ENV', 'production');
+  vi.stubEnv('FREEFLOW_TRACELAB_PRODUCTION_CAPTURE', '1');
+  vi.stubEnv('LIVE_CART_AUDIT_START_AT', new Date(Date.now() - 1000).toISOString());
+  vi.stubEnv('LIVE_CART_AUDIT_EXPIRES_AT', new Date(Date.now() + 10000).toISOString());
+  recordLiveCartAudit('wrong-session', 'tool_selected', {});
+  recordLiveCartAudit('session', 'tool_selected', { turn_id: 'turn', request_id: 'req',
+    inlineData: { data: 'audio-bytes' }, pcm: 'pcm-bytes', note: 'Bearer credential-value' });
+  expect(log).toHaveBeenCalledTimes(1);
+  const run = exportLiveCartAuditRun('production-test');
+  expect(run).not.toContain('audio-bytes'); expect(run).not.toContain('credential-value');
+  vi.stubEnv('LIVE_CART_AUDIT_EXPIRES_AT', new Date(Date.now() - 100).toISOString());
+  recordLiveCartAudit('session', 'tool_selected', {});
+  expect(log).toHaveBeenCalledTimes(1);
+  expect(exportLiveCartAuditRun('production-test')).not.toBeNull();
+  vi.stubEnv('LIVE_CART_AUDIT_EXPIRES_AT', new Date(Date.now() + 60 * 60 * 1000).toISOString());
+  recordLiveCartAudit('session', 'tool_selected', {});
+  expect(log).toHaveBeenCalledTimes(1);
 });

@@ -88,6 +88,12 @@ export function analyzeRun(input, runId) {
     else add('uncorrelated_event', 'UNKNOWN', `${e.session_id}/${e.event}`, 'Missing or ambiguous request/turn ID');
   }
   for (const [key, group] of groups) {
+    const tool = group.find(e => e.event === 'tool_selected')?.payload.tool;
+    const required = ['user_transcript', 'tool_selected', 'gemini_tool_response', 'conversation_store_applied', 'assistant_transcript'];
+    if (['add_item_to_cart', 'add_items_to_cart'].includes(tool)) required.push('draft_resolved', 'mutation_result');
+    if (['replace_cart_item', 'update_cart_item_quantity', 'remove_item_from_cart', 'confirm_add_to_cart'].includes(tool)) required.push('mutation_result');
+    const missing = required.filter(stage => !group.some(e => e.event === stage));
+    if (missing.length) add('missing_request_stages', 'UNKNOWN', key, missing);
     const requested = group.filter(e => ['user_transcript', 'tool_selected', 'draft_resolved'].includes(e.event))
       .map(e => requestedVariant(e.payload)).find(Boolean);
     const resolution = group.find(e => e.event === 'draft_resolved');

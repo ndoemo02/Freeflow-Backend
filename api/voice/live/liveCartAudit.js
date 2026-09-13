@@ -1,4 +1,5 @@
 // Opt-in diagnostics for ONE session. Never changes execution or stores audio/JWT.
+import { randomUUID } from 'node:crypto';
 export function auditCartSnapshot(cart, menu = []) {
   return {
     items: (Array.isArray(cart?.items) ? cart.items : []).map(i => ({
@@ -11,20 +12,31 @@ export function auditCartSnapshot(cart, menu = []) {
   };
 }
 
-let buffer = { run_id: null, events: [], truncated: false };
-const enabled = () => process.env.FREEFLOW_TRACELAB_DEBUG === '1'
-  && process.env.NODE_ENV !== 'production' && process.env.VERCEL_ENV !== 'production';
+let buffer = { run_id: null, events: [], truncated: false, sequence: 0, collector_id: randomUUID() };
+const enabled = (recording = true) => {
+  if (process.env.FREEFLOW_TRACELAB_DEBUG !== '1') return false;
+  if (process.env.NODE_ENV !== 'production' && process.env.VERCEL_ENV !== 'production') return true;
+  const start = Date.parse(process.env.LIVE_CART_AUDIT_START_AT || '');
+  const end = Date.parse(process.env.LIVE_CART_AUDIT_EXPIRES_AT || '');
+  return process.env.FREEFLOW_TRACELAB_PRODUCTION_CAPTURE === '1'
+    && !!process.env.LIVE_CART_AUDIT_RUN_ID && !!process.env.LIVE_CART_AUDIT_SESSION_ID
+    && Number.isFinite(start) && Number.isFinite(end) && end > start && end - start <= 30 * 60 * 1000
+    && (!recording || (Date.now() >= start && Date.now() < end));
+};
+const redact = (key, value) => /token|authorization|cookie|secret|password|api.?key|access.?key|private.?key|credential|base64|pcm|audio|inlineData/i.test(key) ? '[redacted]'
+  : typeof value === 'string' ? value.replace(/Bearer\s+[^\s"']+|eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g, '[redacted]') : value;
 
 export function recordLiveCartAudit(sessionId, stage, data = {}) {
   try {
     const runId = process.env.LIVE_CART_AUDIT_RUN_ID;
     if (!enabled() || !runId || !sessionId || process.env.LIVE_CART_AUDIT_SESSION_ID !== sessionId) return;
-    if (buffer.run_id !== runId) buffer = { run_id: runId, events: [], truncated: false };
+    if (buffer.run_id !== runId) buffer = { run_id: runId, events: [], truncated: false, sequence: 0, collector_id: randomUUID() };
     const { turn_id = null, request_id = null, ...payload } = data;
     const event = JSON.parse(JSON.stringify({
       run_id: runId, session_id: sessionId, turn_id, request_id,
-      source: 'backend', event: stage, timestamp: Date.now(), payload,
-    }, (key, value) => /token|authorization|cookie|secret|password|base64|pcm/i.test(key) ? '[redacted]' : value));
+      source: 'backend', event: stage, timestamp: Date.now(),
+      payload: { ...payload, collector_id: buffer.collector_id, sequence: ++buffer.sequence },
+    }, redact));
     buffer.events.push(event);
     if (buffer.events.length > 300) { buffer.events.shift(); buffer.truncated = true; }
     console.info('[LIVE_CART_AUDIT]', JSON.stringify(event));
@@ -32,6 +44,6 @@ export function recordLiveCartAudit(sessionId, stage, data = {}) {
 }
 
 export function exportLiveCartAuditRun(runId) {
-  if (!enabled() || !runId || runId !== process.env.LIVE_CART_AUDIT_RUN_ID || runId !== buffer.run_id) return null;
+  if (!enabled(false) || !runId || runId !== process.env.LIVE_CART_AUDIT_RUN_ID || runId !== buffer.run_id) return null;
   return JSON.stringify({ schema: 'freeflow.tracelab.v1', run_id: runId, truncated: buffer.truncated, events: buffer.events }, null, 2);
 }
