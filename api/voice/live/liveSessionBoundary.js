@@ -1,5 +1,6 @@
 import { updateSessionDurable, persistSessionDurable } from '../../brain/session/sessionStore.js';
 import { buildDemoSessionPatch, DEMO_SCENARIOS, resolveDemoContext } from '../../demo/demoContext.js';
+import { recordLiveCartAudit, auditCartSnapshot } from './liveCartAudit.js';
 import { requireSessionAccess, sessionAccessError } from '../../brain/session/sessionAccess.js';
 
 function boundaryError(code, statusCode, cause) {
@@ -66,8 +67,11 @@ export async function prepareLiveSession(sessionId, body = {}, req) {
 
 export async function persistLiveSession(sessionId) {
     try {
-        return await persistSessionDurable(sessionId);
+        const saved = await persistSessionDurable(sessionId);
+        recordLiveCartAudit(sessionId, 'durable_cart_saved', { cart: auditCartSnapshot(saved?.cart) });
+        return saved;
     } catch (cause) {
+        recordLiveCartAudit(sessionId, 'durable_cart_failed', { error: 'live_session_unavailable' });
         throw boundaryError('live_session_unavailable', 503, cause);
     }
 }

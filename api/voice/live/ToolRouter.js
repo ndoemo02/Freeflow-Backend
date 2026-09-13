@@ -1,5 +1,6 @@
 ﻿import { pipeline as brainPipeline } from '../../brain/brainV2.js';
 import { getSession, updateSession } from '../../brain/session/sessionStore.js';
+import { recordLiveCartAudit, auditCartSnapshot } from './liveCartAudit.js';
 import { HandlerDispatcher } from '../../brain/core/pipeline/HandlerDispatcher.js';
 import { ResponseBuilder } from '../../brain/core/pipeline/ResponseBuilder.js';
 import {
@@ -1103,6 +1104,11 @@ export class ToolRouter {
     }
 
     async executeToolCall({ sessionId, toolName, args = {}, requestId = null, turnId = null, transcript = null, userText = null, debugLiveFlow = null }) {
+        recordLiveCartAudit(sessionId, 'tool_selected', {
+            request_id: requestId, turn_id: turnId, tool: toolName,
+            transcript: transcript || userText, args,
+            cart: auditCartSnapshot(this.getSession(sessionId)?.cart),
+        });
         const startedAt = Date.now();
         console.log(`[InteractionBridge] backend_execution_start turn_id=${turnId} session_id=${sessionId} tool=${toolName}`);
         const intent = TOOL_TO_INTENT[toolName] || null;
@@ -2256,6 +2262,12 @@ export class ToolRouter {
         });
 
         sessionSnapshot = this.getSession(sessionId) || context.session || {};
+        recordLiveCartAudit(sessionId, 'draft_resolved', {
+            request_id: requestId, turn_id: turnId, tool: toolName, intent: runtimeIntent,
+            requested: args, canonical_draft: auditCartSnapshot(sessionSnapshot.pendingOrder),
+            handler_source: domainResponse?.meta?.source, ok: domainResponse?.ok,
+            cart: auditCartSnapshot(sessionSnapshot.cart),
+        });
         const reversibleDraftPrepared =
             runtimeIntent === 'create_order'
             && domainResponse?.meta?.source === 'order_handler_pending'
@@ -2451,6 +2463,14 @@ export class ToolRouter {
           response.backend_ms = totalLatency;
         }
         const finalOk = guardedDomainResponse?.ok !== false;
+        recordLiveCartAudit(sessionId, 'mutation_result', {
+            request_id: requestId, turn_id: turnId, tool: toolName,
+            ok: finalOk, cart_changed: cartChanged,
+            guard: guardedDomainResponse?.meta?.cart_guard || null,
+            canonical_committed: autoCommittedCartDraft ? sessionSnapshot?.meta?.lastCartMutation : null,
+            cart: auditCartSnapshot(postCart), response_cart: auditCartSnapshot(response.cart || response.meta?.cart),
+            assistant_tool_reply: response.reply || response.text,
+        });
         liveLog.toolComplete({
             sessionId,
             toolName,
