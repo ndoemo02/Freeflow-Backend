@@ -1,5 +1,6 @@
 // Opt-in diagnostics for ONE session. Never changes execution or stores audio/JWT.
 import { randomUUID } from 'node:crypto';
+import { persistTraceEvent } from './tracelabPersistence.js';
 export function auditCartSnapshot(cart, menu = []) {
   return {
     items: (Array.isArray(cart?.items) ? cart.items : []).map(i => ({
@@ -40,6 +41,7 @@ export function recordLiveCartAudit(sessionId, stage, data = {}) {
     buffer.events.push(event);
     if (buffer.events.length > 300) { buffer.events.shift(); buffer.truncated = true; }
     console.info('[LIVE_CART_AUDIT]', JSON.stringify(event));
+    if (process.env.FREEFLOW_TRACELAB_PERSIST === '1') void persistTraceEvent(event);
   } catch { /* diagnostics must never change behavior */ }
 }
 
