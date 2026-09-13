@@ -6,6 +6,7 @@ vi.mock('../../../brain/menuService.js', async importOriginal => ({
   loadMenuPreview: async () => fixture.menu,
 }));
 import { ToolRouter } from '../ToolRouter.js';
+import { exportLiveCartAuditRun } from '../liveCartAudit.js';
 
 describe('controlled three-item Live replay with real router and handlers', () => {
   it('records two dishes, category question and dessert', async () => {
@@ -26,6 +27,8 @@ describe('controlled three-item Live replay with real router and handlers', () =
       if (prefix === '[LIVE_CART_AUDIT]') traces.push(JSON.parse(data));
     });
     vi.stubEnv('LIVE_CART_AUDIT_SESSION_ID', sessionId);
+    vi.stubEnv('FREEFLOW_TRACELAB_DEBUG', '1');
+    vi.stubEnv('LIVE_CART_AUDIT_RUN_ID', 'controlled-three-item-replay');
     vi.stubGlobal('fetch', vi.fn(() => { throw new Error('Unexpected external request'); }));
     const steps = [];
     try {
@@ -41,6 +44,7 @@ describe('controlled three-item Live replay with real router and handlers', () =
         steps.push(structuredClone({ tool: toolName, transcript, args, result, serverCart: session.cart }));
       }
       if (process.env.LIVE_CART_AUDIT_OUTPUT) fs.writeFileSync(process.env.LIVE_CART_AUDIT_OUTPUT, JSON.stringify({ sessionId, restaurant, menu: fixture.menu, steps, traces }, null, 2));
+      if (process.env.TRACELAB_RUN_OUTPUT) fs.writeFileSync(process.env.TRACELAB_RUN_OUTPUT, exportLiveCartAuditRun('controlled-three-item-replay'));
       expect(session.cart.items.map(i => i.id)).toEqual(fixture.menu.map(i => i.id));
       expect(session.cart.total).toBe(87);
     } finally { log.mockRestore(); vi.unstubAllEnvs(); vi.unstubAllGlobals(); }

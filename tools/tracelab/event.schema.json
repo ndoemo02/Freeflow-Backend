@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "FreeFlow TraceLab v1 event",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["run_id", "session_id", "turn_id", "request_id", "source", "event", "timestamp", "payload"],
+  "properties": {
+    "run_id": { "type": "string", "minLength": 1 },
+    "session_id": { "type": "string", "minLength": 1 },
+    "turn_id": { "type": ["string", "null"], "minLength": 1 },
+    "request_id": { "type": ["string", "null"], "minLength": 1 },
+    "source": { "enum": ["backend", "frontend"] },
+    "event": { "type": "string", "minLength": 1 },
+    "timestamp": { "type": "number", "description": "Unix epoch milliseconds, source clock" },
+    "payload": { "type": "object" }
+  }
+}

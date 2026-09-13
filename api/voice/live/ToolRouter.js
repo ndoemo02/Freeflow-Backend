@@ -1150,6 +1150,10 @@ export class ToolRouter {
             const snapshot = this.getSession(sessionId) || {};
             const cart = snapshot.cart || { items: [], total: 0 };
             const reply = `Koszyk ma ${Array.isArray(cart.items) ? cart.items.length : 0} pozycji.`;
+            recordLiveCartAudit(sessionId, 'server_cart_snapshot', {
+                request_id: requestId, turn_id: turnId, tool: toolName,
+                cart: auditCartSnapshot(cart), duration_ms: Date.now() - startedAt,
+            });
             turnTrace = applyRouterDecision(turnTrace, {
                 mappedText: 'pokaz koszyk',
                 mappedIntent: intent,
@@ -1803,6 +1807,11 @@ export class ToolRouter {
                     },
                 };
             }
+            recordLiveCartAudit(sessionId, 'mutation_result', {
+                request_id: requestId, turn_id: turnId, tool: toolName,
+                ok: editResult?.ok !== false, cart_changed: cartChanged,
+                cart: auditCartSnapshot(afterCart), duration_ms: Date.now() - startedAt,
+            });
             return editResult;
         }
 
@@ -2272,7 +2281,7 @@ export class ToolRouter {
         sessionSnapshot = this.getSession(sessionId) || context.session || {};
         recordLiveCartAudit(sessionId, 'draft_resolved', {
             request_id: requestId, turn_id: turnId, tool: toolName, intent: runtimeIntent,
-            requested: args, canonical_draft: auditCartSnapshot(sessionSnapshot.pendingOrder),
+            requested: args, canonical_draft: auditCartSnapshot(sessionSnapshot.pendingOrder, sessionSnapshot.last_menu),
             handler_source: domainResponse?.meta?.source, ok: domainResponse?.ok,
             cart: auditCartSnapshot(sessionSnapshot.cart),
         });
@@ -2478,6 +2487,7 @@ export class ToolRouter {
             canonical_committed: autoCommittedCartDraft ? sessionSnapshot?.meta?.lastCartMutation : null,
             cart: auditCartSnapshot(postCart), response_cart: auditCartSnapshot(response.cart || response.meta?.cart),
             assistant_tool_reply: response.reply || response.text,
+            duration_ms: Date.now() - startedAt,
         });
         liveLog.toolComplete({
             sessionId,
