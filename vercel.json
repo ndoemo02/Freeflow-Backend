@@ -45,6 +45,10 @@
     {
       "src": "api/voice/live/openai-session.js",
       "use": "@vercel/node"
+    },
+    {
+      "src": "api/voice/live/tracelab-run.js",
+      "use": "@vercel/node"
     }
   ],
   "routes": [
@@ -83,6 +87,10 @@
     {
       "src": "/api/voice/live/openai-session",
       "dest": "api/voice/live/openai-session.js"
+    },
+    {
+      "src": "/api/voice/live/tracelab-run",
+      "dest": "api/voice/live/tracelab-run.js"
     },
     {
       "src": "/(.*)",

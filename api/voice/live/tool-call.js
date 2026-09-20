@@ -8,6 +8,8 @@ import { validateLiveInternalKey, validateLiveOrigin } from './liveSecurity.js';
 import { buildInitialTurnTrace } from './liveTurnLedger.js';
 import { validateSessionId } from '../../brain/session/sessionIdContract.js';
 import { prepareLiveSession, persistLiveSession, liveSessionErrorResponse } from './liveSessionBoundary.js';
+import { runWithLiveCartAuditContext } from './liveCartAudit.js';
+import { resolveQaTraceContext } from './tracelabQa.js';
 
 function isLiveModeEnabled() {
   return String(process.env.LIVE_MODE || '').toLowerCase() === 'true';
@@ -67,9 +69,11 @@ export default async function handler(req, res) {
   }
 
   const normalizedSessionId = sessionIdVerdict.sessionId;
+  const qaTrace = await resolveQaTraceContext(req, normalizedSessionId, body.tracelab_run_id);
+  if (!qaTrace.ok) return res.status(qaTrace.status).json({ ok: false, error: qaTrace.error });
 
   try {
-    return await runLiveSessionOperation(normalizedSessionId, async () => {
+    return await runWithLiveCartAuditContext(qaTrace.context, () => runLiveSessionOperation(normalizedSessionId, async () => {
     await prepareLiveSession(normalizedSessionId, body, req);
     console.log(`[InteractionBridge] toolcall_received turn_id=${turnId || '?'} session_id=${normalizedSessionId} tool=${toolName} source=http`);
     const t0 = Date.now();
@@ -103,7 +107,7 @@ export default async function handler(req, res) {
 
     const status = result.ok ? 200 : 400;
     return res.status(status).json(result);
-    });
+    }));
   } catch (error) {
     const failure = liveSessionErrorResponse(error);
     if (failure) return res.status(failure.status).json(failure.body);

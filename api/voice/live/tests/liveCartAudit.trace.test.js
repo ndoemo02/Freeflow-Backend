@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import { recordLiveCartAudit, exportLiveCartAuditRun } from '../liveCartAudit.js';
+import { recordLiveCartAudit, exportLiveCartAuditRun, runWithLiveCartAuditContext } from '../liveCartAudit.js';
 import { validateEvent } from '../../../../tools/tracelab/analyze.js';
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllEnvs(); });
 function enable(run = 'trace-test') {
@@ -47,4 +47,14 @@ it('production capture needs explicit override, exact session and bounded active
   vi.stubEnv('LIVE_CART_AUDIT_EXPIRES_AT', new Date(Date.now() + 60 * 60 * 1000).toISOString());
   recordLiveCartAudit('session', 'tool_selected', {});
   expect(log).toHaveBeenCalledTimes(1);
+});
+it('records a runtime QA context without changing the Phase B environment gate', async () => {
+  const log = vi.spyOn(console, 'info').mockImplementation(() => {});
+  vi.stubEnv('FREEFLOW_TRACELAB_DEBUG', '');
+  await runWithLiveCartAuditContext({ mode: 'qa', runId: 'qa_runtime', sessionId: 'sess_qa', expiresAt: new Date(Date.now() + 10000).toISOString() }, async () => {
+    recordLiveCartAudit('sess_other', 'tool_selected', {});
+    recordLiveCartAudit('sess_qa', 'tool_selected', { request_id: 'req' });
+  });
+  expect(log).toHaveBeenCalledTimes(1);
+  expect(JSON.parse(log.mock.calls[0][1])).toMatchObject({ run_id: 'qa_runtime', session_id: 'sess_qa', request_id: 'req' });
 });

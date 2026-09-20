@@ -7,6 +7,9 @@ import { buildInitialTurnTrace } from './liveTurnLedger.js';
 import openAIRealtimeSessionHandler, { getOpenAIRealtimeFallbackConfig } from './openai-session.js';
 import { prepareLiveSession, persistLiveSession, liveSessionErrorResponse } from './liveSessionBoundary.js';
 import { validateSessionId } from '../../brain/session/sessionIdContract.js';
+import tracelabRunHandler from './tracelab-run.js';
+import { runWithLiveCartAuditContext } from './liveCartAudit.js';
+import { resolveQaTraceContext } from './tracelabQa.js';
 
 let gateway = null;
 const toolRouter = new ToolRouter();
@@ -18,6 +21,8 @@ export function isLiveModeEnabled() {
 export function registerLiveRoutes(app) {
     app.post('/api/voice/live/openai-session', openAIRealtimeSessionHandler);
     app.options('/api/voice/live/openai-session', openAIRealtimeSessionHandler);
+    app.post('/api/voice/live/tracelab-run', tracelabRunHandler);
+    app.options('/api/voice/live/tracelab-run', tracelabRunHandler);
 
     app.post('/api/voice/live/token', async (req, res) => {
         try {
@@ -143,8 +148,10 @@ export function registerLiveRoutes(app) {
         }
 
         const normalizedSessionId = sessionIdVerdict.sessionId;
+        const qaTrace = await resolveQaTraceContext(req, normalizedSessionId, body.tracelab_run_id);
+        if (!qaTrace.ok) return res.status(qaTrace.status).json({ ok: false, error: qaTrace.error });
         try {
-      return await runLiveSessionOperation(normalizedSessionId, async () => {
+      return await runWithLiveCartAuditContext(qaTrace.context, () => runLiveSessionOperation(normalizedSessionId, async () => {
       await prepareLiveSession(normalizedSessionId, body, req);
       const turnTrace = buildInitialTurnTrace({
         sessionId: normalizedSessionId,
@@ -177,7 +184,7 @@ export function registerLiveRoutes(app) {
 
             const status = result.ok ? 200 : 400;
             return res.status(status).json(result);
-      });
+      }));
         } catch (error) {
             const failure = liveSessionErrorResponse(error);
             if (failure) return res.status(failure.status).json(failure.body);
