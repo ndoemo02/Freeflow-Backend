@@ -10,7 +10,7 @@ function allowedUsers() {
     .split(',').map(value => value.trim().toLowerCase()).filter(Boolean));
 }
 
-async function authenticateQaUser(req) {
+export async function authenticateQaUser(req) {
   if (process.env.FREEFLOW_TRACELAB_QA_ENABLED !== '1') {
     return { ok: false, status: 404, error: 'not_found' };
   }

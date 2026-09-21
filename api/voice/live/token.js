@@ -3,6 +3,7 @@ import { GoogleGenAI } from '@google/genai';
 import { isLiveOriginAllowed } from './liveSecurity.js';
 import { prepareLiveSession, liveSessionErrorResponse } from './liveSessionBoundary.js';
 import { validateSessionId } from '../../brain/session/sessionIdContract.js';
+import { authenticateQaUser } from './tracelabQa.js';
 
 const DEFAULT_LIVE_MODEL =
     process.env.GEMINI_LIVE_MODEL
@@ -11,6 +12,7 @@ const DEFAULT_LIVE_MODEL =
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_MAX = 6;
 const rateLimitBuckets = new Map();
+const QA_COMPATIBILITY_PROFILE = 'gemini-live-v1beta-blocking-v1';
 
 function getClientKey(req) {
     const forwarded = String(req.headers?.['x-forwarded-for'] || '').split(',')[0].trim();
@@ -66,7 +68,8 @@ export default async function handler(req, res) {
         // `Authorization` MUSI byc dopuszczony: frontend dokłada go warunkowo
         // dla zalogowanego uzytkownika, wiec bez tego przegladarka blokuje
         // zadanie na preflighcie i Live nie wchodzi — ale tylko po zalogowaniu.
-        // Endpoint tego naglowka nie czyta (P6); to jest zgoda CORS, nie auth.
+        // Zwykla sciezka tokenu pozostaje bez auth. Profil zgodnosci QA czyta
+        // JWT i dopuszcza tylko allowlistowane konto TraceLab.
         res.setHeader?.('Access-Control-Allow-Headers', 'Content-Type, Authorization');
         res.setHeader?.('Vary', 'Origin');
     }
@@ -110,6 +113,19 @@ export default async function handler(req, res) {
     }
     const sessionId = sessionIdVerdict.sessionId;
 
+    const requestedCompatibilityProfile = typeof req.body?.compatibility_profile === 'string'
+        ? req.body.compatibility_profile.trim()
+        : '';
+    if (requestedCompatibilityProfile && requestedCompatibilityProfile !== QA_COMPATIBILITY_PROFILE) {
+        return res.status(400).json({ ok: false, error: 'live_compatibility_profile_invalid' });
+    }
+    if (requestedCompatibilityProfile) {
+        const qaAuth = await authenticateQaUser(req);
+        if (!qaAuth.ok) {
+            return res.status(qaAuth.status).json({ ok: false, error: qaAuth.error });
+        }
+    }
+
     let demoContext;
     try {
         const session = await runLiveSessionOperation(sessionId, () => prepareLiveSession(sessionId, req.body, req));
@@ -122,11 +138,12 @@ export default async function handler(req, res) {
     const now = Date.now();
     const expireTime = new Date(now + 30 * 60_000).toISOString();
     const newSessionExpireTime = new Date(now + 60_000).toISOString();
+    const apiVersion = requestedCompatibilityProfile ? 'v1beta' : 'v1alpha';
 
     try {
         const ai = new GoogleGenAI({
             apiKey,
-            httpOptions: { apiVersion: 'v1alpha' },
+            httpOptions: { apiVersion },
         });
         const token = await ai.authTokens.create({
             config: {
@@ -140,7 +157,7 @@ export default async function handler(req, res) {
                 // Google locks the entire LiveConnectConfig and silently ignores
                 // those client-side settings.
                 lockAdditionalFields: [],
-                httpOptions: { apiVersion: 'v1alpha' },
+                httpOptions: { apiVersion },
             },
         });
 
@@ -156,6 +173,10 @@ export default async function handler(req, res) {
             expires_at: expireTime,
             new_session_expires_at: newSessionExpireTime,
             demo_context: demoContext,
+            ...(requestedCompatibilityProfile ? {
+                compatibility_profile: requestedCompatibilityProfile,
+                api_version: apiVersion,
+            } : {}),
         });
     } catch {
         console.error('[LIVE_TOKEN_ISSUE_FAILED]');

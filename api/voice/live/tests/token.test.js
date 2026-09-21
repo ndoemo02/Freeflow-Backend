@@ -11,16 +11,23 @@ vi.mock('../../../brain/session/sessionAdapter.js', () => ({
 
 const mocks = vi.hoisted(() => ({
     createToken: vi.fn(),
+    clientConfig: vi.fn(),
     getConfig: vi.fn(),
     isLiveOriginAllowed: vi.fn(),
+    authenticateQaUser: vi.fn(),
 }));
 
 vi.mock('@google/genai', () => ({
     GoogleGenAI: class GoogleGenAI {
-        constructor() {
+        constructor(config) {
+            mocks.clientConfig(config);
             this.authTokens = { create: mocks.createToken };
         }
     },
+}));
+
+vi.mock('../tracelabQa.js', () => ({
+    authenticateQaUser: mocks.authenticateQaUser,
 }));
 
 vi.mock('../../../config/configService.js', () => ({
@@ -68,6 +75,8 @@ describe('Gemini Live ephemeral token handler', () => {
         mocks.getConfig.mockReset().mockResolvedValue({ live_model: 'gemini-live-test' });
         mocks.isLiveOriginAllowed.mockReset().mockReturnValue(true);
         mocks.createToken.mockReset().mockResolvedValue({ name: 'ephemeral-test-token' });
+        mocks.clientConfig.mockReset();
+        mocks.authenticateQaUser.mockReset().mockResolvedValue({ ok: true, userId: 'qa-user' });
         resetLiveTokenRateLimitForTests();
     });
 
@@ -105,6 +114,67 @@ describe('Gemini Live ephemeral token handler', () => {
             }),
         }));
         expect(res.headers['Cache-Control']).toBe('no-store');
+        expect(mocks.clientConfig).toHaveBeenCalledWith(expect.objectContaining({
+            httpOptions: { apiVersion: 'v1alpha' },
+        }));
+        expect(mocks.authenticateQaUser).not.toHaveBeenCalled();
+    });
+
+    it('issues the allowlisted QA compatibility token through v1beta', async () => {
+        const req = {
+            method: 'POST',
+            headers: {
+                origin: 'https://freeflow-final.vercel.app',
+                authorization: 'Bearer redacted',
+                'x-forwarded-for': '203.0.113.11',
+            },
+            body: {
+                model: 'gemini-live-test',
+                session_id: 'sess_compat_test',
+                compatibility_profile: 'gemini-live-v1beta-blocking-v1',
+            },
+        };
+        const res = createResponse();
+
+        await handler(req, res);
+
+        expect(res.statusCode).toBe(200);
+        expect(mocks.authenticateQaUser).toHaveBeenCalledWith(req);
+        expect(mocks.clientConfig).toHaveBeenCalledWith(expect.objectContaining({
+            httpOptions: { apiVersion: 'v1beta' },
+        }));
+        expect(mocks.createToken).toHaveBeenCalledWith(expect.objectContaining({
+            config: expect.objectContaining({
+                liveConnectConstraints: { model: 'gemini-live-test' },
+                lockAdditionalFields: [],
+                httpOptions: { apiVersion: 'v1beta' },
+            }),
+        }));
+        expect(res.payload).toMatchObject({
+            compatibility_profile: 'gemini-live-v1beta-blocking-v1',
+            api_version: 'v1beta',
+            model: 'gemini-live-test',
+        });
+    });
+
+    it('fails closed for an unknown or unauthorized compatibility profile', async () => {
+        const base = {
+            method: 'POST',
+            headers: { origin: 'https://freeflow-final.vercel.app', 'x-forwarded-for': '203.0.113.12' },
+            body: { model: 'gemini-live-test', session_id: 'sess_compat_test' },
+        };
+        const invalid = createResponse();
+        await handler({ ...base, body: { ...base.body, compatibility_profile: 'other' } }, invalid);
+        expect(invalid.statusCode).toBe(400);
+        expect(invalid.payload.error).toBe('live_compatibility_profile_invalid');
+
+        resetLiveTokenRateLimitForTests();
+        mocks.authenticateQaUser.mockResolvedValueOnce({ ok: false, status: 403, error: 'tracelab_test_account_required' });
+        const denied = createResponse();
+        await handler({ ...base, body: { ...base.body, compatibility_profile: 'gemini-live-v1beta-blocking-v1' } }, denied);
+        expect(denied.statusCode).toBe(403);
+        expect(denied.payload.error).toBe('tracelab_test_account_required');
+        expect(mocks.createToken).not.toHaveBeenCalled();
     });
 
     it('handles trusted CORS preflight for the dedicated Vercel route', async () => {
