@@ -13,6 +13,10 @@ const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_MAX = 6;
 const rateLimitBuckets = new Map();
 const QA_COMPATIBILITY_PROFILE = 'gemini-live-v1beta-blocking-v1';
+const QA_COMPATIBILITY_MODELS = new Set([
+    'gemini-3.1-flash-live-preview',
+    'gemini-3.8-live',
+]);
 
 function getClientKey(req) {
     const forwarded = String(req.headers?.['x-forwarded-for'] || '').split(',')[0].trim();
@@ -100,24 +104,19 @@ export default async function handler(req, res) {
         return res.status(503).json({ ok: false, error: 'gemini_server_key_missing' });
     }
 
-    const runtimeModel = await resolveRuntimeLiveModel();
-    const requestedModel = typeof req.body?.model === 'string' ? req.body.model.trim() : '';
-    const model = requestedModel || runtimeModel;
-    if (!model || model.length > 160 || !getConfiguredAllowedModels(runtimeModel).has(model)) {
-        return res.status(400).json({ ok: false, error: 'live_model_not_allowed' });
-    }
-
-    const sessionIdVerdict = validateSessionId(req.body?.session_id);
-    if (!sessionIdVerdict.ok) {
-        return res.status(400).json({ ok: false, error: sessionIdVerdict.error });
-    }
-    const sessionId = sessionIdVerdict.sessionId;
-
     const requestedCompatibilityProfile = typeof req.body?.compatibility_profile === 'string'
         ? req.body.compatibility_profile.trim()
         : '';
     if (requestedCompatibilityProfile && requestedCompatibilityProfile !== QA_COMPATIBILITY_PROFILE) {
         return res.status(400).json({ ok: false, error: 'live_compatibility_profile_invalid' });
+    }
+    const runtimeModel = await resolveRuntimeLiveModel();
+    const requestedModel = typeof req.body?.model === 'string' ? req.body.model.trim() : '';
+    const model = requestedModel || runtimeModel;
+    const modelAllowed = getConfiguredAllowedModels(runtimeModel).has(model)
+        || (requestedCompatibilityProfile && QA_COMPATIBILITY_MODELS.has(model));
+    if (!model || model.length > 160 || !modelAllowed) {
+        return res.status(400).json({ ok: false, error: 'live_model_not_allowed' });
     }
     if (requestedCompatibilityProfile) {
         const qaAuth = await authenticateQaUser(req);
@@ -125,6 +124,12 @@ export default async function handler(req, res) {
             return res.status(qaAuth.status).json({ ok: false, error: qaAuth.error });
         }
     }
+
+    const sessionIdVerdict = validateSessionId(req.body?.session_id);
+    if (!sessionIdVerdict.ok) {
+        return res.status(400).json({ ok: false, error: sessionIdVerdict.error });
+    }
+    const sessionId = sessionIdVerdict.sessionId;
 
     let demoContext;
     try {

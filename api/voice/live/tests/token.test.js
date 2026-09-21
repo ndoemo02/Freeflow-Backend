@@ -157,6 +157,35 @@ describe('Gemini Live ephemeral token handler', () => {
         });
     });
 
+    it('permits Gemini 3.8 only through the authenticated compatibility profile', async () => {
+        const request = {
+            method: 'POST',
+            headers: {
+                origin: 'https://freeflow-final.vercel.app',
+                authorization: 'Bearer redacted',
+                'x-forwarded-for': '203.0.113.13',
+            },
+            body: {
+                model: 'gemini-3.8-live',
+                session_id: 'sess_compat_38',
+                compatibility_profile: 'gemini-live-v1beta-blocking-v1',
+            },
+        };
+        const allowed = createResponse();
+        await handler(request, allowed);
+        expect(allowed.statusCode).toBe(200);
+        expect(allowed.payload).toMatchObject({ model: 'gemini-3.8-live', api_version: 'v1beta' });
+        expect(mocks.createToken).toHaveBeenCalledWith(expect.objectContaining({
+            config: expect.objectContaining({ liveConnectConstraints: { model: 'gemini-3.8-live' } }),
+        }));
+
+        resetLiveTokenRateLimitForTests();
+        const ordinary = createResponse();
+        await handler({ ...request, body: { model: 'gemini-3.8-live', session_id: 'sess_ordinary_38' } }, ordinary);
+        expect(ordinary.statusCode).toBe(400);
+        expect(ordinary.payload.error).toBe('live_model_not_allowed');
+    });
+
     it('fails closed for an unknown or unauthorized compatibility profile', async () => {
         const base = {
             method: 'POST',
