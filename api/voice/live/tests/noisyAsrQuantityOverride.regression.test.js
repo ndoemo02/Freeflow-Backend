@@ -123,3 +123,64 @@ it('invalid tool quantity=0 does not block the spoken quantity', async () => {
     const session = await runToolCall('add_item_to_cart', { dish: 'Pizza Bianca z gruszką', quantity: 0 }, SPOKEN_TWO);
     expectPizzaQty(session, 2);
 });
+
+// Prod 2026-09-25 20:23 UTC: "Lemoniada czerwona pomarańcza 0,3 l" quantity=2 landed as qty 1,
+// because the "3 l" portion in the dish name reset the tool quantity.
+async function runDrinkToolCall(toolName, args) {
+    const drink = {
+        id: 'lemoniada-03',
+        name: 'Lemoniada czerwona pomarańcza 0,3 l',
+        base_name: 'Lemoniada czerwona pomarańcza',
+        size_or_variant: '0,3 l',
+        price_pln: 10,
+        category: 'Napoje',
+        type: 'DRINK',
+        restaurant_id: restaurant.id,
+        available: true,
+    };
+    fixture.menu = [drink];
+    let session = {
+        currentRestaurant: restaurant,
+        lastRestaurant: restaurant,
+        last_menu: fixture.menu,
+        lastMenu: fixture.menu,
+        menuItems: fixture.menu,
+        cart: { items: [], total: 0 },
+        conversationPhase: 'restaurant_selected',
+        orderMode: 'restaurant_selected',
+    };
+    const router = new ToolRouter({
+        getSession: () => session,
+        updateSession: (_, patch) => (session = { ...session, ...patch }),
+    });
+    vi.stubGlobal('fetch', vi.fn(() => {
+        throw new Error('External request forbidden');
+    }));
+    try {
+        await router.executeToolCall({
+            sessionId: `sess_portion_${toolName}`,
+            toolName,
+            transcript: 'zwalanie mniejszego o trzy',
+            args: { ...args, restaurant_id: restaurant.id, restaurant_name: restaurant.name },
+            requestId: `portion_${toolName}`,
+            turnId: `portion_${toolName}`,
+        });
+        return session;
+    } finally {
+        vi.unstubAllGlobals();
+    }
+}
+
+it('explicit tool quantity=2 is kept for a dish name with a portion size (add_item_to_cart)', async () => {
+    const session = await runDrinkToolCall('add_item_to_cart', { dish: 'Lemoniada czerwona pomarańcza 0,3 l', quantity: 2 });
+    expect(session.cart.items).toHaveLength(1);
+    expect(session.cart.items[0]).toMatchObject({ name: 'Lemoniada czerwona pomarańcza 0,3 l', qty: 2 });
+    expect(session.cart.total).toBe(20);
+});
+
+it('explicit tool quantity=2 is kept for a dish name with a portion size (single-item add_items_to_cart)', async () => {
+    const session = await runDrinkToolCall('add_items_to_cart', { items: [{ dish: 'Lemoniada czerwona pomarańcza 0,3 l', quantity: 2 }] });
+    expect(session.cart.items).toHaveLength(1);
+    expect(session.cart.items[0]).toMatchObject({ name: 'Lemoniada czerwona pomarańcza 0,3 l', qty: 2 });
+    expect(session.cart.total).toBe(20);
+});

@@ -1597,7 +1597,8 @@ export class OrderHandler {
 
         // If quantity likely came from canonicalized dish name (e.g. "6 szt.")
         // and user didn't provide quantity explicitly, default to single item.
-        if (!hasExplicitNumber && hasPortionInDish) {
+        // A quantity passed explicitly by a live tool is not a portion size (e.g. "0,3 l" × 2).
+        if (!hasExplicitNumber && hasPortionInDish && !entities?.explicitToolQuantity) {
             quantity = 1;
             hasExplicitNumber = false;
         }
