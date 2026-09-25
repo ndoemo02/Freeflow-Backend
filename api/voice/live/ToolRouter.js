@@ -120,6 +120,12 @@ function getOrderModeEvent(intent, preState, domainResponse) {
     return ORDER_MODE_EVENT.NOOP;
 }
 
+function isExplicitToolQuantity(value) {
+    if (value == null || value === '' || typeof value === 'boolean') return false;
+    const n = Number(value);
+    return Number.isFinite(n) && n >= 1;
+}
+
 function mapToolPayload(toolName, args = {}, options = {}) {
     const transcriptHint = String(options?.transcriptText || '').trim();
     // Keep tool args as source of truth for discovery calls.
@@ -184,6 +190,8 @@ function mapToolPayload(toolName, args = {}, options = {}) {
             };
         }
         case 'add_item_to_cart': {
+            // A quantity passed by the model must win over numbers in a noisy ASR transcript.
+            const explicitToolQuantity = isExplicitToolQuantity(args.quantity);
             const quantity = Math.max(1, Math.floor(Number(args.quantity || 1)));
             return {
                 text: pickText(quantity > 1 ? `${quantity} ${args.dish}` : `${args.dish}`),
@@ -191,6 +199,7 @@ function mapToolPayload(toolName, args = {}, options = {}) {
                     dish: args.dish || null,
                     quantity,
                     hasExplicitNumber: quantity > 1,
+                    explicitToolQuantity,
                     restaurant: args.restaurant_name || null,
                     restaurantId: args.restaurant_id || null,
                     items: null,
@@ -210,11 +219,17 @@ function mapToolPayload(toolName, args = {}, options = {}) {
                     } : undefined,
                 }))
                 .filter((item) => typeof item.dish === 'string' && item.dish.trim().length > 0);
+            // A single item skips the multi-item path, so its tool quantity must be passed like add_item_to_cart.
+            const singleSourceQuantity = normalizedItems.length === 1
+                ? sourceItems.find((item) => item?.dish === normalizedItems[0].dish)?.quantity
+                : undefined;
+            const singleExplicitQuantity = isExplicitToolQuantity(singleSourceQuantity);
             return {
                 text: pickText(normalizedItems.map((item) => `${item.quantity} ${item.dish}`).join(' i ')),
                 entities: {
                     dish: normalizedItems[0]?.dish || null,
-                    quantity: null,
+                    quantity: singleExplicitQuantity ? normalizedItems[0].quantity : null,
+                    explicitToolQuantity: singleExplicitQuantity,
                     items: normalizedItems,
                     compoundSource: 'live_tool',
                     hasExplicitNumber: normalizedItems.some((item) => item.quantity > 1),
