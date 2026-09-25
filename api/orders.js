@@ -396,8 +396,7 @@ export default async function handler(req, res) {
               orderMode: 'completed',
               expectedContext: null,
               pendingOrder: null,
-              currentRestaurant: null,
-              lastRestaurant: null,
+              // Keep the restaurant: "dodaj jeszcze X" after the order must start a new cart there.
             });
             console.log('🧹 Session cart cleared after order:', order.id);
           }

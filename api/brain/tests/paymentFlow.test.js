@@ -96,6 +96,8 @@ describe('manual order -> authenticated Stripe test -> confirmation', () => {
         expect(state.clearSession).toHaveBeenCalledWith('sess_voice_order_1', expect.objectContaining({
             cart: { items: [], total: 0 }, pendingOrder: null, lastOrderId: created.body.id,
         }));
+        expect(state.clearSession.mock.calls[0][1]).not.toHaveProperty('currentRestaurant');
+        expect(state.clearSession.mock.calls[0][1]).not.toHaveProperty('lastRestaurant');
         const retried = await createOrder({ session_id: 'sess_voice_order_1' });
         expect(retried.body.id).toBe(created.body.id);
         expect(state.clearSession).toHaveBeenCalledTimes(1);

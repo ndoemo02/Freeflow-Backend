@@ -126,6 +126,25 @@ describe('Syto po Naszymu — menu item resolution from the owner voice run', ()
         expect(cartLines()).toEqual([['Kebab w bułce', 1]]);
     });
 
+    it('after an order the session keeps its restaurant, so "dodaj jeszcze kompot" starts a new cart there', async () => {
+        // State after POST /api/orders clears the voice session cart (orders.js).
+        session = { ...freshSession(), orderMode: 'completed', expectedContext: null, pendingOrder: null };
+        vi.stubGlobal('fetch', vi.fn(() => { throw new Error('External request forbidden'); }));
+        try {
+            await router.executeToolCall({
+                sessionId: 'sess_syto_menu_resolution',
+                toolName: 'add_item_to_cart',
+                transcript: 'Dodaj jeszcze kompot 0,3.',
+                args: { dish: 'Kompot domowy 0,3 l', quantity: 1 },
+                requestId: 'req_after_order',
+                turnId: 'turn_after_order',
+            });
+        } finally {
+            vi.unstubAllGlobals();
+        }
+        expect(cartLines()).toEqual([['Kompot domowy 0,3 l', 1]]);
+    });
+
     it('generic base: a request naming another dish under the same base asks instead of guessing', async () => {
         const pizzaMenu = [
             { id: 'p-marg-32', name: 'Pizza Margherita 32 cm', base_name: 'Pizza', size_or_variant: '32 cm', price_pln: 29, category: 'Pizza', available: true, restaurant_id: restaurant.id },
