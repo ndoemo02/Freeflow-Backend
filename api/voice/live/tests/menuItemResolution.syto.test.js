@@ -133,6 +133,14 @@ describe('Syto po Naszymu — menu item resolution from the owner voice run', ()
         expect(cartLines()).toEqual([['Kompot domowy 0,3 l', 1]]);
     });
 
+    it('a bare "Pierogi" with a garbled transcript asks with all three variants', async () => {
+        const result = await call('add_item_to_cart', { dish: 'Pierogi', quantity: 1 }, 'Não vi esse problema.');
+        expect(cartLines()).toEqual([]);
+        const options = (result.response.meta?.clarify?.options || []).map((option) => option.name);
+        expect(options).toEqual(expect.arrayContaining(['Pierogi — kapusta i grzyby', 'Pierogi — ruskie', 'Pierogi — z mięsem']));
+        expect(result.response.reply).toContain('Pierogi — z mięsem');
+    });
+
     it('regression guard: "Rosół z domowym makaronem" still adds rosół', async () => {
         await call('add_item_to_cart', { dish: 'Rosół z domowym makaronem', quantity: 1 }, 'jedną porcję');
         expect(cartLines()).toEqual([['Rosół z domowym makaronem', 1]]);

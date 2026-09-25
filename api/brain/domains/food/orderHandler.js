@@ -512,7 +512,7 @@ function normalizeItemClarifyOptions(options = []) {
             score: Number(option?.score ?? option?.matchScore ?? 0),
         }))
         .filter((option) => Boolean(option.name))
-        .slice(0, 2);
+        .slice(0, 4);
 }
 
 function buildItemClarifyReply(options = []) {
@@ -523,7 +523,8 @@ function buildItemClarifyReply(options = []) {
     if (normalized.length === 1) {
         return `Czy chodziło Ci o "${normalized[0].name}"?`;
     }
-    return `Czy chodziło Ci o "${normalized[0].name}" czy "${normalized[1].name}"?`;
+    const quoted = normalized.map((option) => `"${option.name}"`);
+    return `Czy chodziło Ci o ${quoted.slice(0, -1).join(', ')} czy ${quoted[quoted.length - 1]}?`;
 }
 
 function buildItemClarifyResponse({

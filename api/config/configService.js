@@ -10,6 +10,7 @@ const KEYS = [
   "model",
   "live_model",
   "live_voice",
+  "live_language_code",
   "streaming",
   "cache_enabled",
   "amber_prompt",
@@ -35,6 +36,7 @@ const DEFAULT_CONFIG = {
     process.env.LIVE_MODEL ||
     "gemini-2.5-flash-native-audio-preview-12-2025",
   live_voice: "Aoede",
+  live_language_code: "",
   streaming: { enabled: true },
   tts_enabled: true,
   cache_enabled: true,
@@ -88,6 +90,10 @@ export async function getConfig() {
         typeof map.live_model === "string" && map.live_model.trim().length > 0
           ? map.live_model.trim()
           : DEFAULT_CONFIG.live_model,
+      live_language_code:
+        typeof map.live_language_code === "string"
+          ? map.live_language_code.trim()
+          : DEFAULT_CONFIG.live_language_code,
       streaming: safeMerge(DEFAULT_CONFIG.streaming, map.streaming),
       tts_enabled: typeof map.tts_enabled === "boolean" ? map.tts_enabled : DEFAULT_CONFIG.tts_enabled,
       cache_enabled:

@@ -59,6 +59,11 @@ export function registerLiveRoutes(app) {
                 typeof cfg?.amber_prompt === 'string' && cfg.amber_prompt.trim().length > 0
                     ? cfg.amber_prompt.trim()
                     : '';
+            // Off unless system_config.live_language_code is set (e.g. "pl-PL").
+            const liveLanguageCode =
+                typeof cfg?.live_language_code === 'string' && /^[a-z]{2}(-[A-Z]{2})?$/.test(cfg.live_language_code.trim())
+                    ? cfg.live_language_code.trim()
+                    : '';
 
             return res.status(200).json({
                 ok: true,
@@ -67,6 +72,7 @@ export function registerLiveRoutes(app) {
                 live_voice: liveVoice,
                 speech_style: speechStyle,
                 amber_prompt: amberPrompt,
+                live_language_code: liveLanguageCode,
                 prompt_source: amberPrompt ? 'system_config:amber_prompt' : `speech_style:${speechStyle}`,
                 openai_fallback: getOpenAIRealtimeFallbackConfig(),
             });
