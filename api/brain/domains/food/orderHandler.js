@@ -1473,8 +1473,9 @@ export class OrderHandler {
 
         const hasPortionInDish = /\b\d+\s*(?:szt|szt\.|sztuk|ml|l|cm|g|kg)\b/i.test(String(entities?.dish || ''));
 
-        // Prefer quantity explicitly provided by user text over canonized entity quantity.
-        if (rawExtractedQuantity > 1 && hasExplicitNumber) {
+        // Prefer quantity from user text over canonized entity quantity, unless a live tool
+        // supplied it explicitly — noisy ASR transcripts must not override tool args.
+        if (rawExtractedQuantity > 1 && hasExplicitNumber && !entities?.explicitToolQuantity) {
             quantity = rawExtractedQuantity;
             hasExplicitNumber = true;
         }

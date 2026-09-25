@@ -105,9 +105,12 @@ export function validateAndSanitize(toolName, rawArgs) {
                 if (!item?.dish || typeof item.dish !== 'string' || !item.dish.trim()) {
                     return { valid: false, error: 'missing_required_field', field: `items[${i}].dish` };
                 }
+                // Keep an omitted quantity omitted, so the router can tell it apart from an explicit 1.
                 sanitizedItems.push({
                     dish: item.dish.trim().slice(0, 200),
-                    quantity: coerceQuantity(item.quantity || 1),
+                    ...(item.quantity == null || item.quantity === ''
+                        ? {}
+                        : { quantity: coerceQuantity(item.quantity) }),
                 });
             }
             sanitized[key] = sanitizedItems;
