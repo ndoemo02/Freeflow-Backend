@@ -146,14 +146,10 @@ export class ConfirmAddToCartHandler {
             })),
         };
 
-        const totalPieces = validation.items.reduce(
-            (sum, item) => sum + Number(item.quantity || 1),
-            0
-        );
-        const addedSummary =
-            validation.items.length === 1
-                ? `${validation.items[0].quantity} × ${validation.items[0].name}`
-                : `${validation.items.length} pozycje (${totalPieces} szt.)`;
+        // Name every committed line so the spoken summary matches the cart, not a draft.
+        const addedSummary = validation.items
+            .map((item) => `${item.quantity} × ${item.name}`)
+            .join(', ');
 
         return {
             reply: `Dodano ${addedSummary} z ${restaurantName} do koszyka. ${ORDER_FLOW_ANCHOR_REPLY}`,

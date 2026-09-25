@@ -197,6 +197,34 @@ describe('Live ToolRouter', () => {
         expect(result.response.cart.items).toHaveLength(1);
     });
 
+    it('get_cart_state names every cart line and keeps a pending draft out of the cart summary', async () => {
+        const sessions = new Map([
+            ['sess_cart_named', {
+                cart: { items: [{ name: 'Kotlet schabowy — duży', qty: 2, price: 39 }], total: 78 },
+                pendingOrder: { items: [{ name: 'Miska kaszy z pieczonymi warzywami', quantity: 1 }] },
+            }],
+        ]);
+        const router = new ToolRouter({
+            handlers: makeFakeHandlers(),
+            getSession: (id) => sessions.get(id) || {},
+            updateSession: (id, patch) => { sessions.set(id, { ...(sessions.get(id) || {}), ...patch }); return sessions.get(id); },
+        });
+
+        const result = await router.executeToolCall({ sessionId: 'sess_cart_named', toolName: 'get_cart_state', args: {} });
+
+        const [cartPart, draftPart = ''] = result.response.reply.split('Nie jest w koszyku');
+        expect(cartPart).toContain('2 × Kotlet schabowy — duży');
+        expect(cartPart).toContain('78');
+        expect(cartPart).not.toContain('Miska kaszy');
+        expect(draftPart).toContain('Miska kaszy z pieczonymi warzywami');
+    });
+
+    it('get_cart_state says plainly when the cart is empty', async () => {
+        const router = new ToolRouter({ handlers: makeFakeHandlers(), getSession: () => ({}), updateSession: () => ({}) });
+        const result = await router.executeToolCall({ sessionId: 'sess_cart_empty', toolName: 'get_cart_state', args: {} });
+        expect(result.response.reply).toBe('Koszyk jest pusty.');
+    });
+
     it('executes create_order tool and preserves contract', async () => {
         const sessions = new Map([
             ['sess_live_test_order', {
@@ -1429,6 +1457,51 @@ describe('Live ToolRouter', () => {
         expect(result.ok).toBe(true);
         expect(result.response.intent).toBe('menu_request');
         expect(result.trace.some((entry) => entry.includes('live_order_dish_is_restaurant:reroute_show_menu'))).toBe(true);
+    });
+
+    it('opens the menu of the closest demo restaurant for a garbled ASR name (owner run: "Seto Ponośmy")', async () => {
+        const sessions = new Map([['sess_live_garbled_restaurant', { conversationPhase: 'neutral', orderMode: 'neutral' }]]);
+        let menuRestaurant = null;
+        const handlers = makeFakeHandlers();
+        handlers.food.menu_request = {
+            execute: async (ctx) => {
+                menuRestaurant = ctx.entities?.restaurant || null;
+                return { reply: 'Menu.' };
+            },
+        };
+        const router = new ToolRouter({
+            handlers,
+            getSession: (id) => sessions.get(id) || {},
+            updateSession: (id, patch) => { sessions.set(id, { ...(sessions.get(id) || {}), ...patch }); return sessions.get(id); },
+        });
+
+        const result = await router.executeToolCall({
+            sessionId: 'sess_live_garbled_restaurant',
+            toolName: 'show_menu',
+            args: { restaurant_name: 'Seto Ponośmy' },
+            transcript: 'pokaż menu Seto Ponośmy',
+        });
+
+        expect(result.response.meta?.catalogGuard).toBeUndefined();
+        expect(menuRestaurant).toBe('Syto po Naszymu');
+    });
+
+    it('never fuzzy-matches a garbled real (non-demo) restaurant name without a demo dataset', async () => {
+        const sessions = new Map([['sess_live_garbled_real', { conversationPhase: 'neutral', orderMode: 'neutral' }]]);
+        const router = new ToolRouter({
+            handlers: makeFakeHandlers(),
+            getSession: (id) => sessions.get(id) || {},
+            updateSession: (id, patch) => { sessions.set(id, { ...(sessions.get(id) || {}), ...patch }); return sessions.get(id); },
+        });
+
+        const result = await router.executeToolCall({
+            sessionId: 'sess_live_garbled_real',
+            toolName: 'show_menu',
+            args: { restaurant_name: 'Klapsz burgers' },
+            transcript: 'pokaż menu Klapsz burgers',
+        });
+
+        expect(result.response.meta?.catalogGuard?.reason).toBe('restaurant_name_not_in_catalog');
     });
 
     it('blocks show_menu for restaurant names outside the FreeFlow catalog', async () => {

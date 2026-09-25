@@ -70,7 +70,7 @@ describe('Syto po Naszymu — menu item resolution from the owner voice run', ()
         expect(cartLines()).toEqual([['Pierogi — kapusta i grzyby', 1]]);
     });
 
-    it('07:03:04 batch: pierogi z kapustą i grzybami + miska kaszy are both prepared for one confirmation', async () => {
+    it('07:03:04 batch: pierogi z kapustą i grzybami + miska kaszy are added at once and named in the reply', async () => {
         const result = await call(
             'add_items_to_cart',
             {
@@ -81,16 +81,49 @@ describe('Syto po Naszymu — menu item resolution from the owner voice run', ()
             },
             'gości tam Michał Mikołaj. Poprosiłbym te pierogi z kapustą i z grzybami, e, również jedną porcję i miskę kaszy z pieczonymi warzywami.',
         );
-        // A multi-item draft is not auto-committed (the model could add items the customer did not say).
-        expect(cartLines()).toEqual([]);
-        expect(session.expectedContext).toBe('confirm_add_to_cart');
-        expect(session.pendingOrder.items.map((item) => item.name)).toEqual([
-            'Pierogi — kapusta i grzyby',
-            'Miska kaszy z pieczonymi warzywami',
+        // Owner decision 2026-09-25 (DECISIONS.md, C2): a fully resolved bundle is committed without a confirmation turn.
+        expect(cartLines()).toEqual([
+            ['Pierogi — kapusta i grzyby', 1],
+            ['Miska kaszy z pieczonymi warzywami', 1],
         ]);
+        expect(session.pendingOrder ?? null).toBeNull();
+        expect(session.expectedContext ?? null).toBeNull();
+        const reply = String(result.response.reply || result.response.text || '');
+        expect(reply).toContain('Pierogi — kapusta i grzyby');
+        expect(reply).toContain('Miska kaszy z pieczonymi warzywami');
         const liveTool = result.response.meta.liveTool;
-        expect(liveTool.pendingConfirmationPrepared).toBe(true);
+        expect(liveTool.pendingConfirmationPrepared).toBe(false);
         expect(liveTool.successDowngraded).toBe(false);
+    });
+
+    it('09:45 a second bundle is added on top of the first instead of replacing it', async () => {
+        await call(
+            'add_items_to_cart',
+            { items: [{ dish: 'Pierogi z kapustą i grzybami', quantity: 1 }, { dish: 'Miska kaszy z pieczonymi warzywami', quantity: 1 }] },
+            'Poproszę pierogi z kapustą i grzybami i miskę kaszy.',
+        );
+        await call(
+            'add_items_to_cart',
+            { items: [{ dish: 'Kompot domowy 0,3 l', quantity: 1 }, { dish: 'Maślanka 0,4 l', quantity: 1 }] },
+            'Dodaj jeszcze kompot 0,3 i maślankę.',
+        );
+        expect(cartLines()).toEqual([
+            ['Pierogi — kapusta i grzyby', 1],
+            ['Miska kaszy z pieczonymi warzywami', 1],
+            ['Kompot domowy 0,3 l', 1],
+            ['Maślanka 0,4 l', 1],
+        ]);
+    });
+
+    it('a bundle for another restaurant never joins a cart locked to a different restaurant', async () => {
+        const otherLine = { id: 'other-item', name: 'Kebab w bułce', price_pln: 25, qty: 1, restaurant_id: 'other-restaurant-id' };
+        session.cart = { items: [otherLine], total: 25, restaurantId: 'other-restaurant-id' };
+        await call(
+            'add_items_to_cart',
+            { items: [{ dish: 'Pierogi z kapustą i grzybami', quantity: 1 }, { dish: 'Miska kaszy z pieczonymi warzywami', quantity: 1 }] },
+            'Poproszę pierogi z kapustą i grzybami i miskę kaszy.',
+        );
+        expect(cartLines()).toEqual([['Kebab w bułce', 1]]);
     });
 
     it('generic base: a request naming another dish under the same base asks instead of guessing', async () => {

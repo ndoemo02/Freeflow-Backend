@@ -36,7 +36,7 @@ vi.mock('stripe', async importOriginal => {
     return { default: class { checkout = { sessions: { create: state.create, retrieve: state.retrieve } }; webhooks = signing; } };
 });
 vi.mock('../../_cors.js', () => ({ applyCORS() {} }));
-vi.mock('../../brain/session/sessionStore.js', () => ({ getSession: () => null, updateSession: vi.fn() }));
+vi.mock('../../brain/session/sessionStore.js', () => ({ getSession: () => null, updateSession: vi.fn(), updateSessionDurable: state.clearSession = vi.fn(async () => ({})) }));
 import orders from '../../orders.js';
 import ownerOrders from '../../owner/orders.js';
 import checkout from '../../payments/checkout-session.js';
@@ -86,6 +86,19 @@ describe('manual order -> authenticated Stripe test -> confirmation', () => {
         const retried = await call(finalize, finalizeReq(ids));
         expect(retried.body).toMatchObject({ status: 'preparing', confirmed_at: timestamp });
         expect(retried.body).not.toHaveProperty('newSessionId'); expect(state.writes).toBe(1);
+    });
+    it('clears the voice session cart durably once, when the order carries its session id', async () => {
+        state.clearSession.mockClear();
+        const created = await createOrder({ session_id: 'sess_voice_order_1' });
+        expect(created.statusCode).toBe(200);
+        expect(state.tables.orders[0].session_id).toBe('sess_voice_order_1');
+        expect(state.clearSession).toHaveBeenCalledTimes(1);
+        expect(state.clearSession).toHaveBeenCalledWith('sess_voice_order_1', expect.objectContaining({
+            cart: { items: [], total: 0 }, pendingOrder: null, lastOrderId: created.body.id,
+        }));
+        const retried = await createOrder({ session_id: 'sess_voice_order_1' });
+        expect(retried.body.id).toBe(created.body.id);
+        expect(state.clearSession).toHaveBeenCalledTimes(1);
     });
     it.each([null, 'bad', 'B'])('denies unauthorized/foreign payment requests (%s) before Stripe', async token => {
         const ids = await start(); state.retrieve.mockClear(); state.create.mockClear();

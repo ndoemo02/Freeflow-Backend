@@ -384,25 +384,22 @@ export default async function handler(req, res) {
 
         console.log('✅ Cart order created:', order.id);
 
-        // Clear session cart after successful order placement (Voice Live flow)
+        // Clear the voice session cart after the order is placed. The durable update hydrates
+        // brain_sessions first, so a cold instance cannot overwrite ownership or demo scope.
         try {
-          const { getSession, updateSession } = await import('./brain/session/sessionStore.js');
-          const sessionId = req.body.session_id || req.headers['x-amber-session-id'] || null;
+          const { updateSessionDurable } = await import('./brain/session/sessionStore.js');
           if (sessionId) {
-            const snap = getSession(sessionId);
-            if (snap && snap.cart) {
-              updateSession(sessionId, {
-                cart: { items: [], total: 0 },
-                lastOrderId: order.id,
-                lastOrderCompletedAt: Date.now(),
-                orderMode: 'completed',
-                expectedContext: null,
-                pendingOrder: null,
-                currentRestaurant: null,
-                lastRestaurant: null,
-              });
-              console.log('🧹 Session cart cleared after order:', order.id);
-            }
+            await updateSessionDurable(sessionId, {
+              cart: { items: [], total: 0 },
+              lastOrderId: order.id,
+              lastOrderCompletedAt: Date.now(),
+              orderMode: 'completed',
+              expectedContext: null,
+              pendingOrder: null,
+              currentRestaurant: null,
+              lastRestaurant: null,
+            });
+            console.log('🧹 Session cart cleared after order:', order.id);
           }
         } catch (clearErr) {
           console.error('⚠️ Failed to clear session cart:', clearErr.message);

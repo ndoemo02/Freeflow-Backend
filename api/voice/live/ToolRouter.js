@@ -14,7 +14,7 @@ import { liveMetricsRegisterToolCall } from './liveMetrics.js';
 import { recordGpsLocationDrop, recordCuisineHallucination, recordCartDesync, recordCartSuccessDowngrade, recordIvlBlock, recordIvlCheck, recordToolResult } from './liveHealth.js';
 import { CART_MUTATION_WHITELIST } from '../../brain/core/pipeline/IntentGroups.js';
 import { ORDER_MODE_EVENT, ORDER_MODE_STATE, transitionOrderMode } from '../../brain/core/pipeline/OrderModeFSM.js';
-import { RESTAURANT_CATALOG, findRestaurantInText } from '../../brain/data/restaurantCatalog.js';
+import { RESTAURANT_CATALOG, findRestaurantByApproximateName, findRestaurantInText } from '../../brain/data/restaurantCatalog.js';
 import { sanitizeLocation } from '../../brain/core/ConversationGuards.js';
 import { verifyToolCall } from './IntentVerificationLayer.js';
 import { verifyCartMutationIntent } from './CartMutationIntentGuard.js';
@@ -530,8 +530,12 @@ function getExplicitRestaurantArgs(args = {}, entities = {}) {
 function resolveCatalogRestaurantFromArgs(args = {}, entities = {}, { datasetId = null } = {}) {
     const { restaurantId, restaurantName } = getExplicitRestaurantArgs(args, entities);
     const byId = findCatalogRestaurantById(restaurantId, datasetId);
+    const catalogOptions = { demoOnly: Boolean(datasetId), datasetId };
+    // Exact name/alias first; a garbled ASR name falls back to one clearly closest demo restaurant.
     const byName = restaurantName
-        ? findRestaurantInText(restaurantName, { demoOnly: Boolean(datasetId), datasetId })
+        ? findRestaurantInText(restaurantName, catalogOptions)
+            // Fuzzy guesses are limited to demo venues: never land on a real restaurant by accident.
+            || findRestaurantByApproximateName(restaurantName, { demoOnly: true, datasetId })
         : null;
 
     if (restaurantId && !byId) {
@@ -1166,7 +1170,18 @@ export class ToolRouter {
         if (intent === 'get_cart_state') {
             const snapshot = this.getSession(sessionId) || {};
             const cart = snapshot.cart || { items: [], total: 0 };
-            const reply = `Koszyk ma ${Array.isArray(cart.items) ? cart.items.length : 0} pozycji.`;
+            // Name each line so the model describes the real cart; a pending draft is labelled as not in the cart.
+            const describeLines = (lines) => lines
+                .map((item) => `${item.qty ?? item.quantity ?? 1} × ${item.name}`)
+                .join(', ');
+            const cartLines = Array.isArray(cart.items) ? cart.items : [];
+            const draftLines = Array.isArray(snapshot.pendingOrder?.items) ? snapshot.pendingOrder.items : [];
+            const cartSummary = cartLines.length > 0
+                ? `W koszyku: ${describeLines(cartLines)}. Razem ${Number(cart.total || 0).toFixed(2)} zł.`
+                : 'Koszyk jest pusty.';
+            const reply = draftLines.length > 0
+                ? `${cartSummary} Nie jest w koszyku (czeka na potwierdzenie): ${describeLines(draftLines)}.`
+                : cartSummary;
             recordLiveCartAudit(sessionId, 'server_cart_snapshot', {
                 request_id: requestId, turn_id: turnId, tool: toolName,
                 cart: auditCartSnapshot(cart), duration_ms: Date.now() - startedAt,
@@ -2302,11 +2317,13 @@ export class ToolRouter {
             handler_source: domainResponse?.meta?.source, ok: domainResponse?.ok,
             cart: auditCartSnapshot(sessionSnapshot.cart),
         });
-        // Only a single-item draft is committed without a confirmation turn: a multi-item draft
-        // may contain items the model added that the customer never said.
+        // Single items and fully resolved bundles are committed without a confirmation turn
+        // (owner decision 2026-09-25, DECISIONS.md C2): the confirmation depended on ASR of a
+        // short "tak", while the cart stays editable until submit and is reviewed before payment.
+        // The cart intent guard above still requires purchase evidence for the request itself.
         const reversibleDraftPrepared =
             runtimeIntent === 'create_order'
-            && domainResponse?.meta?.source === 'order_handler_pending'
+            && PENDING_CART_DRAFT_SOURCES.has(domainResponse?.meta?.source)
             && domainResponse?.meta?.addedToCart === false
             && String(sessionSnapshot?.expectedContext || '') === 'confirm_add_to_cart'
             && Array.isArray(sessionSnapshot?.pendingOrder?.items)

@@ -265,3 +265,61 @@ export function findRestaurantInText(
     }
     return null;
 }
+
+const APPROX_NAME_MIN_LENGTH = 5;
+const APPROX_NAME_MIN_SIMILARITY = 0.6;
+const APPROX_NAME_MIN_MARGIN = 0.2;
+
+function compactName(value) {
+    return String(value || '')
+        .toLowerCase()
+        .replace(/ł/g, 'l')
+        .normalize('NFKD')
+        .replace(/[̀-ͯ]/g, '')
+        .replace(/[^a-z0-9]/g, '');
+}
+
+function nameSimilarity(a, b) {
+    if (!a || !b) return 0;
+    let previous = Array.from({ length: b.length + 1 }, (_, j) => j);
+    for (let i = 1; i <= a.length; i++) {
+        const current = [i];
+        for (let j = 1; j <= b.length; j++) {
+            current[j] = Math.min(
+                previous[j] + 1,
+                current[j - 1] + 1,
+                previous[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)
+            );
+        }
+        previous = current;
+    }
+    return 1 - previous[b.length] / Math.max(a.length, b.length);
+}
+
+/**
+ * Fallback for a restaurant name that ASR garbled ("Seto Ponośmy" → Syto po Naszymu).
+ * Only for a name argument, never free text: returns a restaurant only when one
+ * candidate is clearly closest, otherwise null so the caller keeps failing closed.
+ */
+export function findRestaurantByApproximateName(
+    name,
+    { demoOnly = isPublicDemoCatalogOnly(), datasetId = null } = {}
+) {
+    const spoken = compactName(name);
+    if (spoken.length < APPROX_NAME_MIN_LENGTH) return null;
+
+    const scored = filterRestaurantsForPublicDemo(RESTAURANT_CATALOG, demoOnly, datasetId)
+        .map((restaurant) => ({
+            restaurant,
+            score: Math.max(
+                ...[restaurant.name, ...(restaurant.aliases || [])]
+                    .map((label) => nameSimilarity(spoken, compactName(label)))
+            ),
+        }))
+        .sort((a, b) => b.score - a.score);
+
+    const [best, runnerUp] = scored;
+    if (!best || best.score < APPROX_NAME_MIN_SIMILARITY) return null;
+    if (runnerUp && best.score - runnerUp.score < APPROX_NAME_MIN_MARGIN) return null;
+    return best.restaurant;
+}
