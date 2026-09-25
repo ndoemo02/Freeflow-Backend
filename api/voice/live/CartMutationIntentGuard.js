@@ -21,6 +21,8 @@ const QUANTITY_ORDER_RE =
     /^(?:to\s+)?(?:po\s+)?(?:\d+|jedn(?:a|o|[aą])?|dwa|dwie|trzy|cztery|pi[eę][cć]|sze[sś][cć]|siedem|osiem|dziewi[eę][cć]|dziesi[eę][cć])(?:\s*x)?\s+(?:\S+\s*)+$/i;
 
 const CONFIRMATION_RE = /^(?:tak|ja|dobrze|dobra|okej|ok|zgadza\s+si[eę]|potwierdzam|dawaj|jasne|leci)$/i;
+// "(czy) to (będzie|już|jest) wszystko" closes the order; it is not a question about the item.
+const ORDER_CLOSING_PHRASE_RE = /(?:^|\s)(?:czy\s+)?to\s+(?:juz\s+|bedzie\s+|jest\s+)*wszystko\s*[?!]*\s*$/i;
 const CART_REJECTION_RE = /^(?:nie|nie\s+(?:dodawaj|bior[eę]|chc[eę])|anuluj|odpu[sś][cć]|zostaw|rezygnuj[eę])(?:\s+.*)?$/i;
 const CONFIRMATION_CONTEXTS = new Set([
     'confirm_add_to_cart',
@@ -50,7 +52,10 @@ export function isInformationalCartQuestion(value) {
  * A valid menu item proves catalog grounding; it does not prove purchase intent.
  */
 export function verifyCartMutationIntent({ text, session, allowReversibleCartDraft = false } = {}) {
-    const normalized = normalizeCartUtterance(text);
+    const normalized = normalizeCartUtterance(text)
+        .replace(ORDER_CLOSING_PHRASE_RE, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
 
     if (!normalized) {
         return {

@@ -97,4 +97,13 @@ describe('CartMutationIntentGuard', () => {
         expect(isInformationalCartQuestion(text)).toBe(true);
         expect(verifyCartMutationIntent({ text }).allowed).toBe(false);
     });
+
+    it('does not read an order-closing phrase as a question about the item', () => {
+        const grounded = { allowReversibleCartDraft: true };
+        expect(verifyCartMutationIntent({ text: 'Tak, proszę bardzo. Czy to będzie wszystko?', ...grounded }).allowed).toBe(true);
+        expect(verifyCartMutationIntent({ text: 'Tak, poproszę, to już wszystko.', ...grounded }).allowed).toBe(true);
+        expect(verifyCartMutationIntent({ text: 'Tak, a czy to jest ostre?', ...grounded }).allowed).toBe(false);
+        expect(verifyCartMutationIntent({ text: 'Czy to będzie wszystko?', ...grounded }).allowed).toBe(false);
+        expect(verifyCartMutationIntent({ text: 'Czy to wszystko co macie', ...grounded }).allowed).toBe(false);
+    });
 });

@@ -31,10 +31,10 @@ it('audits size requests and quantity control through real handlers (synthetic m
     if (process.env.LIVE_VARIANT_AUDIT_OUTPUT) fs.writeFileSync(process.env.LIVE_VARIANT_AUDIT_OUTPUT, JSON.stringify({ source: 'synthetic variant menu, controlled tool args, not production transcript', steps }, null, 2));
     expect(session.cart.items.find(i => i.id === 'ravioli')?.qty ?? session.cart.items.find(i => i.id === 'ravioli')?.quantity).toBe(2);
     expect(steps).toHaveLength(5);
-    expect(steps[0].cart.items).toEqual([]);
-    expect(steps[0].result.response.intent).toBe('clarify_order');
-    expect(steps[2].cart.items.map(i => i.id)).toEqual(['ravioli']);
-    expect(steps[2].result.response.meta.liveTool.cartChanged).toBe(false);
+    // The requested size selects the family variant regardless of menu order (C1, 2026-09-25).
+    expect(steps[0].cart.items.map(i => i.id)).toEqual(['bianca-large']);
+    expect(steps[2].cart.items.map(i => i.id)).toEqual(['bianca-large', 'ravioli', 'lemon-large']);
+    expect(steps[2].result.response.meta.liveTool.cartChanged).toBe(true);
     expect(steps[3].result.response.meta.liveTool.cartChanged).toBe(false);
     expect(steps[4].result.response.cart).toEqual(steps[4].cart);
 

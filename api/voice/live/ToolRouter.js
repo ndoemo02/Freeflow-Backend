@@ -120,6 +120,8 @@ function getOrderModeEvent(intent, preState, domainResponse) {
     return ORDER_MODE_EVENT.NOOP;
 }
 
+const PENDING_CART_DRAFT_SOURCES = new Set(['order_handler_pending', 'order_handler_multi_pending']);
+
 function isExplicitToolQuantity(value) {
     if (value == null || value === '' || typeof value === 'boolean') return false;
     const n = Number(value);
@@ -2300,6 +2302,8 @@ export class ToolRouter {
             handler_source: domainResponse?.meta?.source, ok: domainResponse?.ok,
             cart: auditCartSnapshot(sessionSnapshot.cart),
         });
+        // Only a single-item draft is committed without a confirmation turn: a multi-item draft
+        // may contain items the model added that the customer never said.
         const reversibleDraftPrepared =
             runtimeIntent === 'create_order'
             && domainResponse?.meta?.source === 'order_handler_pending'
@@ -2352,7 +2356,7 @@ export class ToolRouter {
         const pendingConfirmationPrepared =
             runtimeIntent === 'create_order'
             && !cartChanged
-            && domainResponse?.meta?.source === 'order_handler_pending'
+            && PENDING_CART_DRAFT_SOURCES.has(domainResponse?.meta?.source)
             && domainResponse?.meta?.addedToCart === false
             && String(sessionSnapshot?.expectedContext || '') === 'confirm_add_to_cart'
             && Array.isArray(sessionSnapshot?.pendingOrder?.items)

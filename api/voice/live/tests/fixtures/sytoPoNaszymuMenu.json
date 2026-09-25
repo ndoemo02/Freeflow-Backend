@@ -1,0 +1,182 @@
+[
+  {
+    "id": "b325e954-9595-4030-9759-ef14a9c65bee",
+    "restaurant_id": "a2be7ddb-d1dd-49d6-9026-57ecd4c94d60",
+    "name": "Pomidorowa z ryżem",
+    "base_name": "Pomidorowa z ryżem",
+    "size_or_variant": null,
+    "price_pln": 17,
+    "category": "Zupy",
+    "available": true
+  },
+  {
+    "id": "d2f2d0f0-1a5a-4fa0-bfe4-03c3e00f493f",
+    "restaurant_id": "a2be7ddb-d1dd-49d6-9026-57ecd4c94d60",
+    "name": "Rosół z domowym makaronem",
+    "base_name": "Rosół z domowym makaronem",
+    "size_or_variant": null,
+    "price_pln": 18,
+    "category": "Zupy",
+    "available": true
+  },
+  {
+    "id": "78e687e1-5a94-4462-9d1c-723d5415c0b5",
+    "restaurant_id": "a2be7ddb-d1dd-49d6-9026-57ecd4c94d60",
+    "name": "Kotlet schabowy — duży",
+    "base_name": "Kotlet schabowy",
+    "size_or_variant": "duży",
+    "price_pln": 43,
+    "category": "Dania główne",
+    "available": true
+  },
+  {
+    "id": "41837f36-2786-4fef-a1e8-b16f7f4529df",
+    "restaurant_id": "a2be7ddb-d1dd-49d6-9026-57ecd4c94d60",
+    "name": "Kotlet schabowy — standard",
+    "base_name": "Kotlet schabowy",
+    "size_or_variant": "standard",
+    "price_pln": 34,
+    "category": "Dania główne",
+    "available": true
+  },
+  {
+    "id": "bbeaa7f7-bfb3-451b-91d2-34bc0f80f53a",
+    "restaurant_id": "a2be7ddb-d1dd-49d6-9026-57ecd4c94d60",
+    "name": "Pierś kurczaka z warzywami",
+    "base_name": "Pierś kurczaka z warzywami",
+    "size_or_variant": null,
+    "price_pln": 35,
+    "category": "Dania główne",
+    "available": true
+  },
+  {
+    "id": "834b6059-5729-40c2-9d77-97b981d53784",
+    "restaurant_id": "a2be7ddb-d1dd-49d6-9026-57ecd4c94d60",
+    "name": "Pulpety w sosie koperkowym",
+    "base_name": "Pulpety w sosie koperkowym",
+    "size_or_variant": null,
+    "price_pln": 32,
+    "category": "Dania główne",
+    "available": true
+  },
+  {
+    "id": "294782f7-0e5a-4807-bf97-023713b55058",
+    "restaurant_id": "a2be7ddb-d1dd-49d6-9026-57ecd4c94d60",
+    "name": "Pierogi — kapusta i grzyby",
+    "base_name": "Pierogi",
+    "size_or_variant": "kapusta i grzyby",
+    "price_pln": 27,
+    "category": "Pierogi",
+    "available": true
+  },
+  {
+    "id": "ffea14be-bb21-4531-a97f-4fbe037a2fdb",
+    "restaurant_id": "a2be7ddb-d1dd-49d6-9026-57ecd4c94d60",
+    "name": "Pierogi — ruskie",
+    "base_name": "Pierogi",
+    "size_or_variant": "ruskie",
+    "price_pln": 27,
+    "category": "Pierogi",
+    "available": true
+  },
+  {
+    "id": "99892e21-7962-4ae1-b9e0-5e56dbe2b41f",
+    "restaurant_id": "a2be7ddb-d1dd-49d6-9026-57ecd4c94d60",
+    "name": "Pierogi — z mięsem",
+    "base_name": "Pierogi",
+    "size_or_variant": "z mięsem",
+    "price_pln": 28,
+    "category": "Pierogi",
+    "available": true
+  },
+  {
+    "id": "3c1c8531-e43f-4f2c-a703-7d60547162e7",
+    "restaurant_id": "a2be7ddb-d1dd-49d6-9026-57ecd4c94d60",
+    "name": "Miska kaszy z pieczonymi warzywami",
+    "base_name": "Miska kaszy z pieczonymi warzywami",
+    "size_or_variant": null,
+    "price_pln": 29,
+    "category": "Bez mięsa",
+    "available": true
+  },
+  {
+    "id": "69af490e-550f-436e-9044-659b71c8a5c1",
+    "restaurant_id": "a2be7ddb-d1dd-49d6-9026-57ecd4c94d60",
+    "name": "Naleśniki z serem i wanilią",
+    "base_name": "Naleśniki z serem i wanilią",
+    "size_or_variant": null,
+    "price_pln": 26,
+    "category": "Bez mięsa",
+    "available": true
+  },
+  {
+    "id": "c5339c64-2aa0-4b81-87dc-e67616523200",
+    "restaurant_id": "a2be7ddb-d1dd-49d6-9026-57ecd4c94d60",
+    "name": "Placki ziemniaczane z sosem grzybowym",
+    "base_name": "Placki ziemniaczane z sosem grzybowym",
+    "size_or_variant": null,
+    "price_pln": 29,
+    "category": "Bez mięsa",
+    "available": true
+  },
+  {
+    "id": "2f9db564-22ad-4d28-9e1a-4f357046c452",
+    "restaurant_id": "a2be7ddb-d1dd-49d6-9026-57ecd4c94d60",
+    "name": "Zestaw rodzinny — dla 2 osób",
+    "base_name": "Zestaw rodzinny",
+    "size_or_variant": "2 osoby",
+    "price_pln": 79,
+    "category": "Zestawy",
+    "available": true
+  },
+  {
+    "id": "aafd8552-af67-4588-9ec0-08afdfe9a708",
+    "restaurant_id": "a2be7ddb-d1dd-49d6-9026-57ecd4c94d60",
+    "name": "Zestaw rodzinny — dla 4 osób",
+    "base_name": "Zestaw rodzinny",
+    "size_or_variant": "4 osoby",
+    "price_pln": 149,
+    "category": "Zestawy",
+    "available": true
+  },
+  {
+    "id": "fbbea80e-d529-4b2a-b8ed-773880809834",
+    "restaurant_id": "a2be7ddb-d1dd-49d6-9026-57ecd4c94d60",
+    "name": "Szarlotka na ciepło",
+    "base_name": "Szarlotka na ciepło",
+    "size_or_variant": null,
+    "price_pln": 18,
+    "category": "Desery",
+    "available": true
+  },
+  {
+    "id": "c2b313a1-2336-4bb3-9aae-97d4fa7e081a",
+    "restaurant_id": "a2be7ddb-d1dd-49d6-9026-57ecd4c94d60",
+    "name": "Kompot domowy 0,3 l",
+    "base_name": "Kompot domowy",
+    "size_or_variant": "0,3 l",
+    "price_pln": 8,
+    "category": "Napoje",
+    "available": true
+  },
+  {
+    "id": "c54a67ef-b693-4490-b82d-69a2df9665d3",
+    "restaurant_id": "a2be7ddb-d1dd-49d6-9026-57ecd4c94d60",
+    "name": "Kompot domowy 0,5 l",
+    "base_name": "Kompot domowy",
+    "size_or_variant": "0,5 l",
+    "price_pln": 12,
+    "category": "Napoje",
+    "available": true
+  },
+  {
+    "id": "6dfe3f64-9130-4a32-8ac1-7cfe0c74737a",
+    "restaurant_id": "a2be7ddb-d1dd-49d6-9026-57ecd4c94d60",
+    "name": "Maślanka 0,4 l",
+    "base_name": "Maślanka",
+    "size_or_variant": "0,4 l",
+    "price_pln": 7,
+    "category": "Napoje",
+    "available": true
+  }
+]

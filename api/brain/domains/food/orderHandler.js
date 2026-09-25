@@ -997,7 +997,7 @@ function findDirectMenuMatch(searchPhrase, menu = [], session = null) {
     const attempts = [];
     const rawPhrase = String(searchPhrase || '').trim();
     const normalizedPhrase = normalizeDish(rawPhrase);
-    const canonicalPhrase = canonicalizeDish(rawPhrase, session);
+    const canonicalPhrase = scopeCanonicalToMenu(canonicalizeDish(rawPhrase, session), rawPhrase, menu);
     const normalizedCanonical = normalizeDish(canonicalPhrase);
 
     if (rawPhrase) attempts.push(rawPhrase);
@@ -1014,6 +1014,95 @@ function findDirectMenuMatch(searchPhrase, menu = [], session = null) {
 
     return null;
 }
+function normalizeForFamily(value = '') {
+    return normalizeDish(String(value || ''))
+        .replace(/[—–-]+/g, ' ')
+        .replace(/(\d),(\d)/g, '$1.$2')
+        .replace(/(\d)([a-z])/g, '$1 $2')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+// Crude Polish inflection folding: "kapustą"/"kapusta" -> "kapus", "grzybami"/"grzyby" -> "grzyb".
+function familyStems(value = '') {
+    return normalizeForFamily(value)
+        .split(' ')
+        .filter(Boolean)
+        .map((word) => (/^\d/.test(word) ? word : word.slice(0, 5)));
+}
+
+function isMenuName(value, menu = []) {
+    const normalized = normalizeForFamily(value);
+    if (!normalized) return false;
+    return menu.some((item) =>
+        normalizeForFamily(item?.name) === normalized || normalizeForFamily(item?.base_name) === normalized
+    );
+}
+
+// The global alias map spans many restaurants; only trust a canonical name the current menu actually has.
+function scopeCanonicalToMenu(canonical, original, menu = []) {
+    if (!canonical || !Array.isArray(menu) || menu.length === 0) return canonical;
+    if (normalizeForFamily(canonical) === normalizeForFamily(original)) return canonical;
+    return isMenuName(canonical, menu) ? canonical : original;
+}
+
+/**
+ * Resolves a requested dish against the full menu (all categories) by exact name or by
+ * base_name family. A family with several variants is narrowed by the variant words found
+ * in the request or transcript; if that is not decisive, the caller must ask, never guess.
+ */
+function resolveMenuFamily({ phrases = [], contextText = '', menu = [] }) {
+    if (!Array.isArray(menu) || menu.length === 0) return null;
+    const attempts = [...new Set(phrases.map(normalizeForFamily).filter(Boolean))];
+
+    for (const attempt of attempts) {
+        const exact = menu.filter((item) => normalizeForFamily(item?.name) === attempt);
+        if (exact.length === 1) return { item: exact[0] };
+    }
+
+    for (const attempt of attempts) {
+        let family = [];
+        let familyBaseLength = 0;
+        for (const item of menu) {
+            const base = normalizeForFamily(item?.base_name);
+            if (!base || !(attempt === base || attempt.startsWith(`${base} `))) continue;
+            if (base.length > familyBaseLength) {
+                family = [item];
+                familyBaseLength = base.length;
+            } else if (base.length === familyBaseLength) {
+                family.push(item);
+            }
+        }
+        if (family.length === 0) continue;
+        if (family.length === 1) return { item: family[0] };
+
+        const evidence = new Set(familyStems(`${attempt} ${contextText}`));
+        const matching = family.filter((item) => {
+            const baseStems = new Set(familyStems(item?.base_name || ''));
+            const variantStems = familyStems(item?.size_or_variant || '');
+            // Words that distinguish the dish beyond base and variant (e.g. "hawajska" under base "Pizza").
+            const nameStems = familyStems(item?.name || '')
+                .filter((stem) => !baseStems.has(stem) && !variantStems.includes(stem));
+            const required = [...variantStems, ...nameStems];
+            return required.length > 0 && required.every((stem) => evidence.has(stem));
+        });
+        if (matching.length === 1) return { item: matching[0] };
+        return { clarifyOptions: family };
+    }
+
+    return null;
+}
+
+// A fuzzy fallback must not drop a word that names a different menu item ("domowy kompot" -> rosół).
+function fallbackIgnoresNamedItem(requestedDish, resolvedItem, menu = []) {
+    if (!resolvedItem || !Array.isArray(menu) || menu.length === 0) return false;
+    const resolvedStems = new Set(familyStems(`${resolvedItem?.name || ''} ${resolvedItem?.base_name || ''}`));
+    const requestedStems = familyStems(requestedDish).filter((stem) => stem.length >= 4 && !/^\d/.test(stem));
+    return requestedStems.some((stem) => !resolvedStems.has(stem) && menu.some((item) =>
+        item !== resolvedItem && familyStems(item?.name || '').includes(stem)
+    ));
+}
+
 function detectVariantMismatch(requestedDish, matchedItem, menu = []) {
     if (!requestedDish || !matchedItem?.name || !Array.isArray(menu) || menu.length === 0) {
         return null;
@@ -1129,7 +1218,9 @@ async function resolveOrderCandidate({
     const resolverRawLabel = String(normalizedMeta.rawLabel || rawRequestedDish).trim() || rawRequestedDish;
     const useRawResolverLabel = Boolean(normalizedMeta.canonicalAliasBundle);
     const resolverInputDish = useRawResolverLabel ? resolverRawLabel : rawRequestedDish;
-    const canonicalDish = useRawResolverLabel ? resolverInputDish : canonicalizeDish(resolverInputDish, session);
+    const canonicalDish = useRawResolverLabel
+        ? resolverInputDish
+        : scopeCanonicalToMenu(canonicalizeDish(resolverInputDish, session), resolverInputDish, menu);
     const requestedDish = canonicalDish || resolverInputDish;
     const token = normalizeDish(requestedDish);
     const modifierHint = normalizeDish(normalizedMeta.modifier || '');
@@ -1187,7 +1278,30 @@ async function resolveOrderCandidate({
         };
     }
 
-    if (!explicitAddonRequest && !explicitDrinkRequest && menu.length > 0) {
+    const familyResolution = (!explicitAddonRequest && !shouldApplyModifierPriority && menu.length > 0)
+        ? resolveMenuFamily({
+            phrases: [resolverRawLabel, rawRequestedDish],
+            contextText: rawUserText,
+            menu,
+        })
+        : null;
+    if (familyResolution?.clarifyOptions) {
+        return {
+            rawRequestedDish,
+            requestedDish,
+            canonicalDish,
+            resolution: null,
+            ambiguousMeta: null,
+            requestedCategory: null,
+            resolvedCategory: null,
+            addonContext,
+            candidateMeta: normalizedMeta,
+            variantClarify: buildItemClarifyResponse({ options: familyResolution.clarifyOptions, query: rawRequestedDish }),
+        };
+    }
+    const familyItem = familyResolution?.item || null;
+
+    if (!familyItem && !explicitAddonRequest && !explicitDrinkRequest && menu.length > 0) {
         const ambiguityGuard = evaluateSharedBaseAmbiguity({
             query: resolverRawLabel || rawRequestedDish || requestedDish,
             menu,
@@ -1226,10 +1340,10 @@ async function resolveOrderCandidate({
         }
     }
 
-    let directMatch = null;
+    let directMatch = familyItem;
     let fallbackUsed = false;
 
-    if (!explicitAddonRequest && !explicitDrinkRequest && menu.length > 0) {
+    if (!directMatch && !explicitAddonRequest && !explicitDrinkRequest && menu.length > 0) {
         const strictMainResolution = resolveMainItemStrict({
             menu,
             rawRequestedDish,
@@ -1308,7 +1422,7 @@ async function resolveOrderCandidate({
     }
 
     // Guard: detect variant mismatch before silently substituting
-    if (directMatch && menu.length > 0) {
+    if (directMatch && directMatch !== familyItem && menu.length > 0) {
         const variantClarify = guardVariantMismatch(rawRequestedDish, directMatch, menu);
         if (variantClarify) {
             return {
@@ -1961,7 +2075,7 @@ export class OrderHandler {
         const resolverBaseDish = compoundResolvedDish || singleResolverRaw || rawRequestedDish;
         const canonicalDish = useRawLabelForSingle
             ? singleResolverRaw
-            : canonicalizeDish(resolverBaseDish, session);
+            : scopeCanonicalToMenu(canonicalizeDish(resolverBaseDish, session), resolverBaseDish, menu);
         const requestedDish = canonicalDish || resolverBaseDish || rawRequestedDish;
         const token = normalizeDish(requestedDish);
         const addonContext = session?.expectedContext === 'order_addon';
@@ -2025,7 +2139,31 @@ export class OrderHandler {
             });
         }
 
-        if (!explicitAddonRequest && !explicitDrinkRequest && menu.length > 0) {
+        const familyResolution = (!explicitAddonRequest && !shouldApplyModifierPriority && menu.length > 0)
+            ? resolveMenuFamily({
+                phrases: [compoundResolvedDish, singleResolverRaw, rawRequestedDish],
+                contextText: rawUserText,
+                menu,
+            })
+            : null;
+        if (familyResolution?.clarifyOptions) {
+            console.log('[MENU_FAMILY_TRACE]', JSON.stringify({
+                requestedDish: rawRequestedDish,
+                decision: 'variant_clarify',
+                options: familyResolution.clarifyOptions.map((item) => item?.name),
+            }));
+            return buildItemClarifyResponse({ options: familyResolution.clarifyOptions, query: rawRequestedDish });
+        }
+        const familyItem = familyResolution?.item || null;
+        if (familyItem) {
+            console.log('[MENU_FAMILY_TRACE]', JSON.stringify({
+                requestedDish: rawRequestedDish,
+                decision: 'resolved',
+                item: familyItem.name,
+            }));
+        }
+
+        if (!familyItem && !explicitAddonRequest && !explicitDrinkRequest && menu.length > 0) {
             const ambiguityGuard = evaluateSharedBaseAmbiguity({
                 query: singleResolverRaw || rawRequestedDish || requestedDish,
                 menu,
@@ -2067,12 +2205,13 @@ export class OrderHandler {
             }
         }
 
-        let directMatch = null;
+        let directMatch = familyItem;
         let menuCandidates = [];
         let fallbackUsed = false;
-        let allowSpecificAddonWithoutContext = false;
+        // A name or family match is a specific request, so a non-main item may be added as asked.
+        let allowSpecificAddonWithoutContext = Boolean(familyItem);
 
-        if (!explicitAddonRequest && !explicitDrinkRequest && menu.length > 0) {
+        if (!directMatch && !explicitAddonRequest && !explicitDrinkRequest && menu.length > 0) {
             if (compoundResolvedDish) {
                 const compoundResolvedDirect = findDirectMenuMatch(compoundResolvedDish, menu, session);
                 if (compoundResolvedDirect && isMainMenuItem(compoundResolvedDirect)) {
@@ -2277,7 +2416,7 @@ export class OrderHandler {
         }
 
         // Guard: detect variant mismatch before silently substituting
-        if (directMatch && menu.length > 0) {
+        if (directMatch && directMatch !== familyItem && menu.length > 0) {
             const variantClarify = guardVariantMismatch(rawRequestedDish, directMatch, menu);
             if (variantClarify) return variantClarify;
         }
@@ -2347,6 +2486,38 @@ export class OrderHandler {
                 reason: 'resolved_non_main_without_addon_context',
             });
 
+        }
+
+        if (resolution?.item && fallbackUsed && resolvedItemCategory) {
+            const requestedCategoryForGuard = inferRequestedCategory({
+                requestedDish,
+                rawUserText,
+                addonContext,
+                candidates: collectMenuCandidates(menu, requestedDish),
+            });
+            const categoryMismatch = requestedCategoryForGuard !== ORDER_REQUESTED_CATEGORY.UNKNOWN
+                && requestedCategoryForGuard !== resolvedItemCategory;
+            const ignoresNamedItem = fallbackIgnoresNamedItem(rawRequestedDish || requestedDish, resolution.item, menu);
+            if (categoryMismatch || ignoresNamedItem) {
+                const sessionRestaurant = session?.currentRestaurant?.name || session?.lastRestaurant?.name || null;
+                console.log('[CROSS_CATEGORY_BLOCK]', JSON.stringify({
+                    requestedDish,
+                    requestedCategory: requestedCategoryForGuard,
+                    resolvedCategory: resolvedItemCategory,
+                    resolvedItemId: resolution.item.id || null,
+                    categoryMismatch,
+                    ignoresNamedItem,
+                }));
+                return buildClarifyResponse({
+                    ambiguousMeta: buildAmbiguousResolution({
+                        requestedCategory: requestedCategoryForGuard,
+                        candidates: collectMenuCandidates(menu, requestedDish),
+                    }),
+                    addonContext,
+                    sessionRestaurant,
+                    reason: 'cross_category_fallback',
+                });
+            }
         }
 
         const orderResolveTrace = {
