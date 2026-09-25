@@ -394,6 +394,7 @@ export default async function handler(req, res) {
               updateSession(sessionId, {
                 cart: { items: [], total: 0 },
                 lastOrderId: order.id,
+                lastOrderCompletedAt: Date.now(),
                 orderMode: 'completed',
                 expectedContext: null,
                 pendingOrder: null,

@@ -5,7 +5,7 @@
 
 import { getEngineMode, isDev, isStrict, devLog, devWarn, devError, strictAssert, strictRequireSession, sanitizeResponse as engineSanitizeResponse } from './engineMode.js';
 
-import { getSession, getSessionAsync, updateSession, getOrCreateActiveSessionAsync, closeConversation } from '../session/sessionStore.js';
+import { getSession, getSessionAsync, updateSession, getOrCreateActiveSessionAsync } from '../session/sessionStore.js';
 import { FindRestaurantHandler } from '../domains/food/findHandler.js';
 import { MenuHandler } from '../domains/food/menuHandler.js';
 import { OrderHandler } from '../domains/food/orderHandler.js';
@@ -2388,67 +2388,6 @@ if (intentResult?.intent === 'UNKNOWN_INTENT') {
             response.meta.CART_EVENT_TRACE = cartEventTrace;
             context.trace.push(`CART_EVENT_TRACE:${JSON.stringify(cartEventTrace)}`);
 
-            // â”€â”€ Order Completed Event â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-            // After confirm_order, emit lifecycle event so frontend can:
-            //   - clear local cart
-            //   - reset ordering FSM
-            //   - prompt "Chcesz zamówić jeszcze coś?"
-            if (
-                intent === 'confirm_order' &&
-                context.stateMutationCompleted === true
-            ) {
-                const orderSession = getSession(activeSessionId) || {};
-                const orderCart = orderSession.cart || { items: [], total: 0 };
-                const completionSnapshot = domainResponse?.meta?.orderCompletion || {};
-                const completedRestaurantId = completionSnapshot.restaurantId
-                    ?? orderSession.restaurantContext?.id
-                    ?? orderSession.currentRestaurant?.id
-                    ?? orderSession.lastRestaurant?.id
-                    ?? null;
-                const completedRestaurantName = completionSnapshot.restaurantName
-                    ?? orderSession.restaurantContext?.name
-                    ?? orderSession.currentRestaurant?.name
-                    ?? orderSession.lastRestaurant?.name
-                    ?? null;
-                const completedTotal = completionSnapshot.total ?? orderCart.total ?? 0;
-                const completedItemCount = completionSnapshot.itemCount ?? (orderCart.items || []).length;
-
-                response.events = [
-                    ...(response.events || []),
-                    {
-                        type: 'EVENT_ORDER_COMPLETED',
-                        channel: 'ui_sync',
-                        payload: {
-                            restaurantId: completedRestaurantId,
-                            restaurantName: completedRestaurantName,
-                            total: completedTotal,
-                            itemCount: completedItemCount
-                        }
-                    }
-                ];
-
-                // After order completion, UI should close menu
-                response.meta.menuBehavior = 'forceClose';
-
-                // Lifecycle reset: keep cart, but reset restaurant/menu/order mode context.
-                updateSession(activeSessionId, {
-                    restaurantContext: null,
-                    currentRestaurant: null,
-                    lastRestaurant: null,
-                    lastMenuItems: [],
-                    lastMenu: [],
-                    pendingOrder: null,
-                    pendingDish: null,
-                    awaiting: null,
-                    expectedContext: null,
-                    conversationPhase: 'idle',
-                    orderMode: ORDER_MODE_STATE.NEUTRAL,
-                    lastOrderCompletedAt: Date.now(),
-                });
-                context.trace.push('order_completed_event');
-                context.trace.push('order_completed_lifecycle_reset');
-            }
-            // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
             // â”€â”€ Reco V1 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             // Graceful: any error keeps existing behavior (recommendations=[])

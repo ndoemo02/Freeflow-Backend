@@ -7,7 +7,6 @@
  * - stateMutationCompleted guard
  * - menuBehavior default + handler override
  * - cartVersion monotonic counter
- * - EVENT_ORDER_COMPLETED lifecycle event
  */
 
 import { describe, it, expect } from 'vitest';
@@ -71,21 +70,6 @@ function buildCartSyncResult(intent, preCart, postSession, stateMutationComplete
         payload: { totalItems, totalPrice, lastAdded, cartVersion }
     });
     result.menuBehavior = menuBehavior;
-
-    // EVENT_ORDER_COMPLETED
-    if (intent === 'confirm_order') {
-        result.events.push({
-            type: 'EVENT_ORDER_COMPLETED',
-            channel: 'ui_sync',
-            payload: {
-                restaurantId: postSession?.restaurantContext?.id || null,
-                restaurantName: postSession?.restaurantContext?.name || null,
-                total: totalPrice,
-                itemCount: items.length
-            }
-        });
-        result.menuBehavior = 'forceClose';
-    }
 
     return result;
 }
@@ -213,62 +197,3 @@ describe('Cart Sync Event (EVENT_CART_UPDATED)', () => {
     });
 });
 
-// ─── EVENT_ORDER_COMPLETED ──────────────────────────────────────────────────
-
-describe('Order Completed Event (EVENT_ORDER_COMPLETED)', () => {
-
-    it('emits EVENT_ORDER_COMPLETED after confirm_order', () => {
-        const pre = { items: [{ name: 'A', qty: 1 }], total: 50 };
-        const post = {
-            cart: pre,
-            meta: { lastCartMutation: { name: 'A', quantity: 1 } },
-            restaurantContext: { id: 'r1', name: 'Pizzeria Roma' }
-        };
-        const result = buildCartSyncResult('confirm_order', { items: [], total: 0 }, post);
-
-        const orderEvt = result.events.find(e => e.type === 'EVENT_ORDER_COMPLETED');
-        expect(orderEvt).toBeDefined();
-        expect(orderEvt.channel).toBe('ui_sync');
-        expect(orderEvt.payload.restaurantId).toBe('r1');
-        expect(orderEvt.payload.restaurantName).toBe('Pizzeria Roma');
-        expect(orderEvt.payload.total).toBe(50);
-        expect(orderEvt.payload.itemCount).toBe(1);
-    });
-
-    it('sets menuBehavior to forceClose after confirm_order', () => {
-        const pre = { items: [], total: 0 };
-        const post = { cart: { items: [{ name: 'A', qty: 1 }], total: 20 }, meta: {} };
-        const result = buildCartSyncResult('confirm_order', pre, post);
-
-        expect(result.menuBehavior).toBe('forceClose');
-    });
-
-    it('does NOT emit EVENT_ORDER_COMPLETED for confirm_add_to_cart', () => {
-        const pre = { items: [], total: 0 };
-        const post = { cart: { items: [{ name: 'A', qty: 1 }], total: 20 }, meta: {} };
-        const result = buildCartSyncResult('confirm_add_to_cart', pre, post);
-
-        const orderEvt = result.events.find(e => e.type === 'EVENT_ORDER_COMPLETED');
-        expect(orderEvt).toBeUndefined();
-    });
-
-    it('emits BOTH cart_updated AND order_completed for confirm_order', () => {
-        const pre = { items: [], total: 0 };
-        const post = { cart: { items: [{ name: 'A', qty: 1 }], total: 20 }, meta: {} };
-        const result = buildCartSyncResult('confirm_order', pre, post);
-
-        expect(result.events).toHaveLength(2);
-        expect(result.events[0].type).toBe('EVENT_CART_UPDATED');
-        expect(result.events[1].type).toBe('EVENT_ORDER_COMPLETED');
-    });
-
-    it('handles missing restaurantContext gracefully', () => {
-        const pre = { items: [], total: 0 };
-        const post = { cart: { items: [{ name: 'A', qty: 1 }], total: 20 }, meta: {} };
-        const result = buildCartSyncResult('confirm_order', pre, post);
-
-        const orderEvt = result.events.find(e => e.type === 'EVENT_ORDER_COMPLETED');
-        expect(orderEvt.payload.restaurantId).toBeNull();
-        expect(orderEvt.payload.restaurantName).toBeNull();
-    });
-});

@@ -1,11 +1,13 @@
+
 import { describe, it, expect } from 'vitest';
 import { ConfirmOrderHandler } from '../domains/food/confirmHandler.js';
 import { getSession } from '../session/sessionStore.js';
 
-describe('ConfirmOrderHandler lifecycle reset', () => {
-    it('resets restaurant/menu/orderMode context on confirm_order completion', async () => {
+describe('ConfirmOrderHandler — cart stays editable until manual submission', () => {
+    it('commits items to the cart but keeps session, restaurant and menu context', async () => {
         const handler = new ConfirmOrderHandler();
-        const sessionId = `sess_test_confirm_reset_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+        const sessionId = `sess_test_confirm_keep_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+        const restaurant = { id: 'rest_1', name: 'Restauracja Testowa' };
 
         const session = {
             pendingOrder: {
@@ -16,9 +18,9 @@ describe('ConfirmOrderHandler lifecycle reset', () => {
                 ],
             },
             cart: { items: [], total: 0 },
-            restaurantContext: { id: 'rest_1', name: 'Restauracja Testowa' },
-            currentRestaurant: { id: 'rest_1', name: 'Restauracja Testowa' },
-            lastRestaurant: { id: 'rest_1', name: 'Restauracja Testowa' },
+            restaurantContext: restaurant,
+            currentRestaurant: restaurant,
+            lastRestaurant: restaurant,
             lastMenuItems: [{ id: 'dish_1', name: 'Pierogi' }],
             lastMenu: [{ id: 'dish_1', name: 'Pierogi' }],
             orderMode: 'building',
@@ -28,29 +30,25 @@ describe('ConfirmOrderHandler lifecycle reset', () => {
         const result = await handler.execute({ session, sessionId });
 
         expect(result.intent).toBe('confirm_order');
-        expect(result.conversationClosed).toBe(true);
-        expect(result.closedReason).toBe('ORDER_CONFIRMED');
-        expect(result.contextUpdates.conversationPhase).toBe('idle');
-        expect(result.contextUpdates.orderMode).toBe('neutral');
-        expect(result.contextUpdates.currentRestaurant).toBeNull();
-        expect(result.contextUpdates.lastRestaurant).toBeNull();
-        expect(result.contextUpdates.lastMenuItems).toEqual([]);
-        expect(result.contextUpdates.lastMenu).toEqual([]);
-        expect(result.meta.orderCompletion).toMatchObject({
+        expect(result.conversationClosed).toBe(false);
+        expect(result).not.toHaveProperty('newSessionId');
+        expect(result).not.toHaveProperty('closedReason');
+        expect(result.actions).toEqual([{ type: 'SHOW_CART', payload: { mode: 'summary' } }]);
+        expect(result.meta.cart.items).toHaveLength(1);
+        expect(result.meta.cartReview).toMatchObject({
             restaurantId: 'rest_1',
             restaurantName: 'Restauracja Testowa',
             itemCount: 1,
             total: 26,
         });
+        expect(result.contextUpdates).not.toHaveProperty('currentRestaurant');
+        expect(result.contextUpdates).not.toHaveProperty('conversationPhase');
 
-        expect(session.orderMode).toBe('neutral');
-        expect(session.currentRestaurant).toBeNull();
-        expect(session.lastRestaurant).toBeNull();
-        expect(session.lastMenuItems).toEqual([]);
-        expect(session.lastMenu).toEqual([]);
+        expect(session.cart.items).toHaveLength(1);
+        expect(session.currentRestaurant).toEqual(restaurant);
+        expect(session.lastRestaurant).toEqual(restaurant);
+        expect(session.lastMenu).toHaveLength(1);
 
-        const closedSession = getSession(sessionId);
-        expect(closedSession.status).toBe('closed');
-        expect(closedSession.closedReason).toBe('ORDER_CONFIRMED');
+        expect(getSession(sessionId)?.status).not.toBe('closed');
     });
 });
