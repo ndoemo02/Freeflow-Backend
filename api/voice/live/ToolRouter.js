@@ -527,8 +527,16 @@ function getExplicitRestaurantArgs(args = {}, entities = {}) {
     };
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 function resolveCatalogRestaurantFromArgs(args = {}, entities = {}, { datasetId = null } = {}) {
-    const { restaurantId, restaurantName } = getExplicitRestaurantArgs(args, entities);
+    const explicit = getExplicitRestaurantArgs(args, entities);
+    const { restaurantName } = explicit;
+    // Catalog ids are UUIDs. A model placeholder such as "silesiana_id" is not a
+    // conflicting id, so the catalog name decides; unknown UUIDs stay blocked below.
+    const restaurantId = explicit.restaurantId && !UUID_RE.test(explicit.restaurantId) && restaurantName
+        ? ''
+        : explicit.restaurantId;
     const byId = findCatalogRestaurantById(restaurantId, datasetId);
     const catalogOptions = { demoOnly: Boolean(datasetId), datasetId };
     // Exact name/alias first; a garbled ASR name falls back to one clearly closest demo restaurant.

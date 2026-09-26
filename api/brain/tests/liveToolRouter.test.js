@@ -1591,6 +1591,68 @@ describe('Live ToolRouter', () => {
         expect(result.trace.some((entry) => entry.includes('catalog_guard_ok:4ad6b301-671b-4343-bf91-9bab7cda37b4'))).toBe(true);
     });
 
+    it('resolves a placeholder restaurant_id (not a UUID) by the catalog restaurant name', async () => {
+        // Production 2026-09-26: Gemini sent restaurant_id "silesiana_id" with the correct name.
+        const sessions = new Map([['sess_live_placeholder_id', { conversationPhase: 'neutral', orderMode: 'neutral' }]]);
+        const getSession = (id) => sessions.get(id) || {};
+        const updateSession = (id, patch) => {
+            const next = { ...(sessions.get(id) || {}), ...patch };
+            sessions.set(id, next);
+            return next;
+        };
+
+        let capturedEntities = null;
+        const handlers = makeFakeHandlers();
+        handlers.food.menu_request = {
+            execute: async (ctx) => {
+                capturedEntities = ctx.entities;
+                return { reply: 'Pokazuję menu.', menuItems: [{ id: 'si-1', name: 'Pizza Margherita 32 cm' }] };
+            },
+        };
+
+        const router = new ToolRouter({ handlers, getSession, updateSession });
+        const result = await router.executeToolCall({
+            sessionId: 'sess_live_placeholder_id',
+            toolName: 'show_menu',
+            args: { restaurant_id: 'silesiana_id', restaurant_name: 'Silesiana Italiana' },
+            transcript: 'pokaż menu silesiana italiana',
+        });
+
+        expect(result.response.intent).toBe('menu_request');
+        expect(capturedEntities?.restaurant).toBe('Silesiana Italiana');
+        expect(capturedEntities?.restaurantId).toBe('acced74f-ddac-43a0-9f78-016c397f4b8e');
+    });
+
+    it('still blocks a well-formed but unknown restaurant UUID even with a known name', async () => {
+        const sessions = new Map([['sess_live_unknown_uuid', { conversationPhase: 'neutral', orderMode: 'neutral' }]]);
+        const getSession = (id) => sessions.get(id) || {};
+        const updateSession = (id, patch) => {
+            const next = { ...(sessions.get(id) || {}), ...patch };
+            sessions.set(id, next);
+            return next;
+        };
+
+        let menuHandlerCalled = false;
+        const handlers = makeFakeHandlers();
+        handlers.food.menu_request = {
+            execute: async () => {
+                menuHandlerCalled = true;
+                return { reply: 'Nie powinno sie wykonac.' };
+            },
+        };
+
+        const router = new ToolRouter({ handlers, getSession, updateSession });
+        const result = await router.executeToolCall({
+            sessionId: 'sess_live_unknown_uuid',
+            toolName: 'show_menu',
+            args: { restaurant_id: '00000000-0000-4000-8000-000000000000', restaurant_name: 'Silesiana Italiana' },
+            transcript: 'pokaż menu silesiana italiana',
+        });
+
+        expect(menuHandlerCalled).toBe(false);
+        expect(result.response.meta?.catalogGuard?.reason).toBe('restaurant_id_not_in_catalog');
+    });
+
     it('blocks add_items_to_cart when model mixes a known restaurant id with an unknown restaurant name', async () => {
         const sessions = new Map([
             ['sess_live_mismatched_restaurant_order', {
