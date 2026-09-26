@@ -488,4 +488,50 @@ describe('FindRestaurantHandler item-led discovery', () => {
         expect(repo.searchRestaurants).toHaveBeenCalledWith(expect.stringMatching(/Piekary/i), 'Fast Food');
         expect(repo.searchRestaurants).toHaveBeenCalledWith(expect.stringMatching(/Piekary/i), 'Kebab');
     });
+
+    it('finds pizza on a fusion menu using only columns that exist in menu_items_v2', async () => {
+        // Production 2026-09-26: selecting the non-existent item_variant column made
+        // Postgres reject the query, so "pizza" silently returned no restaurants.
+        const liveColumns = new Set([
+            'id', 'restaurant_id', 'name', 'description', 'category', 'price_pln', 'image_url',
+            'available', 'base_type', 'meat_type', 'size_or_variant', 'base_name', 'variant_name',
+            'variant_type', 'item_family', 'item_aliases', 'item_tags', 'dietary_flags', 'spicy',
+            'is_vege', 'safety_data', 'popularity_score', 'section_order', 'created_at',
+        ]);
+        const fusion = { id: 'r_silesiana', name: 'Silesiana Italiana', city: 'Piekary Slaskie', cuisine_type: 'Włoska / Śląska fusion', lat: 50.39, lng: 18.95 };
+        supabaseFromMock.mockImplementation((table) => {
+            if (table === 'restaurants') {
+                const limit = vi.fn().mockResolvedValue({ data: [fusion], error: null });
+                const ilike = vi.fn().mockReturnValue({ limit });
+                const eq = vi.fn(() => ({ ilike, eq }));
+                return { select: vi.fn().mockReturnValue({ eq }) };
+            }
+            if (table === 'menu_items_v2') {
+                const select = vi.fn((columns) => {
+                    const unknown = columns.split(',').map((c) => c.trim()).filter((c) => !liveColumns.has(c));
+                    const result = unknown.length
+                        ? { data: null, error: { message: `column menu_items_v2.${unknown[0]} does not exist` } }
+                        : { data: [{ id: 's1', restaurant_id: 'r_silesiana', name: 'Pizza Margherita 32 cm', base_name: 'Pizza Margherita', item_family: 'pizza_margherita', item_aliases: ['margherita', 'pizza serowa'], size_or_variant: '32 cm', available: true }], error: null };
+                    return { in: vi.fn().mockReturnValue({ limit: vi.fn().mockResolvedValue(result) }) };
+                });
+                return { select };
+            }
+            throw new Error(`Unexpected table: ${table}`);
+        });
+
+        const { FindRestaurantHandler } = await import('../domains/food/findHandler.js');
+        const repo = {
+            searchRestaurants: vi.fn().mockResolvedValue([]),
+            searchNearby: vi.fn().mockResolvedValue([]),
+        };
+        const handler = new FindRestaurantHandler(repo);
+
+        const result = await handler.execute({
+            text: 'mam ochotę na pizzę w piekarach',
+            entities: { location: 'Piekary Slaskie', dish: 'pizza' },
+            session: {},
+        });
+
+        expect((result.restaurants || []).map((restaurant) => restaurant.name)).toEqual(['Silesiana Italiana']);
+    });
 });

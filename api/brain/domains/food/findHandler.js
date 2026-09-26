@@ -488,7 +488,8 @@ async function fetchCityMenuRows(restaurantIds) {
         'name',
         'base_name',
         'item_family',
-        'item_variant',
+        // item_variant was never added to menu_items_v2 (size_or_variant covers it);
+        // selecting it makes Postgres reject the whole item-led query.
         'size_or_variant',
         'item_aliases',
         'item_tags',
